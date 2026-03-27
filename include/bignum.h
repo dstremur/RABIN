@@ -23,6 +23,9 @@ typedef struct {
 typedef uint64_t u64;
 typedef int64_t i64;
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b));
+
+
 #define MAX_LIMBS 512
 
 void bn_init_val(bignum* n, const char* str);
@@ -34,16 +37,23 @@ void bn_alloc(bignum* r, size_t capacity);
 void bn_free(bignum* r);
 void bn_copy(bignum* dest, const bignum* src);
 
+void bn_div(bignum* q, const bignum* a, const bignum* b);
+
 void bn_add(bignum* r, const bignum* a, const bignum* b);
 void bn_mul(bignum* r, const bignum* a, const bignum* b);
 
 void bn_set_u64(bignum* r, uint64_t val);
 void bn_print_hex(const char* label, const bignum* a);
+int bn_bit_length(const bignum* a);
+void bn_lshift1(bignum* r);
+void bn_lshift1_add(bignum* r, int bit);
 
 int bn_cmp(const bignum* a, const bignum* b);
 void bn_copy(bignum* r, const bignum* a);
 
 void bn_sub(bignum* r, const bignum* a, const bignum* b);
+void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
+uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
 int bn_bitlen(const bignum* a);
 void bn_lshift(bignum* r, const bignum* a, int shift);
 void bn_rshift(bignum* r, const bignum* a, int shift);
@@ -67,6 +77,7 @@ static inline bool bn_is_zero(const bignum* a) {
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
+void bn_set_bit(bignum* a, int i);
 void bn_mont_init(bn_mont_ctx* ctx, const bignum* n);
 void bn_mont_free(bn_mont_ctx* ctx);
 void bn_redc_raw(uint64_t* res, uint64_t* T, const bn_mont_ctx* ctx);
