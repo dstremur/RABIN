@@ -28,6 +28,8 @@ typedef int64_t i64;
 
 #define MAX_LIMBS 512
 
+
+void bn_pow(bignum* r, bignum* a, bignum* b);
 void bn_init_val(bignum* n, const char* str);
 void bn_print(bignum* n); 
 void bn_rshift(bignum* r, const bignum* a, int shift);
