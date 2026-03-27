@@ -23,7 +23,22 @@ int main() {
   bn_init(&c);
   bn_init_val(&a, "34633745745745784686458568548456456486");
   bn_init_val(&b, "476486548548548785769569569799569");
-  bn_div(&c, &a, &b);
+  bn_print(&a);
+  bn_print(&b);
+  printf("ADD: \n");
+  bn_add(&c, &a, &b);
+  bn_print(&c);
+  bn_init(&c);
+  bn_sub(&c, &a, &b); 
+  printf("SUB: \n"); 
+  bn_print(&c);
+  bn_init(&c);
+  bn_mul(&c, &a, &b); 
+  printf("MUL: \n");
+  bn_print(&c);
+  bn_init(&c);
+  bn_div(&c, &a, &b); 
+  printf("DIV: \n");
   bn_print(&c);
 
   return 0;
