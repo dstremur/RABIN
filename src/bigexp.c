@@ -47,4 +47,5 @@ void bn_pow(bignum* r, bignum* a, bignum* b){
 
 	bn_free(&base);
 	bn_free(&exp);
+	bn_free(&two);
 }
