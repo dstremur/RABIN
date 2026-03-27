@@ -15,6 +15,15 @@ void bn_init(bignum* r) {
   r->is_neg = false;
 }
 
+int bn_is_even(const bignum* n) {
+	if (n->size == 0 || n->limbs == NULL) {
+        return 1; 
+    }
+
+	return (n->limbs[0] & 1) == 0; 
+
+}
+
 void bn_init_val(bignum* n, const char* str) {
   bn_init(n);
 
@@ -68,7 +77,6 @@ void bn_init_val(bignum* n, const char* str) {
 }
 
 uint64_t bn_mod_u64(const bignum* a, uint64_t d) {}
-void bn_rshift(bignum* r, const bignum* a, int shift) {}
 
 // Fast modular inverse for a single 64-bit limb (Newton's method)
 uint64_t mod_inverse_u64(uint64_t n) {
@@ -172,7 +180,18 @@ int bn_cmp(const bignum* a, const bignum* b) {
   }
   return 0;
 }
-void bn_copy(bignum* r, const bignum* a) {}
+void bn_copy(bignum* r, const bignum* a) {
+	    if (r == a) return;
+
+    bn_free(r);
+
+    r->size = a->size;
+    r->capacity = a->size;
+    r->is_neg = a->is_neg;
+
+    r->limbs = malloc(r->size * sizeof(u64));
+    memcpy(r->limbs, a->limbs, r->size * sizeof(u64));
+}
 
 
 

@@ -7,7 +7,18 @@
 
 
 void bn_mul(bignum* r, const bignum* a, const bignum* b) {
-  u64 max = a->size + b->size;
+	
+	// Handle aliasing
+    if (r == a || r == b) {
+        bignum tmp;
+        bn_init(&tmp);
+        bn_mul(&tmp, a, b);
+        bn_copy(r, &tmp);
+        bn_free(&tmp);
+        return;
+    }
+
+u64 max = a->size + b->size;
   u64* temp = calloc(max, sizeof(u64));
 
   for (u64 i = 0; i < a->size; i++) {
