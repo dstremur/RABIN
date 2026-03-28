@@ -20,6 +20,21 @@ void bn_lshift1(bignum* r) {
   }
 }
 
+void bn_rshift1(bignum* r) {
+  if (r->size == 0) return;
+
+  for (i64 i = 0; i < r->size; i++) {
+    r->limbs[i] >>= 1;
+    if (i + 1 < r->size) {
+      if (r->limbs[i + 1] & 1ULL) {
+        r->limbs[i] |= (1ULL << 63);
+      }
+    }
+  }
+
+  bn_trim(r);
+}
+
 void bn_rshift(bignum* r, const bignum* a, int shift) {
   if (shift == 0) {
     bn_copy(r, a);

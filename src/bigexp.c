@@ -5,20 +5,6 @@
 
 #include "../include/bignum.h"
 
-void bn_rshift1(bignum* r) {
-  if (r->size == 0) return;
-
-  for (i64 i = 0; i < r->size; i++) {
-    r->limbs[i] >>= 1;
-    if (i + 1 < r->size) {
-      if (r->limbs[i + 1] & 1ULL) {
-        r->limbs[i] |= (1ULL << 63);
-      }
-    }
-  }
-
-  bn_trim(r);
-}
 // calculates a^b into r
 // binary exponentiation
 void bn_pow(bignum* r, bignum* a, bignum* b) {
