@@ -21,10 +21,22 @@ int main() {
   bn_init(&a);
   bn_init(&b);
   bn_init(&c);
-  bn_init_val(&a, "36346346346839476893763473469837689734896739846794353486798347689347683476347698347693749683458476384");
-  bn_init_val(&b, "4000000");
-  bn_print(&a);
-  bn_print(&b);
+  char buf1[1024];
+    char buf2[1024];
+
+    printf("Enter first big number (a): ");
+    if (!fgets(buf1, sizeof(buf1), stdin)) return 1;
+    buf1[strcspn(buf1, "\n")] = 0; // Remove newline
+
+    printf("Enter second big number (b): ");
+    if (!fgets(buf2, sizeof(buf2), stdin)) return 1;
+    buf2[strcspn(buf2, "\n")] = 0; // Remove newline
+
+    bn_init_val(&a, buf1);
+    bn_init_val(&b, buf2);
+	printf("Inputs: \n");
+    printf("a: "); bn_print(&a);
+    printf("b: "); bn_print(&b);
   printf("ADD: \n");
   bn_add(&c, &a, &b);
   bn_print(&c);
@@ -40,7 +52,12 @@ int main() {
   bn_div(&c, &a, &b); 
   printf("DIV: \n");
   bn_print(&c);
-
+  printf("RSHIFT: \n");
+  bn_rshift(&c, &a, 64);
+  bn_print(&c);
+  printf("Pow: \n");
+    bn_pow(&c, &a, &b);
+    bn_print(&c);
   return 0;
 }
 
