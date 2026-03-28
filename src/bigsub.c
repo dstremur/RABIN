@@ -1,22 +1,22 @@
-#include "../include/bignum.h"
-
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../include/bignum.h"
+
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b) {
   // aliasing
-  
+
   if (r == a || r == b) {
-        bignum tmp;
-        bn_init(&tmp);
-        bn_sub_abs(&tmp, a, b);
-        bn_copy(r, &tmp);
-        bn_free(&tmp);
-        return;
-    }
-bn_alloc(r, a->size);
+    bignum tmp;
+    bn_init(&tmp);
+    bn_sub_abs(&tmp, a, b);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+  bn_alloc(r, a->size);
 
   u64 borrow = 0;
 
@@ -33,7 +33,6 @@ bn_alloc(r, a->size);
   r->size = a->size;
   bn_trim(r);
 }
-
 
 // Subtract: r = a - b
 void bn_sub(bignum* r, const bignum* a, const bignum* b) {
@@ -54,7 +53,7 @@ void bn_sub(bignum* r, const bignum* a, const bignum* b) {
   i64 cmp = bn_cmp(a, b);
 
   if (cmp == 0) {
-	bn_set_u64(r,0);
+    bn_set_u64(r, 0);
     return;
   }
 

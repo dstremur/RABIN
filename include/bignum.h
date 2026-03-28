@@ -1,16 +1,17 @@
 #ifndef BIGNUM_H
 #define BIGNUM_H
 
-#include "stdint.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include "stdint.h"
 
 typedef struct {
   uint64_t* limbs;  // 64-bit limbs (Base 2^64)
   size_t size;
   size_t capacity;
-  bool is_neg;  
+  bool is_neg;
 } bignum;
 
 typedef struct {
@@ -25,13 +26,11 @@ typedef int64_t i64;
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 
-
 #define MAX_LIMBS 512
-
 
 void bn_pow(bignum* r, bignum* a, bignum* b);
 void bn_init_val(bignum* n, const char* str);
-void bn_print(bignum* n); 
+void bn_print(bignum* n);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 int bn_is_even(const bignum* a);
 void bn_init(bignum* r);
@@ -71,9 +70,9 @@ int bn_get_bit(const bignum* a, int i);
 uint32_t bn_get_bits(const bignum* a, int i, int n);
 
 // Update this signature
-bool bn_millerRabin2(const bignum* n, const bignum* base, const bignum* d, int s, const bn_mont_ctx* ctx);
+bool bn_millerRabin2(const bignum* n, const bignum* base, const bignum* d,
+                     int s, const bn_mont_ctx* ctx);
 bool bn_millerRabin(const bignum* n, uint64_t base);
-
 
 static inline bool bn_is_zero(const bignum* a) {
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
@@ -125,7 +124,7 @@ bool bn_strongLucasTest(const bignum* n);
  */
 void bn_sub_mod(bignum* r, const bignum* a, const bignum* b, const bignum* n);
 
-bool bn_millerRabin_optimized(const bignum* n, const bignum* base, const bn_mont_ctx* ctx);
+bool bn_millerRabin_optimized(const bignum* n, const bignum* base,
+                              const bn_mont_ctx* ctx);
 
 #endif
-

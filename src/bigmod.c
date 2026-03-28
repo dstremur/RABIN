@@ -1,21 +1,20 @@
-#include "../include/bignum.h"
-
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../include/bignum.h"
+
 void bn_mod(bignum* r, const bignum* a, const bignum* b) {
-
-
   if (r == a || r == b) {
-        bignum tmp; bn_init(&tmp);
-        bn_mod(&tmp, a, b);
-        bn_copy(r, &tmp);
-        bn_free(&tmp);
-        return;
-    }
-  bn_set_u64(r,0);
+    bignum tmp;
+    bn_init(&tmp);
+    bn_mod(&tmp, a, b);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+  bn_set_u64(r, 0);
 
   int nbits = bn_bit_length(a);
 
@@ -30,17 +29,16 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b) {
   bn_trim(r);
 }
 
-
-
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d) {
-	if (q == a) {
-        bignum tmp; bn_init(&tmp);
-        uint64_t rem = bn_divmod_u64(&tmp, a, d);
-        bn_copy(q, &tmp);
-        bn_free(&tmp);
-        return rem;
-    }
-	bn_alloc(q, a->size); 
+  if (q == a) {
+    bignum tmp;
+    bn_init(&tmp);
+    uint64_t rem = bn_divmod_u64(&tmp, a, d);
+    bn_copy(q, &tmp);
+    bn_free(&tmp);
+    return rem;
+  }
+  bn_alloc(q, a->size);
   q->size = a->size;
 
   unsigned __int128 rem = 0;
