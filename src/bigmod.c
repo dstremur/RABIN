@@ -6,9 +6,16 @@
 #include <string.h>
 
 void bn_mod(bignum* r, const bignum* a, const bignum* b) {
-  bn_init(r);
-  r->limbs = calloc(1, sizeof(u64));
-  r->size = 1;
+
+
+  if (r == a || r == b) {
+        bignum tmp; bn_init(&tmp);
+        bn_mod(&tmp, a, b);
+        bn_copy(r, &tmp);
+        bn_free(&tmp);
+        return;
+    }
+  bn_set_u64(r,0);
 
   int nbits = bn_bit_length(a);
 
@@ -16,11 +23,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b) {
     bn_lshift1_add(r, bn_get_bit(a, i));
 
     if (bn_cmp(r, b) >= 0) {
-      bignum tmp;
-      bn_init(&tmp);
-      bn_sub_abs(&tmp, r, b);  // safe subtraction
-      bn_free(r);
-      *r = tmp;
+      bn_sub_abs(r, r, b);  // safe subtraction
     }
   }
 
@@ -30,13 +33,20 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b) {
 
 
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d) {
-  q->limbs = calloc(a->size, sizeof(u64));
+	if (q == a) {
+        bignum tmp; bn_init(&tmp);
+        uint64_t rem = bn_divmod_u64(&tmp, a, d);
+        bn_copy(q, &tmp);
+        bn_free(&tmp);
+        return rem;
+    }
+	bn_alloc(q, a->size); 
   q->size = a->size;
 
-  __int128 rem = 0;
+  unsigned __int128 rem = 0;
 
   for (i64 i = a->size - 1; i >= 0; i--) {
-    __int128 cur = (rem << 64) | a->limbs[i];
+    unsigned __int128 cur = (rem << 64) | a->limbs[i];
 
     q->limbs[i] = (u64)(cur / d);
     rem = cur % d;

@@ -6,7 +6,17 @@
 #include <string.h>
 
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b) {
-  r->limbs = calloc(a->size, sizeof(u64));
+  // aliasing
+  
+  if (r == a || r == b) {
+        bignum tmp;
+        bn_init(&tmp);
+        bn_sub_abs(&tmp, a, b);
+        bn_copy(r, &tmp);
+        bn_free(&tmp);
+        return;
+    }
+bn_alloc(r, a->size);
 
   u64 borrow = 0;
 
@@ -23,6 +33,8 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b) {
   r->size = a->size;
   bn_trim(r);
 }
+
+
 // Subtract: r = a - b
 void bn_sub(bignum* r, const bignum* a, const bignum* b) {
   // a - (-b) = a + b
@@ -42,7 +54,7 @@ void bn_sub(bignum* r, const bignum* a, const bignum* b) {
   i64 cmp = bn_cmp(a, b);
 
   if (cmp == 0) {
-    bn_init(r);
+	bn_set_u64(r,0);
     return;
   }
 

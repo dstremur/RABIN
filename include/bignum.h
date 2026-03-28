@@ -35,7 +35,7 @@ void bn_print(bignum* n);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 int bn_is_even(const bignum* a);
 void bn_init(bignum* r);
-void bn_alloc(bignum* r, size_t capacity);
+bool bn_alloc(bignum* r, u64 capacity);
 void bn_free(bignum* r);
 void bn_copy(bignum* dest, const bignum* src);
 

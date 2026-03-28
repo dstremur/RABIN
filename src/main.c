@@ -21,8 +21,8 @@ int main() {
   bn_init(&a);
   bn_init(&b);
   bn_init(&c);
-  bn_init_val(&a, "36");
-  bn_init_val(&b, "40");
+  bn_init_val(&a, "36346346346839476893763473469837689734896739846794353486798347689347683476347698347693749683458476384");
+  bn_init_val(&b, "4000000");
   bn_print(&a);
   bn_print(&b);
   printf("ADD: \n");
@@ -37,7 +37,7 @@ int main() {
   printf("MUL: \n");
   bn_print(&c);
   bn_init(&c);
-  bn_pow(&c, &a, &b); 
+  bn_div(&c, &a, &b); 
   printf("DIV: \n");
   bn_print(&c);
 

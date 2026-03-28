@@ -10,6 +10,11 @@
 
 
 void bn_div(bignum* q, const bignum* a, const bignum* b) {
+
+	if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) {
+        return; 
+    }
+
 	if (q == a || q == b) {
     bignum tmp;
     bn_init(&tmp);
@@ -20,11 +25,12 @@ void bn_div(bignum* q, const bignum* a, const bignum* b) {
 }
 
 	bignum r;
-  bn_init(q);
-  bn_init(&r);
+  	bn_init(&r);
 
-  q->limbs = calloc(a->size, sizeof(u64));
+	bn_alloc(q,a->size);
+	memset(q->limbs, 0, q->size * sizeof(u64));
   q->size = a->size; 
+  q->is_neg = a->is_neg ^ b->is_neg;
 
   i64 nbits = bn_bit_length(a);
 
@@ -32,13 +38,7 @@ void bn_div(bignum* q, const bignum* a, const bignum* b) {
 	  bn_lshift1_add(&r, bn_get_bit(a, i));
 
 	  if (bn_cmp(&r, b) >= 0) {
-		  // TODO overwrite directly no temp
-		  bignum tmp;
-		  bn_init(&tmp);
-		  bn_sub_abs(&tmp, &r, b);
-		  bn_copy(&r, &tmp);
-		  bn_free(&tmp);
-
+		  bn_sub_abs(&r, &r, b);
 		  bn_set_bit(q, i);
 	  }
   }

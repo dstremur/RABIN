@@ -7,9 +7,21 @@
 
 
 void bn_add(bignum* r, const bignum* a, const bignum* b) {
+
+  // aliasing
+  //
+  if (r == a || r == b) {
+        bignum tmp;
+        bn_init(&tmp);
+        bn_add(&tmp, a, b);
+        bn_copy(r, &tmp);
+        bn_free(&tmp);
+        return;
+    }
+
   u64 max = MAX(a->size, b->size);
 
-  r->limbs = calloc(max + 1, sizeof(u64));
+  bn_alloc(r, max + 1); 
 
   u64 carry = 0;
 
@@ -25,4 +37,5 @@ void bn_add(bignum* r, const bignum* a, const bignum* b) {
 
   r->limbs[max] = carry;
   r->size = max + (carry ? 1 : 0);
+bn_trim(r);
 }
