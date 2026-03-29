@@ -44,10 +44,12 @@ int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);
 int bn_cmp(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
+bool bn_gen_random(bignum* r, int bits);
+bool bn_gen_prime(bignum* p, int bits);
 
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
-
+void bn_add_u64(bignum* r, const bignum* a, u64 b); 
 // bigsub.c
 void bn_sub(bignum* r, const bignum* a, const bignum* b);
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
@@ -65,6 +67,7 @@ uint64_t mod_inverse_u64(uint64_t n);
 
 // bigexp.c
 void bn_pow(bignum* r, bignum* a, bignum* b);
+void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m); 
 
 // bigshift.c
 void bn_lshift1(bignum* r);
@@ -73,5 +76,8 @@ void bn_lshift(bignum* r, const bignum* a, int shift);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_rshift1(bignum* r);
 void bn_rshift(bignum* r, const bignum* a, int shift);
+
+//bigrabin.c 
+bool bn_rabin(bignum* n, bignum* a); 
 
 #endif

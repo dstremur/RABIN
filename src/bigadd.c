@@ -37,3 +37,32 @@ void bn_add(bignum* r, const bignum* a, const bignum* b) {
   r->size = max + (carry ? 1 : 0);
   bn_trim(r);
 }
+
+void bn_add_u64(bignum* r, const bignum* a, u64 b) {
+  if (b == 0) {
+    bn_copy(r, a);
+    return;
+  }
+
+  bn_copy(r, a);
+
+  u64 carry = b;
+
+  for (u64 i = 0; i < r->size && carry > 0; i++) {
+    u64 old = r->limbs[i];
+    r->limbs[i] += carry;
+
+    if (r->limbs[i] < old) {
+      carry = 1;
+    } else {
+      carry = 0;
+    }
+  }
+
+  if (carry) {
+    if (bn_alloc(r, r->size + 1)) {
+      r->limbs[r->size] = carry;
+      r->size++;
+    }
+  }
+}

@@ -1,9 +1,11 @@
 #include "../include/bignum.h"
 
 #include <ctype.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define BASE_10_19 10000000000000000000ULL
 
@@ -313,4 +315,84 @@ int bn_bit_length(const bignum* a) {
   }
 
   return (a->size - 1) * 64 + bits;
+}
+
+bool bn_gen_random(bignum* r, int bits) {
+  int bytes = (bits + 7) / 8;
+  int limbs_needed = (bits + 63) / 64;
+
+  if (!bn_alloc(r, limbs_needed)) return false;
+  r->size = limbs_needed;
+
+  int fd = open("/dev/urandom", O_RDONLY);
+  if (fd < 0) return false;
+
+  // Read random bytes directly into the limb memory
+  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
+      (ssize_t)(limbs_needed * sizeof(u64))) {
+    close(fd);
+    return false;
+  }
+  close(fd);
+
+  // Mask the top limb to fit the exact bit length
+  int top_bits = bits % 64;
+  if (top_bits != 0) {
+    u64 mask = ((u64)1 << top_bits) - 1;
+    r->limbs[r->size - 1] &= mask;
+  }
+
+  // Ensure it's exactly 'bits' long by setting the MSB
+  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
+
+  // Ensure it's odd by setting the LSB
+  r->limbs[0] |= 1;
+
+  return true;
+}
+
+bool bn_gen_prime(bignum* p, int bits) {
+  bignum a;
+  bn_init(&a);
+
+  if (!bn_gen_random(p, bits)) return false;
+
+  // Small primes to check for quick trial division
+  u64 small_primes[] = {3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
+
+  while (true) {
+    bool composite = false;
+
+    // 1. Quick Trial Division
+    for (int i = 0; i < 14; i++) {
+      bignum dummy_q;
+      bn_init(&dummy_q);
+      if (bn_divmod_u64(&dummy_q, p, small_primes[i]) == 0) {
+        composite = true;
+        bn_free(&dummy_q);
+        break;
+      }
+      bn_free(&dummy_q);
+    }
+
+    // 2. Heavy Miller-Rabin (only if it passes trial division)
+    if (!composite) {
+      bool looks_prime = true;
+      // Checking bases 2, 3, and 5 is usually enough for a fast start
+      u64 bases[] = {2, 3, 5};
+      for (int i = 0; i < 3; i++) {
+        bn_set_u64(&a, bases[i]);
+        if (!bn_rabin(p, &a)) {
+          looks_prime = false;
+          break;
+        }
+      }
+      if (looks_prime) {
+        bn_free(&a);
+        return true;
+      }
+    }
+
+    bn_add_u64(p, p, 2);
+  }
 }

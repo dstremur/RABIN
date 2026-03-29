@@ -60,5 +60,23 @@ int main() {
   printf("Pow: \n");
   bn_pow(&c, &a, &b);
   bn_print(&c);
+
+  bignum my_prime;
+  bn_init(&my_prime);
+
+  printf("Generating a 2048-bit prime... (this may take a minute)\n");
+
+  if (bn_gen_prime(&my_prime, 2048)) {
+    printf("\nSuccess! Your 2048-bit prime is:\n");
+    printf(
+        "----------------------------------------------------------------\n");
+    bn_print(&my_prime);
+    printf(
+        "----------------------------------------------------------------\n");
+  } else {
+    fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
+  }
+
+  bn_free(&my_prime);
   return 0;
 }
