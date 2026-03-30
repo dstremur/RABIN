@@ -38,32 +38,32 @@ void bn_pow(bignum* r, bignum* a, bignum* b) {
 }
 
 void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
-  bignum c, e, res, tmp;
-  bn_init(&c);
-  bn_init(&e);
+  bignum base, exp, res, tmp;
+  bn_init(&base);
+  bn_init(&exp);
   bn_init(&res);
   bn_init(&tmp);
 
-  bn_copy(&c, a);
-  bn_copy(&e, b);
+  bn_copy(&base, a);
+  bn_copy(&exp, b);
   bn_set_u64(&res, 1);
 
-  while (!bn_is_zero(&e)) {
-    if (!bn_is_even(&e)) {
-      bn_mul(&tmp, &res, &c);
+  while (!bn_is_zero(&exp)) {
+    if (!bn_is_even(&exp)) {
+      bn_mul(&tmp, &res, &base);
       bn_mod(&res, &tmp, m);
     }
 
-    bn_mul(&tmp, &c, &c);
-    bn_mod(&c, &tmp, m);
+    bn_mul(&tmp, &base, &base);
+    bn_mod(&base, &tmp, m);
 
-    bn_rshift1(&e);
+    bn_rshift1(&exp);
   }
 
   bn_copy(r, &res);
 
-  bn_free(&c);
-  bn_free(&e);
+  bn_free(&base);
+  bn_free(&exp);
   bn_free(&res);
   bn_free(&tmp);
 }

@@ -19,6 +19,7 @@ bool bn_rabin(bignum* n, bignum* a) {
     bn_free(&two);
     return false;
   }
+
   if (bn_cmp(n, &two) == 0) {
     bn_free(&one);
     bn_free(&two);
@@ -44,17 +45,12 @@ bool bn_rabin(bignum* n, bignum* a) {
 
   bn_mod_exp(&x, a, &d, n);
 
-  if (bn_cmp(&x, &one) == 0 || bn_cmp(&x, &n_minus_1) == 0) {
-    bn_free(&one);
-    bn_free(&two);
-    bn_free(&d);
-    bn_free(&n_minus_1);
-    bn_free(&x);
-    bn_free(&tmp);
-    return true;
-  }
-
   bool composite = true;
+
+  if (bn_cmp(&x, &one) == 0 || bn_cmp(&x, &n_minus_1) == 0) {
+    composite = false;
+    goto cleanup;
+  }
 
   for (u64 r = 1; r < s; r++) {
     bn_mul(&tmp, &x, &x);
@@ -71,6 +67,7 @@ bool bn_rabin(bignum* n, bignum* a) {
     }
   }
 
+cleanup:
   bn_free(&one);
   bn_free(&two);
   bn_free(&d);
