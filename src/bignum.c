@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,6 +16,22 @@ void bn_init(bignum* r) {
   r->size = 0;
   r->capacity = 0;
   r->is_neg = false;
+}
+
+void bn_init_multi(bignum* r, ...) {
+  if (r == NULL) return;
+
+  bn_init(r);
+
+  va_list arg;
+  va_start(arg, r);
+
+  bignum* next;
+  while ((next = va_arg(arg, bignum*)) != NULL) {
+    bn_init(next);
+  }
+
+  va_end(arg);
 }
 
 int bn_is_even(const bignum* n) {

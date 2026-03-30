@@ -23,7 +23,7 @@ void bn_lshift1(bignum* r) {
 void bn_rshift1(bignum* r) {
   if (r->size == 0) return;
 
-  for (i64 i = 0; i < r->size; i++) {
+  for (u64 i = 0; i < r->size; i++) {
     r->limbs[i] >>= 1;
     if (i + 1 < r->size) {
       if (r->limbs[i + 1] & 1ULL) {

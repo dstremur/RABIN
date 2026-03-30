@@ -30,6 +30,7 @@ typedef int64_t i64;
 
 // bignum.c
 void bn_init(bignum* r);
+void bn_init_multi(bignum* first, ...);
 int bn_is_even(const bignum* a);
 bool bn_alloc(bignum* r, u64 capacity);
 void bn_init_val(bignum* n, const char* str);
@@ -50,12 +51,15 @@ bool bn_gen_prime(bignum* p, int bits);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
 void bn_add_u64(bignum* r, const bignum* a, u64 b); 
+void bn_add_at_offset(bignum* r, const bignum* a, u64 offset);
 // bigsub.c
 void bn_sub(bignum* r, const bignum* a, const bignum* b);
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
 
 // bigmul.c
-void bn_mul(bignum* r, const bignum* a, const bignum* b);
+void bn_mul(bignum* r, bignum* a, bignum* b);
+void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b);
+void bn_mul_school(bignum* r, bignum* a, bignum* b); 
 
 // bigdiv.c
 void bn_div(bignum* q, const bignum* a, const bignum* b);

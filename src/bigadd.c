@@ -66,3 +66,27 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b) {
     }
   }
 }
+
+void bn_add_at_offset(bignum* r, const bignum* a, u64 offset) {
+  if (a->size == 0) return;
+
+  u64 carry = 0;
+  u64 i = 0;
+
+  // Use a single loop that continues as long as there is
+  // either data in 'a' OR a carry to propagate.
+  for (i = 0; (i < a->size || carry > 0); i++) {
+    u64 r_idx = offset + i;
+
+    // If we exceed r's capacity, we must stop to avoid a crash
+    if (r_idx >= r->size) break;
+
+    u64 av = (i < a->size) ? a->limbs[i] : 0;
+    u64 rv = r->limbs[r_idx];
+
+    unsigned __int128 sum = (unsigned __int128)av + rv + carry;
+
+    r->limbs[r_idx] = (u64)sum;
+    carry = (u64)(sum >> 64);
+  }
+}

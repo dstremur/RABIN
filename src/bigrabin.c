@@ -9,8 +9,9 @@ bool bn_rabin(bignum* n, bignum* a) {
   if (bn_is_even(n)) return false;
 
   bignum one, two;
-  bn_init(&one);
-  bn_init(&two);
+  //  bn_init(&one);
+  // bn_init(&two);
+  bn_init_multi(&one, &two);
   bn_set_u64(&one, 1);
   bn_set_u64(&two, 2);
 

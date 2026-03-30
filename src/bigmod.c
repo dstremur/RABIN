@@ -14,6 +14,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b) {
     bn_free(&tmp);
     return;
   }
+
   bn_set_u64(r, 0);
 
   int nbits = bn_bit_length(a);
