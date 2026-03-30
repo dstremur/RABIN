@@ -57,9 +57,16 @@ int main() {
   printf("RSHIFT: \n");
   bn_rshift(&c, &a, 64);
   bn_print(&c);
+  printf("LSHIFT: \n");
+  bn_lshift(&c, &a, 32);
+  bn_print(&c);
   printf("Pow: \n");
   bn_pow(&c, &a, &b);
   bn_print(&c);
+
+  i64 j = bn_jacobi(&a, &b);
+
+  printf("JACOBI: %lli\n", (long long)j);
 
   bignum my_prime;
   bn_init(&my_prime);

@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "../include/bignum.h"
-
 bool bn_rabin(bignum* n, bignum* a) {
   if (bn_is_even(n)) return false;
 

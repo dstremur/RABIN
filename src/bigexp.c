@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -65,5 +66,42 @@ void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
   bn_free(&base);
   bn_free(&exp);
   bn_free(&res);
+  bn_free(&tmp);
+}
+
+void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
+                     const bignum* m, bn_mont_ctx* ctx) {
+  assert(!bn_is_zero(m) && !bn_is_even(m));
+
+  assert(bn_cmp(&ctx->n, m) == 0);
+
+  bignum base, result, tmp;
+  bn_init_multi(&base, &result, &tmp);
+
+  bn_mont_in(ctx, a, &base);
+
+  bn_copy(&result, &ctx->one_mont);
+
+  bignum exp;
+  bn_init(&exp);
+  bn_copy(&exp, b);
+
+  while (!bn_is_zero(&exp)) {
+    if (!bn_is_even(&exp)) {
+      bn_mont_mul(ctx, &result, &base, &tmp);
+      bn_copy(&result, &tmp);
+    }
+
+    bn_mont_mul(ctx, &base, &base, &tmp);
+    bn_copy(&base, &tmp);
+
+    bn_rshift1(&exp);
+  }
+  bn_free(&exp);
+
+  bn_mont_out(ctx, &result, r);
+
+  bn_free(&base);
+  bn_free(&result);
   bn_free(&tmp);
 }

@@ -185,11 +185,11 @@ void bn_print(bignum* n) {
   }
 
   // 1. Print the most significant chunk (no leading zeros)
-  printf("%llu", parts[parts_count - 1]);
+  printf("%llu", (unsigned long long)parts[parts_count - 1]);
 
   // 2. Print all other chunks (MUST have 19 digits, pad with zeros)
   for (int64_t i = (int64_t)parts_count - 2; i >= 0; i--) {
-    printf("%019llu", parts[i]);
+    printf("%019llu", (unsigned long long)parts[i]);
   }
 
   printf("\n");
@@ -236,11 +236,11 @@ void bn_print2(bignum* n) {
   }
 
   // print most significant chunk normally
-  printf("%llu", parts[parts_count - 1]);
+  printf("%llu", (unsigned long long)parts[parts_count - 1]);
 
   // remaining chunks padded with leading zeros
   for (i64 i = parts_count - 2; i >= 0; i--) {
-    printf("%019llu", parts[i]);
+    printf("%019llu", (unsigned long long)parts[i]);
   }
 
   printf("\n");
@@ -334,6 +334,31 @@ int bn_bit_length(const bignum* a) {
   return (a->size - 1) * 64 + bits;
 }
 
+static inline u64 count_trailing_zeros_u64(u64 val) {
+  if (val == 0) return 64;
+  return (u64)__builtin_ctzll(val);
+}
+
+u64 bn_cnt_trailing_zeros(const bignum* a) {
+  if (bn_is_zero(a)) return 0;
+
+  u64 zeros = 0;
+  u64 i = 0;
+
+  while (i < a->size && a->limbs[i] == 0) {
+    zeros += 64;
+    i++;
+  }
+
+  if (i == a->size) {
+    return 0;
+  }
+
+  zeros += count_trailing_zeros_u64(a->limbs[i]);
+
+  return zeros;
+}
+
 bool bn_gen_random(bignum* r, int bits) {
   int bytes = (bits + 7) / 8;
   int limbs_needed = (bits + 63) / 64;
@@ -375,13 +400,20 @@ bool bn_gen_prime(bignum* p, int bits) {
   if (!bn_gen_random(p, bits)) return false;
 
   // Small primes to check for quick trial division
-  u64 small_primes[] = {3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47};
+  u64 small_primes[] = {
+      2,   3,   5,   7,   11,  13,  17,  19,  23,  29,  31,  37,  41,  43,  47,
+      53,  59,  61,  67,  71,  73,  79,  83,  89,  97,  101, 103, 107, 109, 113,
+      127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197,
+      199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281,
+      283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379,
+      383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463,
+      467, 479, 487, 491, 499, 503, 509, 521, 523, 541};
 
   while (true) {
     bool composite = false;
 
     // 1. Quick Trial Division
-    for (int i = 0; i < 14; i++) {
+    for (int i = 0; i < 100; i++) {
       bignum dummy_q;
       bn_init(&dummy_q);
       if (bn_divmod_u64(&dummy_q, p, small_primes[i]) == 0) {

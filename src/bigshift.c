@@ -35,6 +35,50 @@ void bn_rshift1(bignum* r) {
   bn_trim(r);
 }
 
+void bn_lshift(bignum* r, const bignum* a, int shift) {
+  if (shift == 0) {
+    bn_copy(r, a);
+    return;
+  }
+
+  u64 words = shift / 64;
+  u64 bits = shift % 64;
+
+  u64 max_size = a->size + words + 1;
+  if (!bn_alloc(r, max_size)) {
+    bn_set_u64(r, 0);
+    return;
+  }
+
+  memset(r->limbs, 0, max_size * sizeof(u64));
+
+  r->size = max_size;
+  r->is_neg = a->is_neg;
+
+  u64 carry = 0;
+
+  for (u64 i = 0; i < a->size; i++) {
+    u64 src = a->limbs[i];
+    u64 shifted = src << bits;
+    u64 high = bits ? (src >> (64 - bits)) : 0;
+    u64 dst = i + words;
+
+    u64 sum = r->limbs[dst] + shifted + carry;
+
+    r->limbs[dst] = sum;
+    carry = (sum >> 64) + high;
+  }
+
+  if (carry) {
+    r->limbs[a->size + words] = carry;
+    r->size = a->size + words + 1;
+  } else {
+    r->size = a->size + words;
+  }
+
+  bn_trim(r);
+}
+
 void bn_rshift(bignum* r, const bignum* a, int shift) {
   if (shift == 0) {
     bn_copy(r, a);

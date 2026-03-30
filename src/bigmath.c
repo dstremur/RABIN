@@ -5,74 +5,54 @@
 
 #include "../include/bignum.h"
 
-/*
+i64 bn_jacobi(bignum* a, bignum* m) {
+  if (bn_is_zero(m) || bn_is_even(m)) {
+    return 0;
+  }
 
-void bn_jacobi(bignum* r, bignum* a, bignum* m) {
+  bignum temp_a, temp_m;
+  bn_init_multi(&temp_a, &temp_m);
+  bn_mod(&temp_a, a, m);
+  bn_copy(&temp_m, m);
 
-        if (bn_is_zero(m) || bn_is_even(m)) {
-                bn_set_u64(r, 0);
-                return;
-        }
+  int t = 1;
 
-        bignum a_rem, ua, m_1, t, a_1, m_2, z_0;
-        bn_init(&a_rem);
-        bn_init(&ua);
-        bn_init(&m_1);
-        bn_init(&a_1);
-        bn_init(&m_2);
-        bn_init(&z_0);
-        bn_mod(&a_rem, a, m);
-        if (a_rem.is_neg) {
-                bn_add(&a_rem, &a_rem, m);
-        }
+  while (!bn_is_zero(&temp_a)) {
+    u64 k = bn_cnt_trailing_zeros(&temp_a);
+    bn_rshift(&temp_a, &temp_a, k);
 
-        bn_init(&t);
-        bn_set_u64(&t, 1);
-        bn_copy(&m_1, m);
-        bn_rshift1(&m_1);
-        bn_and_u64(&m_1);
+    if (k & 1) {
+      u64 m_mod8 = temp_m.limbs[0] & 7;
+      if (m_mod8 == 3 || m_mod8 == 5) {
+        t = -t;
+      }
+    }
 
-        while (!bn_is_zero(&ua)) {
-                u64 z = bn_cnt_led_zero(&ua);
-                bn_rshift(&ua, &ua, z);
+    // 3. Quadratic Reciprocity swap: (a/m) -> (m/a) * (-1 if both % 4 == 3)
+    u64 a_mod4 = temp_a.limbs[0] & 3;
+    u64 m_mod4 = temp_m.limbs[0] & 3;
+    if (a_mod4 == 3 && m_mod4 == 3) {
+      t = -t;
+    }
 
-                bn_copy(&a_1, &ua);
-                bn_rshift1(&a_1);
-                bn_and_u64(&a_1, 1);
+    // Swap and Mod
+    // Reuse temp_a as a placeholder to avoid more inits
+    bignum swap_tmp = temp_a;
+    temp_a = temp_m;
+    temp_m = swap_tmp;
 
-                bn_copy(&m_2, m);
-                bn_rshift(&m_2, &m_2, 2);
-                bn_and_u64(m_2, 1);
+    bn_mod(&temp_a, &temp_a, &temp_m);
+  }
 
-                bn_copy(&z_0, &z);
-                bn_add_u64(&z, &z , 1);
+  int result = t;
+  bignum one;
+  bn_init(&one);
+  bn_set_u64(&one, 1);
+  if (bn_cmp(&temp_m, &one) == 0) {
+    result = 0;
+  }
 
-                // TODO :
-                // if ((z_0 & (m_1 ^ m_2)) ^ (a_1 & m_1)) {
-                //	t = -t;
-                // }
-
-                bignum tmp;
-                bn_init(&tmp);
-                bn_copy(&tmp, &ua);
-                bn_copy(&ua, m);
-                bn_copy(m, &tmp);
-                bn_copy(&m_1, &a_1);
-                bn_mod(&ua, &ua, m);
-        }
-
-        bignum one;
-        bn_init(&one);
-        bn_set_u64(&one, 1);
-
-        if (bn_cmp(m, &one) != 0) {
-                bn_set_u64(r, 0);
-                return;
-        } else {
-                bn_copy(r, &t);
-                return;
-        }
+  bn_free(&temp_a);
+  bn_free(&temp_m);
+  return result;
 }
-
-
-        */

@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "stdint.h"
-
 typedef struct bignum {
   uint64_t* limbs;  // 64-bit limbs (Base 2^64)
   size_t size;
@@ -15,10 +13,10 @@ typedef struct bignum {
 } bignum;
 
 typedef struct {
-  bignum n;
-  uint64_t n_inv;
-  bignum r_square;
-  bignum one_mont;
+    bignum n;          /* modulus (odd, > 1)               */
+    uint64_t n_inv;    /* -n^{-1} mod 2^64                  */
+    bignum r_square;   /* R^2 mod N   (R = 2^{64 * n.limbs})*/
+    bignum one_mont;   /* R   mod N   (representation of 1) */
 } bn_mont_ctx;
 
 typedef uint64_t u64;
@@ -47,7 +45,7 @@ int bn_cmp(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
 bool bn_gen_random(bignum* r, int bits);
 bool bn_gen_prime(bignum* p, int bits);
-
+u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
 void bn_add_u64(bignum* r, const bignum* a, u64 b); 
@@ -80,8 +78,39 @@ void bn_lshift(bignum* r, const bignum* a, int shift);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_rshift1(bignum* r);
 void bn_rshift(bignum* r, const bignum* a, int shift);
-
+void bn_lshift(bignum* r, const bignum* a, int shift);
 //bigrabin.c 
 bool bn_rabin(bignum* n, bignum* a); 
+
+// bigmath.c 
+i64 bn_jacobi(bignum* a, bignum* m);
+
+
+
+
+
+
+
+
+void bn_mont_ctx_init(bn_mont_ctx *ctx, const bignum *N);
+
+void bn_mont_ctx_free(bn_mont_ctx *ctx);
+
+void bn_mont_redc(bn_mont_ctx *ctx, bignum *t);
+
+void bn_mont_mul(const bn_mont_ctx *ctx,
+                 const bignum *x,
+                 const bignum *y,
+                 bignum *r);
+
+void bn_mont_in(const bn_mont_ctx *ctx,
+                const bignum *x,
+                bignum *r);
+
+void bn_mont_out(const bn_mont_ctx *ctx,
+                 const bignum *x,
+                 bignum *r);
+
+void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b, const bignum* m, bn_mont_ctx* ctx);
 
 #endif
