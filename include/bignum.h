@@ -38,6 +38,7 @@ void bn_trim(bignum* r);
 int bn_get_bit(const bignum* a, int i);
 void bn_copy(bignum* dest, const bignum* src);
 void bn_set_u64(bignum* r, uint64_t val);
+void bn_set_i64(bignum* r, int64_t val); 
 void bn_set_bit(bignum* a, int i);
 int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);

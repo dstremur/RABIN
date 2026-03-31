@@ -46,6 +46,17 @@ bool bn_is_zero(const bignum* a) {
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
+bool bn_is_eq_i64(const bignum* n, i64 a) {
+  bignum test;
+  bn_init(&test);
+  bn_set_i64(&test, a);
+  if (bn_cmp(n, &test) == 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool bn_alloc(bignum* r, u64 capacity) {
   if (capacity <= r->capacity) return true;
 
@@ -98,62 +109,6 @@ void bn_init_val(bignum* n, const char* str) {
   bn_trim(n);
 }
 
-void bn_init_val2(bignum* n, const char* str) {
-  bn_init(n);
-
-  n->is_neg = (str[0] == '-');
-  const char* s = n->is_neg ? str + 1 : str;
-
-  // start with zero
-  /*  n->limbs = calloc(1, sizeof(u64));
-    n->size = 1;
-    n->capacity = 1;
-  */
-  bn_alloc(n, 1);
-  n->size = 1;
-
-  for (size_t i = 0; s[i]; i++) {
-    if (!isdigit(s[i])) continue;
-    int digit = s[i] - '0';
-
-    // n = n * 10
-    u64 carry = 0;
-    for (u64 j = 0; j < n->size; j++) {
-      unsigned __int128 prod = (unsigned __int128)n->limbs[j] * 10 + carry;
-
-      n->limbs[j] = (u64)prod;
-      carry = (u64)(prod >> 64);
-    }
-
-    if (carry) {
-      bn_alloc(n, n->size + 1);
-      n->limbs[n->size++] = carry;
-    }
-
-    // n = n + digit
-    unsigned __int128 sum = (unsigned __int128)n->limbs[0] + digit;
-
-    n->limbs[0] = (u64)sum;
-    carry = (u64)(sum >> 64);
-
-    u64 k = 1;
-    while (carry && k < n->size) {
-      unsigned __int128 s = (unsigned __int128)n->limbs[k] + carry;
-
-      n->limbs[k] = (u64)s;
-      carry = (u64)(s >> 64);
-      k++;
-    }
-
-    if (carry) {
-      n->limbs = realloc(n->limbs, (n->size + 1) * sizeof(u64));
-      n->limbs[n->size++] = carry;
-    }
-  }
-
-  bn_trim(n);
-}
-
 void bn_print(bignum* n) {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
     printf("0\n");
@@ -175,7 +130,7 @@ void bn_print(bignum* n) {
     bignum q;
     bn_init(&q);
     // Ensure bn_divmod_u64 is correctly updating 'q' and returning 'rem'
-    uint64_t rem = bn_divmod_u64(&q, &tmp, BASE10);
+    uint64_t rem = bn_divmod_u64(&q, &tmp, BASE_10_19);
 
     parts = realloc(parts, (parts_count + 1) * sizeof(uint64_t));
     parts[parts_count++] = rem;
@@ -189,57 +144,6 @@ void bn_print(bignum* n) {
 
   // 2. Print all other chunks (MUST have 19 digits, pad with zeros)
   for (int64_t i = (int64_t)parts_count - 2; i >= 0; i--) {
-    printf("%019llu", (unsigned long long)parts[i]);
-  }
-
-  printf("\n");
-
-  free(parts);
-  bn_free(&tmp);
-}
-
-// print in base 10
-void bn_print2(bignum* n) {
-  if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
-    printf("0\n");
-    return;
-  }
-
-  if (n->is_neg) printf("-");
-
-  bignum tmp;
-  bn_init(&tmp);
-  bn_copy(&tmp, n);
-
-  // copy n → tmp
-  tmp.size = n->size;
-  tmp.capacity = n->size;
-  tmp.limbs = malloc(tmp.size * sizeof(u64));
-  memcpy(tmp.limbs, n->limbs, tmp.size * sizeof(u64));
-
-  const uint64_t BASE10 = 10000000000000000000ULL;  // 10^19
-
-  uint64_t* parts = NULL;
-  size_t parts_count = 0;
-
-  while (!(tmp.size == 1 && tmp.limbs[0] == 0)) {
-    bignum q;
-    bn_init(&q);
-
-    uint64_t rem = bn_divmod_u64(&q, &tmp, BASE10);
-
-    parts = realloc(parts, (parts_count + 1) * sizeof(uint64_t));
-    parts[parts_count++] = rem;
-
-    bn_free(&tmp);
-    tmp = q;
-  }
-
-  // print most significant chunk normally
-  printf("%llu", (unsigned long long)parts[parts_count - 1]);
-
-  // remaining chunks padded with leading zeros
-  for (i64 i = parts_count - 2; i >= 0; i--) {
     printf("%019llu", (unsigned long long)parts[i]);
   }
 
@@ -276,12 +180,27 @@ int bn_get_bit(const bignum* a, int i) {
 
 // Compare two bignums: returns 1 if a > b, -1 if a < b, 0 if a == b
 int bn_cmp(const bignum* a, const bignum* b) {
-  if (a->size != b->size) return (a->size < b->size) ? -1 : 1;
+  if (!a->is_neg && b->is_neg) return 1;
 
-  for (i64 i = a->size - 1; i >= 0; i--) {
-    if (a->limbs[i] != b->limbs[i]) return (a->limbs[i] < b->limbs[i]) ? -1 : 1;
+  if (a->is_neg && !b->is_neg) return -1;
+
+  int cmp = 0;
+
+  if (a->size != b->size)
+    cmp = (a->size < b->size) ? -1 : 1;
+  else {
+    for (i64 i = a->size - 1; i >= 0; i--) {
+      if (a->limbs[i] != b->limbs[i]) {
+        cmp = (a->limbs[i] < b->limbs[i]) ? -1 : 1;
+        break;
+      }
+    }
   }
-  return 0;
+  if (a->is_neg && b->is_neg) {
+    cmp = -cmp;
+  }
+
+  return cmp;
 }
 void bn_copy(bignum* r, const bignum* a) {
   if (r == a) return;
@@ -301,12 +220,23 @@ void bn_copy(bignum* r, const bignum* a) {
 // Set to 64 bit unsigned integer
 void bn_set_u64(bignum* n, uint64_t val) {
   bn_free(n);  // free any existing limbs
-  n->limbs = calloc(1, sizeof(u64));
+  bn_alloc(n, 1);
   n->limbs[0] = val;
   n->size = 1;
   n->capacity = 1;
   n->is_neg = false;
 }
+
+void bn_set_i64(bignum* n, int64_t val) {
+  if (val >= 0) {
+    bn_set_u64(n, (u64)val);
+  } else {
+    u64 abs = (u64) - (val - 1) + 1;
+    bn_set_u64(n, abs);
+    n->is_neg = true;
+  }
+}
+
 void bn_set_bit(bignum* a, int i) {
   int limb = i / 64;
   int offset = i % 64;
