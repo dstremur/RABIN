@@ -11,14 +11,16 @@
 #define BASE_10_19 10000000000000000000ULL
 
 // Clear oject
-void bn_init(bignum* r) {
+void bn_init(bignum* r)
+{
   r->limbs = NULL;
   r->size = 0;
   r->capacity = 0;
   r->is_neg = false;
 }
 
-void bn_init_multi(bignum* r, ...) {
+void bn_init_multi(bignum* r, ...)
+{
   if (r == NULL) return;
 
   bn_init(r);
@@ -34,7 +36,8 @@ void bn_init_multi(bignum* r, ...) {
   va_end(arg);
 }
 
-int bn_is_even(const bignum* n) {
+int bn_is_even(const bignum* n)
+{
   if (n->size == 0 || n->limbs == NULL) {
     return 1;
   }
@@ -42,11 +45,13 @@ int bn_is_even(const bignum* n) {
   return (n->limbs[0] & 1) == 0;
 }
 
-bool bn_is_zero(const bignum* a) {
+bool bn_is_zero(const bignum* a)
+{
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
-bool bn_is_eq_i64(const bignum* n, i64 a) {
+bool bn_is_eq_i64(const bignum* n, i64 a)
+{
   bignum test;
   bn_init(&test);
   bn_set_i64(&test, a);
@@ -57,7 +62,8 @@ bool bn_is_eq_i64(const bignum* n, i64 a) {
   }
 }
 
-bool bn_alloc(bignum* r, u64 capacity) {
+bool bn_alloc(bignum* r, u64 capacity)
+{
   if (capacity <= r->capacity) return true;
 
   // Grow memory exponentially
@@ -74,7 +80,8 @@ bool bn_alloc(bignum* r, u64 capacity) {
   return true;
 }
 
-void bn_init_val(bignum* n, const char* str) {
+void bn_init_val(bignum* n, const char* str)
+{
   bn_init(n);
   if (!str) return;
 
@@ -109,7 +116,8 @@ void bn_init_val(bignum* n, const char* str) {
   bn_trim(n);
 }
 
-void bn_print(bignum* n) {
+void bn_print(bignum* n)
+{
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
     printf("0\n");
     return;
@@ -153,7 +161,8 @@ void bn_print(bignum* n) {
   bn_free(&tmp);
 }
 
-void bn_free(bignum* r) {
+void bn_free(bignum* r)
+{
   if (r->limbs) {
     free(r->limbs);
     r->limbs = NULL;
@@ -162,14 +171,16 @@ void bn_free(bignum* r) {
   r->capacity = 0;
 }
 
-void bn_trim(bignum* r) {
+void bn_trim(bignum* r)
+{
   while (r->size > 1 && r->limbs[r->size - 1] == 0) {
     r->size--;
   }
 }
 
 // Returns the value of the i-th bit (0 or 1)
-int bn_get_bit(const bignum* a, int i) {
+int bn_get_bit(const bignum* a, int i)
+{
   int limb = i / 64;
   int offset = i % 64;
 
@@ -179,7 +190,8 @@ int bn_get_bit(const bignum* a, int i) {
 }
 
 // Compare two bignums: returns 1 if a > b, -1 if a < b, 0 if a == b
-int bn_cmp(const bignum* a, const bignum* b) {
+int bn_cmp(const bignum* a, const bignum* b)
+{
   if (!a->is_neg && b->is_neg) return 1;
 
   if (a->is_neg && !b->is_neg) return -1;
@@ -202,7 +214,8 @@ int bn_cmp(const bignum* a, const bignum* b) {
 
   return cmp;
 }
-void bn_copy(bignum* r, const bignum* a) {
+void bn_copy(bignum* r, const bignum* a)
+{
   if (r == a) return;
 
   if (a->size == 0) {
@@ -218,7 +231,8 @@ void bn_copy(bignum* r, const bignum* a) {
 }
 
 // Set to 64 bit unsigned integer
-void bn_set_u64(bignum* n, uint64_t val) {
+void bn_set_u64(bignum* n, uint64_t val)
+{
   bn_free(n);  // free any existing limbs
   bn_alloc(n, 1);
   n->limbs[0] = val;
@@ -227,7 +241,8 @@ void bn_set_u64(bignum* n, uint64_t val) {
   n->is_neg = false;
 }
 
-void bn_set_i64(bignum* n, int64_t val) {
+void bn_set_i64(bignum* n, int64_t val)
+{
   if (val >= 0) {
     bn_set_u64(n, (u64)val);
   } else {
@@ -237,7 +252,8 @@ void bn_set_i64(bignum* n, int64_t val) {
   }
 }
 
-void bn_set_bit(bignum* a, int i) {
+void bn_set_bit(bignum* a, int i)
+{
   int limb = i / 64;
   int offset = i % 64;
 
@@ -250,7 +266,8 @@ void bn_set_bit(bignum* a, int i) {
 }
 
 // Bit length of a bignum (useful for division)
-int bn_bit_length(const bignum* a) {
+int bn_bit_length(const bignum* a)
+{
   if (a->size == 0) return 0;
 
   u64 top = a->limbs[a->size - 1];
@@ -264,17 +281,20 @@ int bn_bit_length(const bignum* a) {
   return (a->size - 1) * 64 + bits;
 }
 
-static inline u64 count_trailing_zeros_u64(u64 val) {
+static inline u64 count_trailing_zeros_u64(u64 val)
+{
   if (val == 0) return 64;
   return (u64)__builtin_ctzll(val);
 }
 
-static inline u64 count_leading_zeros_u64(u64 val) {
+static inline u64 count_leading_zeros_u64(u64 val)
+{
   if (val == 0) return 64;
   return (u64)__builtin_clzll(val);
 }
 
-u64 bn_cnt_trailing_zeros(const bignum* a) {
+u64 bn_cnt_trailing_zeros(const bignum* a)
+{
   if (bn_is_zero(a)) return 0;
 
   u64 zeros = 0;
@@ -294,7 +314,8 @@ u64 bn_cnt_trailing_zeros(const bignum* a) {
   return zeros;
 }
 
-u64 bn_cnt_leading_zeros(const bignum* a) {
+u64 bn_cnt_leading_zeros(const bignum* a)
+{
   if (bn_is_zero(a)) return 0;
 
   u64 zeros = 0;
@@ -314,7 +335,8 @@ u64 bn_cnt_leading_zeros(const bignum* a) {
   return zeros;
 }
 
-bool bn_gen_random(bignum* r, int bits) {
+bool bn_gen_random(bignum* r, int bits)
+{
   int bytes = (bits + 7) / 8;
   int limbs_needed = (bits + 63) / 64;
 
@@ -348,7 +370,8 @@ bool bn_gen_random(bignum* r, int bits) {
   return true;
 }
 
-bool bn_gen_prime(bignum* p, int bits) {
+bool bn_gen_prime(bignum* p, int bits)
+{
   bignum a;
   bn_init(&a);
 

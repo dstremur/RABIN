@@ -8,7 +8,8 @@
 
 // calculates a^b into r
 // binary exponentiation
-void bn_pow(bignum* r, bignum* a, bignum* b) {
+void bn_pow(bignum* r, bignum* a, bignum* b)
+{
   if (bn_is_zero(b)) {
     bn_set_u64(r, 1);
     return;
@@ -38,7 +39,8 @@ void bn_pow(bignum* r, bignum* a, bignum* b) {
   bn_free(&two);
 }
 
-void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
+void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m)
+{
   bignum base, exp, res, tmp;
   bn_init(&base);
   bn_init(&exp);
@@ -70,7 +72,8 @@ void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
 }
 
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
-                     const bignum* m, bn_mont_ctx* ctx) {
+                     const bignum* m, bn_mont_ctx* ctx)
+{
   assert(!bn_is_zero(m) && !bn_is_even(m));
 
   assert(bn_cmp(&ctx->n, m) == 0);

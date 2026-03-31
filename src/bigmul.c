@@ -9,7 +9,8 @@
 
 // now use karatsuba
 
-void bn_mul(bignum* r, bignum* a, bignum* b) {
+void bn_mul(bignum* r, bignum* a, bignum* b)
+{
   // 1. Basic checks
   if (a->size == 0 || b->size == 0) {
     r->size = 0;
@@ -28,7 +29,8 @@ void bn_mul(bignum* r, bignum* a, bignum* b) {
   r->is_neg = a->is_neg ^ b->is_neg;
 }
 
-void bn_mul_school(bignum* r, bignum* a, bignum* b) {
+void bn_mul_school(bignum* r, bignum* a, bignum* b)
+{
   // Handle aliasing
   if (r == a || r == b) {
     bignum tmp;
@@ -76,7 +78,8 @@ void bn_mul_school(bignum* r, bignum* a, bignum* b) {
   bn_trim(r);
 }
 
-void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b) {
+void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b)
+{
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);

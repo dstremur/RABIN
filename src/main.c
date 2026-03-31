@@ -16,7 +16,8 @@ typedef struct {
   const char* description;
 } test_case;
 
-int main() {
+int main()
+{
   bignum a, b, c;
   bn_init(&a);
   bn_init(&b);
