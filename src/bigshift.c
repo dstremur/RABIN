@@ -22,14 +22,11 @@ void bn_lshift1(bignum* r) {
 
 void bn_rshift1(bignum* r) {
   if (r->size == 0) return;
-
-  for (u64 i = 0; i < r->size; i++) {
-    r->limbs[i] >>= 1;
-    if (i + 1 < r->size) {
-      if (r->limbs[i + 1] & 1ULL) {
-        r->limbs[i] |= (1ULL << 63);
-      }
-    }
+  u64 carry = 0;
+  for (i64 i = r->size - 1; i >= 0; i--) {
+    u64 next = (r->limbs[i] & 1) << 63;
+    r->limbs[i] = (r->limbs[i] >> 1) | carry;
+    carry = next;
   }
 
   bn_trim(r);

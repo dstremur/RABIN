@@ -5,6 +5,7 @@
 
 #include "../include/bignum.h"
 
+// TODO: sign handling
 void bn_add(bignum* r, const bignum* a, const bignum* b) {
   // aliasing
   //

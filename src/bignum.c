@@ -269,6 +269,11 @@ static inline u64 count_trailing_zeros_u64(u64 val) {
   return (u64)__builtin_ctzll(val);
 }
 
+static inline u64 count_leading_zeros_u64(u64 val) {
+  if (val == 0) return 64;
+  return (u64)__builtin_clzll(val);
+}
+
 u64 bn_cnt_trailing_zeros(const bignum* a) {
   if (bn_is_zero(a)) return 0;
 
@@ -285,6 +290,26 @@ u64 bn_cnt_trailing_zeros(const bignum* a) {
   }
 
   zeros += count_trailing_zeros_u64(a->limbs[i]);
+
+  return zeros;
+}
+
+u64 bn_cnt_leading_zeros(const bignum* a) {
+  if (bn_is_zero(a)) return 0;
+
+  u64 zeros = 0;
+  u64 i = 0;
+
+  while (i < a->size && a->limbs[i] == 0) {
+    zeros += 64;
+    i++;
+  }
+
+  if (i == a->size) {
+    return 0;
+  }
+
+  zeros += count_leading_zeros_u64(a->limbs[i]);
 
   return zeros;
 }

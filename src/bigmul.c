@@ -24,6 +24,8 @@ void bn_mul(bignum* r, bignum* a, bignum* b) {
     // Your original __int128 O(n^2) function
     bn_mul_school(r, a, b);
   }
+
+  r->is_neg = a->is_neg ^ b->is_neg;
 }
 
 void bn_mul_school(bignum* r, bignum* a, bignum* b) {
