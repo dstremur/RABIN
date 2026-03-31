@@ -14,7 +14,7 @@ i64 bn_jacobi(bignum* a, bignum* m) {
   }
 
   bignum A, M, R, one;
-  bn_init_multi(&A, &M, &R, &one);
+  bn_init_multi(&A, &M, &R, &one, NULL);
 
   bn_set_u64(&one, 1);
   bn_copy(&M, m);
@@ -67,14 +67,14 @@ i64 bn_jacobi(bignum* a, bignum* m) {
 
 // return the euler euler criterion
 // p must be an odd prime and a comprime to p
+// return 1 if there is a quadratic residue, -1 if not
 i64 euler_criterion(bignum* a, bignum* p) {
   bignum exp, r, one, p_minus_one;
 
-  bn_init_multi(&exp, &r, &one, &p_minus_one);
+  bn_init_multi(&exp, &r, &one, &p_minus_one, NULL);
 
   bn_set_u64(&one, 1);
 
-  // Step 1: Handle the a = 0 mod p case
   bn_mod(&r, a, p);
   if (bn_is_zero(&r)) {
     bn_free(&exp);
@@ -84,25 +84,20 @@ i64 euler_criterion(bignum* a, bignum* p) {
     return 0;
   }
 
-  // Step 2: Calculate p - 1
   bn_sub(&p_minus_one, p, &one);
 
-  // Step 3: Calculate exp = (p - 1) / 2
   bn_copy(&exp, &p_minus_one);
-  bn_rshift1(&exp);  // In-place divide by 2
+  bn_rshift1(&exp);
 
-  // Step 4: Calculate r = a^((p-1)/2) mod p
   bn_mod_exp(&r, a, &exp, p);
 
   i64 result;
   if (bn_cmp(&r, &one) == 0) {
     result = 1;
   } else if (bn_cmp(&r, &p_minus_one) == 0) {
-    // In modular arithmetic, p - 1 is equivalent to -1
     result = -1;
   } else {
-    // If we get here, p is definitely not a prime.
-    result = -2;
+    result = 0;
   }
 
   bn_free(&exp);
@@ -118,14 +113,113 @@ n, an element of Z / p Z such that solutions to the congruence r2 = n exist;
 when this is so we say that n is a quadratic residue mod p.
 */
 void tonelli_shanks(bignum* r, bignum* p, bignum* n) {
-  bignum p_minus_one, one, Q;
-  bn_init_multi(&p_minus_one, &one, &Q);
+  if (bn_jacobi(n, p) != 1) {
+    printf("No square roots exist");
+    return;
+  }
+
+  bignum p_minus_one, one, Q, z, M, c, t, R, exp2, tmp2, b2;
+  bignum i, tmp, b, b_exp, j;
+
+  bn_init_multi(&p_minus_one, &one, &Q, &z, &M, &c, &t, &R, &exp2, &tmp2, &b2,
+                NULL);
+  bn_init_multi(&i, &tmp, &b, &b_exp, &j, NULL);
+
+  bn_set_i64(&one, 1);
   bn_copy(&p_minus_one, p);
   bn_sub(&p_minus_one, &p_minus_one, &one);
   bn_copy(&Q, &p_minus_one);
+
   u64 S = 0;
   while (bn_is_even(&Q)) {
     bn_rshift1(&Q);
     S++;
   }
+
+  // now p - 1 = Q2^S
+
+  bn_set_u64(&z, 2);
+  while (bn_cmp(&z, p) < 0) {
+    if (bn_jacobi(&z, p) == -1) {
+      break;
+    }
+    bn_add(&z, &z, &one);
+  }
+
+  bn_set_u64(&M, S);
+  bn_mod_exp(&c, &z, &Q, p);
+  bn_mod_exp(&t, n, &Q, p);
+
+  bn_copy(&exp2, &Q);
+  bn_add_u64(&exp2, &exp2, 1);
+  bn_rshift1(&exp2);
+
+  bn_mod_exp(&R, n, &exp2, p);
+
+  while (1) {
+    if (bn_is_zero(&t)) {
+      bn_set_u64(r, 0);
+      return;
+    }
+
+    if (bn_cmp(&t, &one) == 0) {
+      bn_copy(r, &R);
+      return;
+    }
+
+    bn_set_u64(&i, 0);
+    bn_copy(&tmp, &t);
+
+    while (!bn_is_eq_i64(&tmp, 1) && bn_cmp(&i, &M) < 0) {
+      bn_mul(&tmp2, &tmp, &tmp);
+      bn_mod(&tmp, &tmp2, p);
+      bn_add(&i, &i, &one);
+    }
+
+    if (bn_cmp(&i, &M) == 0) {
+      printf("No quadratic residue");
+      break;
+    }
+
+    bn_copy(&b_exp, &M);
+    bn_sub(&b_exp, &b_exp, &i);
+    bn_sub(&b_exp, &b_exp, &one);
+
+    bn_copy(&b, &c);
+    bn_set_u64(&j, 0);
+
+    while (bn_cmp(&j, &b_exp) < 0) {
+      bn_mul(&b2, &b, &b);
+      bn_mod(&b, &b2, p);
+      bn_add(&j, &j, &one);
+    }
+
+    bn_copy(&M, &i);
+
+    bn_mul(&c, &b, &b);
+    bn_mod(&c, &c, p);
+
+    bn_mul(&t, &t, &c);
+    bn_mod(&t, &t, p);
+
+    bn_mul(&R, &R, &b);
+    bn_mod(&R, &R, p);
+  }
+
+  bn_free(&p_minus_one);
+  bn_free(&one);
+  bn_free(&Q);
+  bn_free(&z);
+  bn_free(&M);
+  bn_free(&c);
+  bn_free(&t);
+  bn_free(&R);
+  bn_free(&exp2);
+  bn_free(&i);
+  bn_free(&tmp);
+  bn_free(&b);
+  bn_free(&b_exp);
+  bn_free(&j);
+  bn_free(&tmp2);
+  bn_free(&b2);
 }

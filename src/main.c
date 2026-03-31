@@ -68,6 +68,18 @@ int main() {
 
   printf("JACOBI: %lli\n", (long long)j);
 
+  bignum p, n, r;
+  bn_init_multi(&p, &n, &r);
+
+  bn_set_u64(&p, 13);
+  bn_set_u64(&n, 13434634);
+
+  tonelli_shanks(&r, &p, &n);
+
+  printf("root = ");
+  bn_print(&r);
+  printf("\n");
+
   bignum my_prime;
   bn_init(&my_prime);
 

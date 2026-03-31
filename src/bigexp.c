@@ -76,7 +76,7 @@ void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
   assert(bn_cmp(&ctx->n, m) == 0);
 
   bignum base, result, tmp;
-  bn_init_multi(&base, &result, &tmp);
+  bn_init_multi(&base, &result, &tmp, NULL);
 
   bn_mont_in(ctx, a, &base);
 

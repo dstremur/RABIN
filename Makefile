@@ -20,6 +20,10 @@ $(OBJS): include/bignum.h
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test_mul: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o tests/test_mul.c
+	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
+	./test_mul
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 

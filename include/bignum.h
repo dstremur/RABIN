@@ -86,6 +86,7 @@ bool bn_rabin(bignum* n, bignum* a);
 
 // bigmath.c 
 i64 bn_jacobi(bignum* a, bignum* m);
+void tonelli_shanks(bignum* r, bignum* p, bignum* n);
 
 
 
