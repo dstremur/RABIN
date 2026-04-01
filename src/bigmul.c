@@ -17,12 +17,9 @@ void bn_mul(bignum* r, bignum* a, bignum* b)
     return;
   }
 
-  // 2. Choose algorithm based on size
-  // We use Karatsuba only if BOTH numbers are large enough.
   if (a->size >= KARATSUBA_LIMIT && b->size >= KARATSUBA_LIMIT) {
     bn_mul_karatsuba(r, a, b);
   } else {
-    // Your original __int128 O(n^2) function
     bn_mul_school(r, a, b);
   }
 
