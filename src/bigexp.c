@@ -71,8 +71,8 @@ void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m)
   bn_free(&tmp);
 }
 
-void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b,
-                     bignum* m, bn_mont_ctx* ctx)
+void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m,
+                     bn_mont_ctx* ctx)
 {
   assert(!bn_is_zero(m) && !bn_is_even(m));
 

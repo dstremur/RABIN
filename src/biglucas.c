@@ -5,7 +5,3 @@
 #include <string.h>
 
 #include "../include/bignum.h"
-
-
-
-

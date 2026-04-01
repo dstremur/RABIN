@@ -5,36 +5,37 @@
 
 #include "../include/bignum.h"
 
-void bn_mont_exp(bignum *r_bar, bignum *a_bar, bignum *d, bn_mont_ctx *ctx) {
-    bignum base, exponent, tmp;
-    
-    // Initialize and allocate ONCE outside the loop
-    bn_init_multi(&base, &exponent, &tmp, NULL);
-    bn_alloc(&base, ctx->n.size);
-    bn_alloc(&exponent, d->size);
-    bn_alloc(&tmp, ctx->n.size); // Scratchpad for results
+void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx)
+{
+  bignum base, exponent, tmp;
 
-    bn_copy(&base, a_bar);
-    bn_copy(&exponent, d);
-    bn_copy(r_bar, &ctx->one_mont);
+  // Initialize and allocate ONCE outside the loop
+  bn_init_multi(&base, &exponent, &tmp, NULL);
+  bn_alloc(&base, ctx->n.size);
+  bn_alloc(&exponent, d->size);
+  bn_alloc(&tmp, ctx->n.size);  // Scratchpad for results
 
-    while (!bn_is_zero(&exponent)) {
-        if (exponent.limbs[0] & 1) {
-            // Use tmp to avoid source/destination overlap issues
-            bn_mont_mul(&tmp, r_bar, &base, ctx);
-            bn_copy(r_bar, &tmp);
-        }
-        
-        // Squaring: base = base * base mod n
-        bn_mont_mul(&tmp, &base, &base, ctx);
-        bn_copy(&base, &tmp);
+  bn_copy(&base, a_bar);
+  bn_copy(&exponent, d);
+  bn_copy(r_bar, &ctx->one_mont);
 
-        bn_rshift1(&exponent);
+  while (!bn_is_zero(&exponent)) {
+    if (exponent.limbs[0] & 1) {
+      // Use tmp to avoid source/destination overlap issues
+      bn_mont_mul(&tmp, r_bar, &base, ctx);
+      bn_copy(r_bar, &tmp);
     }
 
-    bn_free(&base);
-    bn_free(&exponent);
-    bn_free(&tmp);
+    // Squaring: base = base * base mod n
+    bn_mont_mul(&tmp, &base, &base, ctx);
+    bn_copy(&base, &tmp);
+
+    bn_rshift1(&exponent);
+  }
+
+  bn_free(&base);
+  bn_free(&exponent);
+  bn_free(&tmp);
 }
 
 bool bn_rabin(bignum* n, bignum* a)
@@ -112,81 +113,83 @@ cleanup:
   return !composite;
 }
 
-bool bn_rabin2(bignum* n, bignum* a) {
-    if (bn_is_even(n)) return false;
+bool bn_rabin2(bignum* n, bignum* a)
+{
+  if (bn_is_even(n)) return false;
 
-    // Fast handling for small numbers
-    if (n->size == 1 && n->limbs[0] <= 3) {
-        return n->limbs[0] == 2 || n->limbs[0] == 3;
+  // Fast handling for small numbers
+  if (n->size == 1 && n->limbs[0] <= 3) {
+    return n->limbs[0] == 2 || n->limbs[0] == 3;
+  }
+
+  // Step 1: Find d and s such that n-1 = d * 2^s
+  bignum d, n_minus_1, one;
+  bn_init(&d);
+  bn_init(&n_minus_1);
+  bn_init(&one);
+  bn_set_u64(&one, 1);
+
+  bn_sub(&n_minus_1, n, &one);  // n-1
+  bn_copy(&d, &n_minus_1);
+
+  u64 s = 0;
+  while (bn_is_even(&d) && !bn_is_zero(&d)) {
+    bn_rshift1(&d);
+    s++;
+  }
+
+  // Step 2: Setup Montgomery context
+  bn_mont_ctx ctx;
+  bn_mont_ctx_init(&ctx, n);
+
+  // Step 3: Precompute Montgomery representations
+  bignum a_bar, x_bar, n_minus_1_mont;
+  bn_init(&a_bar);
+  bn_init(&x_bar);
+  bn_init(&n_minus_1_mont);
+
+  bn_alloc(&a_bar, n->size);
+  bn_alloc(&x_bar, n->size);
+  bn_alloc(&n_minus_1_mont, n->size);
+
+  bn_mont_in(&a_bar, a, &ctx);                    // a in Montgomery
+  bn_mont_in(&n_minus_1_mont, &n_minus_1, &ctx);  // (n-1) in Montgomery
+
+  // Step 4: x = a^d mod n (Montgomery)
+  bn_mont_exp(&x_bar, &a_bar, &d, &ctx);
+
+  bool composite = true;
+
+  // Step 5: Rabin-Miller checks
+  if (bn_cmp(&x_bar, &ctx.one_mont) == 0 ||
+      bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
+    composite = false;
+    goto cleanup;
+  }
+
+  for (u64 r = 1; r < s; r++) {
+    bn_mont_mul(&x_bar, &x_bar, &x_bar, &ctx);  // x = x^2 mod n
+
+    if (bn_cmp(&x_bar, &ctx.one_mont) == 0) {
+      composite = true;  // Non-trivial square root of 1
+      break;
     }
 
-    // Step 1: Find d and s such that n-1 = d * 2^s
-    bignum d, n_minus_1, one;
-    bn_init(&d);
-    bn_init(&n_minus_1);
-    bn_init(&one);
-    bn_set_u64(&one, 1);
-
-    bn_sub(&n_minus_1, n, &one);  // n-1
-    bn_copy(&d, &n_minus_1);
-
-    u64 s = 0;
-    while (bn_is_even(&d) && !bn_is_zero(&d)) {
-        bn_rshift1(&d);
-        s++;
+    if (bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
+      composite = false;  // Probably prime
+      break;
     }
-
-    // Step 2: Setup Montgomery context
-    bn_mont_ctx ctx;
-    bn_mont_ctx_init(&ctx, n);
-
-    // Step 3: Precompute Montgomery representations
-    bignum a_bar, x_bar, n_minus_1_mont;
-    bn_init(&a_bar);
-    bn_init(&x_bar);
-    bn_init(&n_minus_1_mont);
-
-    bn_alloc(&a_bar, n->size);
-    bn_alloc(&x_bar, n->size);
-    bn_alloc(&n_minus_1_mont, n->size);
-
-    bn_mont_in(&a_bar, a, &ctx);                // a in Montgomery
-    bn_mont_in(&n_minus_1_mont, &n_minus_1, &ctx); // (n-1) in Montgomery
-
-    // Step 4: x = a^d mod n (Montgomery)
-    bn_mont_exp(&x_bar, &a_bar, &d, &ctx);
-
-    bool composite = true;
-
-    // Step 5: Rabin-Miller checks
-    if (bn_cmp(&x_bar, &ctx.one_mont) == 0 || bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
-        composite = false;
-        goto cleanup;
-    }
-
-    for (u64 r = 1; r < s; r++) {
-        bn_mont_mul(&x_bar, &x_bar, &x_bar, &ctx); // x = x^2 mod n
-
-        if (bn_cmp(&x_bar, &ctx.one_mont) == 0) {
-            composite = true; // Non-trivial square root of 1
-            break;
-        }
-
-        if (bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
-            composite = false; // Probably prime
-            break;
-        }
-    }
+  }
 
 cleanup:
-    // Free all temporaries
-    bn_free(&d);
-    bn_free(&n_minus_1);
-    bn_free(&one);
-    bn_free(&a_bar);
-    bn_free(&x_bar);
-    bn_free(&n_minus_1_mont);
-    // TODO: free Montgomery context fields if necessary
+  // Free all temporaries
+  bn_free(&d);
+  bn_free(&n_minus_1);
+  bn_free(&one);
+  bn_free(&a_bar);
+  bn_free(&x_bar);
+  bn_free(&n_minus_1_mont);
+  // TODO: free Montgomery context fields if necessary
 
-    return !composite;
+  return !composite;
 }
