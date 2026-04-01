@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+ /* Ideas
+  Catalan pseudoprime
+
+
+  */
+
 typedef struct bignum {
   uint64_t* limbs;  // 64-bit limbs (Base 2^64)
   size_t size;
