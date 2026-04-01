@@ -65,6 +65,12 @@ int main()
   bn_pow(&c, &a, &b);
   bn_println(&c);
 
+  if (bn_rabin(&a, &b)) {
+    printf("Prime");
+  } else {
+    printf("Not prime");
+  }
+
   i64 j = bn_jacobi(&a, &b);
 
   printf("JACOBI: %lli\n", (long long)j);

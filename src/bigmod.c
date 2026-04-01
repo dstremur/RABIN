@@ -45,6 +45,19 @@ uint64_t mod_inverse_u64(uint64_t n)
   return -inv;
 }
 
+uint64_t bn_mod_u64(const bignum* a, uint64_t d)
+{
+  unsigned __int128 rem = 0;
+
+  // Purely mathematical reduction with zero memory allocation
+  for (i64 i = a->size - 1; i >= 0; i--) {
+    unsigned __int128 cur = (rem << 64) | a->limbs[i];
+    rem = cur % d;
+  }
+
+  return (uint64_t)rem;
+}
+
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
 {
   if (q == a) {

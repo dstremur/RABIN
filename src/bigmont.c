@@ -48,22 +48,21 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n)
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 {
   u64 size = ctx->n.size;
-  u64 inv = ctx->n_inv;
   u64* n_limbs = ctx->n.limbs;
   u64* t_limbs = t->limbs;
 
   // Word for word reduction
   for (u64 i = 0; i < size; i++) {
-    u64 m = t->limbs[i] * ctx->n_inv;
+    u64 m = t_limbs[i] * ctx->n_inv;
 
     u64 carry = 0;
     for (u64 j = 0; j < size; j++) {
       unsigned __int128 product = (unsigned __int128)m * n_limbs[j];
       unsigned __int128 sum =
-          (unsigned __int128)t_limbs[i + j] + carry + (uint64_t)product;
+          (unsigned __int128)t_limbs[i + j] + carry + product;
 
       t_limbs[i + j] = (uint64_t)sum;
-      carry = (uint64_t)(sum >> 64) + (uint64_t)(product >> 64);
+      carry = (uint64_t)(sum >> 64);
     }
 
     size_t k = i + size;
@@ -75,66 +74,74 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
     }
   }
 
+  bn_alloc(r, size);
   for (u64 i = 0; i < size; i++) {
     r->limbs[i] = t_limbs[i + size];
   }
   r->size = size;
 
+  // Trim r before comparing so bn_cmp works accurately
+  bn_trim(r);
+
   if (bn_cmp(r, &ctx->n) >= 0) {
     bn_sub(r, r, &ctx->n);
   }
 }
-
 void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx)
 {
   bignum T;
-
   bn_init(&T);
-  bn_alloc(&T, 2 * ctx->n.size);
-
-  // T = A * R^2
   bn_mul(&T, A, &ctx->r_square);
 
-  // REDC(A * R^2) = (A * R^2) / R mod N = A * R mod N
-  bn_mont_redc(A_bar, &T, ctx);
+  // CRITICAL FIX: Pad T to exactly 2*N + 1 limbs
+  u64 req_size = 2 * ctx->n.size + 1;
+  if (T.capacity < req_size) {
+    bn_alloc(&T, req_size);
+  }
+  for (u64 i = T.size; i < req_size; i++) {
+    T.limbs[i] = 0;
+  }
+  T.size = req_size;
 
+  bn_mont_redc(A_bar, &T, ctx);
   bn_free(&T);
 }
-
 void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx)
 {
   bignum T;
   bn_init(&T);
-  bn_alloc(&T, ctx->n.size * 2);
 
-  memset(T.limbs, 0, sizeof(uint64_t) * ctx->n.size * 2);
+  // Ensure starting size is exactly 2*N + 1
+  u64 req_size = 2 * ctx->n.size + 1;
+  bn_alloc(&T, req_size);
+  memset(T.limbs, 0, req_size * sizeof(u64));
 
   for (size_t i = 0; i < A_bar->size; i++) {
     T.limbs[i] = A_bar->limbs[i];
   }
-  T.size = ctx->n.size * 2;
+  T.size = req_size;
 
   bn_mont_redc(A, &T, ctx);
-
   bn_free(&T);
 }
 
 void bn_mont_mul(bignum* result, bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx)
 {
-  // Use a static-ish approach or a workspace to debug
   bignum T;
   bn_init(&T);
 
-  bn_alloc(&T, A_bar->size + B_bar->size);
-
   bn_mul(&T, A_bar, B_bar);
 
-  // Ensure result is big enough to hold the modulus size
-  if (result->capacity < ctx->n.size) {
-    bn_alloc(result, ctx->n.size);
+  // CRITICAL FIX: Pad T to exactly 2*N + 1 limbs
+  u64 req_size = 2 * ctx->n.size + 1;
+  if (T.capacity < req_size) {
+    bn_alloc(&T, req_size);
   }
+  for (u64 i = T.size; i < req_size; i++) {
+    T.limbs[i] = 0;
+  }
+  T.size = req_size;
 
   bn_mont_redc(result, &T, ctx);
-
   bn_free(&T);
 }

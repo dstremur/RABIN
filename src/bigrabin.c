@@ -38,7 +38,7 @@ void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx)
   bn_free(&tmp);
 }
 
-bool bn_rabin(bignum* n, bignum* a)
+bool bn_rabin2(bignum* n, bignum* a)
 {
   if (bn_is_even(n)) return false;
 
@@ -113,7 +113,7 @@ cleanup:
   return !composite;
 }
 
-bool bn_rabin2(bignum* n, bignum* a)
+bool bn_rabin(bignum* n, bignum* a)
 {
   if (bn_is_even(n)) return false;
 
@@ -143,11 +143,13 @@ bool bn_rabin2(bignum* n, bignum* a)
   bn_mont_ctx_init(&ctx, n);
 
   // Step 3: Precompute Montgomery representations
-  bignum a_bar, x_bar, n_minus_1_mont;
+  bignum a_bar, x_bar, n_minus_1_mont, tmp;
   bn_init(&a_bar);
   bn_init(&x_bar);
   bn_init(&n_minus_1_mont);
+  bn_init(&tmp);
 
+  bn_alloc(&tmp, n->size);
   bn_alloc(&a_bar, n->size);
   bn_alloc(&x_bar, n->size);
   bn_alloc(&n_minus_1_mont, n->size);
@@ -168,7 +170,8 @@ bool bn_rabin2(bignum* n, bignum* a)
   }
 
   for (u64 r = 1; r < s; r++) {
-    bn_mont_mul(&x_bar, &x_bar, &x_bar, &ctx);  // x = x^2 mod n
+    bn_mont_mul(&tmp, &x_bar, &x_bar, &ctx);  // x = x^2 mod n
+    bn_copy(&x_bar, &tmp);
 
     if (bn_cmp(&x_bar, &ctx.one_mont) == 0) {
       composite = true;  // Non-trivial square root of 1
@@ -189,7 +192,9 @@ cleanup:
   bn_free(&a_bar);
   bn_free(&x_bar);
   bn_free(&n_minus_1_mont);
-  // TODO: free Montgomery context fields if necessary
+  bn_free(&ctx.n);
+  bn_free(&ctx.one_mont);
+  bn_free(&ctx.r_square);
 
   return !composite;
 }

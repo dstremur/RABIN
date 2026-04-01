@@ -379,36 +379,76 @@ bool bn_gen_random(bignum* r, int bits)
   return true;
 }
 
+bool bn_gen_random_with_fd(bignum* r, int bits, int fd)
+{
+  int limbs_needed = (bits + 63) / 64;
+
+  if (!bn_alloc(r, limbs_needed)) return false;
+  r->size = limbs_needed;
+
+  // Read random bytes directly using the open file descriptor
+  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
+      (ssize_t)(limbs_needed * sizeof(u64))) {
+    return false;
+  }
+
+  // Mask the top limb to fit the exact bit length
+  int top_bits = bits % 64;
+  if (top_bits != 0) {
+    u64 mask = ((u64)1 << top_bits) - 1;
+    r->limbs[r->size - 1] &= mask;
+  }
+
+  // Ensure it's exactly 'bits' long by setting the MSB
+  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
+
+  // Ensure it's odd by setting the LSB
+  r->limbs[0] |= 1;
+
+  return true;
+}
+
 bool bn_gen_prime(bignum* p, int bits)
 {
   bignum a;
   bn_init(&a);
 
-  if (!bn_gen_random(p, bits)) return false;
+  int fd = open("/dev/urandom", O_RDONLY);
+  if (fd < 0) {
+    bn_free(&a);
+    return false;
+  }
 
   // Small primes to check for quick trial division
   u64 small_primes[] = {
-      2,   3,   5,   7,   11,  13,  17,  19,  23,  29,  31,  37,  41,  43,  47,
-      53,  59,  61,  67,  71,  73,  79,  83,  89,  97,  101, 103, 107, 109, 113,
-      127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197,
-      199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281,
-      283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379,
-      383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463,
-      467, 479, 487, 491, 499, 503, 509, 521, 523, 541};
-
+      2,   3,   5,   7,   11,  13,  17,  19,  23,  29,  31,  37,  41,  43,
+      47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97,  101, 103, 107,
+      109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181,
+      191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263,
+      269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
+      353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433,
+      439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521,
+      523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613,
+      617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
+      709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
+      811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887,
+      907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997};
+  u64 rounds = 0;
+  int num_primes = sizeof(small_primes) / sizeof(small_primes[0]);
   while (true) {
     bool composite = false;
 
+    if (!bn_gen_random_with_fd(p, bits, fd)) {
+      bn_free(&a);
+      return false;
+    }
+    // printf("%llu\n", rounds);
     // 1. Quick Trial Division
-    for (int i = 0; i < 100; i++) {
-      bignum dummy_q;
-      bn_init(&dummy_q);
-      if (bn_divmod_u64(&dummy_q, p, small_primes[i]) == 0) {
+    for (int i = 0; i < num_primes; i++) {
+      if (bn_mod_u64(p, small_primes[i]) == 0) {
         composite = true;
-        bn_free(&dummy_q);
         break;
       }
-      bn_free(&dummy_q);
     }
 
     // 2. Heavy Miller-Rabin (only if it passes trial division)
@@ -424,11 +464,12 @@ bool bn_gen_prime(bignum* p, int bits)
         }
       }
       if (looks_prime) {
+        close(fd);
         bn_free(&a);
         return true;
       }
     }
 
-    bn_add_u64(p, p, 2);
+    rounds++;
   }
 }
