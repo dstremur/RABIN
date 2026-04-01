@@ -96,25 +96,18 @@ void tonelli_shanks(bignum* r, bignum* n, bignum* p);
 
 
 
-void bn_mont_ctx_init(bn_mont_ctx *ctx, const bignum *N);
+void bn_mont_ctx_init(bn_mont_ctx *ctx, bignum *n);
 
 void bn_mont_ctx_free(bn_mont_ctx *ctx);
 
-void bn_mont_redc(bn_mont_ctx *ctx, bignum *t);
+void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
 
-void bn_mont_mul(const bn_mont_ctx *ctx,
-                 const bignum *x,
-                 const bignum *y,
-                 bignum *r);
+void bn_mont_mul(bignum* result,  bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx);
 
-void bn_mont_in(const bn_mont_ctx *ctx,
-                const bignum *x,
-                bignum *r);
+void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx);
 
-void bn_mont_out(const bn_mont_ctx *ctx,
-                 const bignum *x,
-                 bignum *r);
+void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx);
 
-void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b, const bignum* m, bn_mont_ctx* ctx);
+void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m, bn_mont_ctx* ctx);
 
 #endif

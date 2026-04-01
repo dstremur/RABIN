@@ -81,7 +81,6 @@ int main()
   bn_print(&b);
   printf("\n");
 
-  /*
     bignum my_prime;
     bn_init(&my_prime);
 
@@ -101,6 +100,5 @@ int main()
 
     bn_free(&my_prime);
 
-  */
   return 0;
 }

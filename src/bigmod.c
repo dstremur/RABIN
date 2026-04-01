@@ -38,8 +38,8 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
 // Fast modular inverse for a single 64-bit limb (Newton's method)
 uint64_t mod_inverse_u64(uint64_t n)
 {
-  uint64_t inv = n;
-  for (int i = 0; i < 5; i++) {
+  uint64_t inv = 1;
+  for (int i = 0; i < 6; i++) {
     inv *= (2 - n * inv);
   }
   return -inv;
