@@ -5,7 +5,7 @@
 
 #include "../include/bignum.h"
 
-#define KARATSUBA_LIMIT 64
+#define KARATSUBA_LIMIT 128
 
 // now use karatsuba
 

@@ -119,7 +119,7 @@ void bn_init_val(bignum* n, const char* str)
 void bn_print(bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
-    printf("0\n");
+    printf("0");
     return;
   }
 
@@ -155,10 +155,19 @@ void bn_print(bignum* n)
     printf("%019llu", (unsigned long long)parts[i]);
   }
 
-  printf("\n");
-
   free(parts);
   bn_free(&tmp);
+}
+
+void bn_println(bignum* n)
+{
+  if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
+    printf("0\n");
+    return;
+  }
+  bn_print(n);
+
+  printf("\n");
 }
 
 void bn_free(bignum* r)

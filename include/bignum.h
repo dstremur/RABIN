@@ -33,6 +33,7 @@ int bn_is_even(const bignum* a);
 bool bn_alloc(bignum* r, u64 capacity);
 void bn_init_val(bignum* n, const char* str);
 void bn_print(bignum* n);
+void bn_println(bignum* n);
 void bn_free(bignum* r);
 void bn_trim(bignum* r);
 int bn_get_bit(const bignum* a, int i);
@@ -86,7 +87,7 @@ bool bn_rabin(bignum* n, bignum* a);
 
 // bigmath.c 
 i64 bn_jacobi(bignum* a, bignum* m);
-void tonelli_shanks(bignum* r, bignum* p, bignum* n);
+void tonelli_shanks(bignum* r, bignum* n, bignum* p);
 
 
 

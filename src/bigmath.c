@@ -35,14 +35,19 @@ i64 bn_jacobi(bignum* a, bignum* m)
 
       if (z % 2 == 1) {
         u64 m_val = M.size > 0 ? M.limbs[0] : 0;
-        t ^= (m_val & 7);
+        u64 m_mod8 = m_val & 7;
+        if (m_mod8 == 3 || m_mod8 == 5) {
+          t ^= 1;
+        }
       }
     }
 
     u64 a_val = A.size > 0 ? A.limbs[0] : 0;
     u64 m_val = M.size > 0 ? M.limbs[0] : 0;
-    t ^= (a_val & m_val & 2);
 
+    if ((a_val & 3) == 3 && (m_val & 3) == 3) {
+      t ^= 1;
+    }
     bn_mod(&R, &M, &A);
     bn_copy(&M, &A);
     bn_copy(&A, &R);
@@ -52,10 +57,8 @@ i64 bn_jacobi(bignum* a, bignum* m)
 
   if (bn_cmp(&M, &one) != 0) {
     res = 0;
-  } else if ((t + 2) & 4) {
-    res = -1;
   } else {
-    res = 1;
+    res = (t % 2 == 0) ? 1 : -1;
   }
 
   bn_free(&A);
@@ -111,13 +114,18 @@ i64 euler_criterion(bignum* a, bignum* p)
 }
 /* Inputs:
 p, a prime
-n, an element of Z / p Z such that solutions to the congruence r2 = n exist;
+n, an element of Z / p Z such that solutions to the congruence r^2 = n exist;
 when this is so we say that n is a quadratic residue mod p.
 */
-void tonelli_shanks(bignum* r, bignum* p, bignum* n)
+void tonelli_shanks(bignum* r, bignum* n, bignum* p)
 {
+  if (bn_is_zero(n)) {
+    bn_set_u64(r, 0);
+    return;
+  }
+
   if (bn_jacobi(n, p) != 1) {
-    printf("No square roots exist");
+    printf("No square roots exist\n");
     return;
   }
 
@@ -162,12 +170,12 @@ void tonelli_shanks(bignum* r, bignum* p, bignum* n)
   while (1) {
     if (bn_is_zero(&t)) {
       bn_set_u64(r, 0);
-      return;
+      break;
     }
 
     if (bn_cmp(&t, &one) == 0) {
       bn_copy(r, &R);
-      return;
+      break;
     }
 
     bn_set_u64(&i, 0);
@@ -180,7 +188,7 @@ void tonelli_shanks(bignum* r, bignum* p, bignum* n)
     }
 
     if (bn_cmp(&i, &M) == 0) {
-      printf("No quadratic residue");
+      printf("No quadratic residue\n");
       break;
     }
 

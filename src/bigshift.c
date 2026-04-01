@@ -16,7 +16,7 @@ void bn_lshift1(bignum* r)
   }
 
   if (carry) {
-    r->limbs = realloc(r->limbs, (r->size + 1) * sizeof(u64));
+    bn_alloc(r, r->size + 1);
     r->limbs[r->size++] = carry;
   }
 }
@@ -36,6 +36,17 @@ void bn_rshift1(bignum* r)
 
 void bn_lshift(bignum* r, const bignum* a, int shift)
 {
+  if (r == a) {
+    bignum tmp;
+    bn_init(&tmp);
+
+    bn_lshift(&tmp, a, shift);
+    bn_copy(r, &tmp);
+
+    bn_free(&tmp);
+    return;
+  }
+
   if (shift == 0) {
     bn_copy(r, a);
     return;
@@ -81,6 +92,17 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
 
 void bn_rshift(bignum* r, const bignum* a, int shift)
 {
+  if (r == a) {
+    bignum tmp;
+    bn_init(&tmp);
+
+    bn_rshift(&tmp, a, shift);
+    bn_copy(r, &tmp);
+
+    bn_free(&tmp);
+    return;
+  }
+
   if (shift == 0) {
     bn_copy(r, a);
     return;

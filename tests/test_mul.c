@@ -18,7 +18,7 @@ void benchmark_mul(int limbs) {
 
     // 2. Time Karatsuba
     start = clock();
-    bn_mul_karatsuba(&res_karat, &a, &b);
+	bn_mul_karatsuba(&res_karat, &a, &b);
     end = clock();
     double time_karat = (double)(end - start) / CLOCKS_PER_SEC;
 
@@ -35,8 +35,8 @@ void benchmark_mul(int limbs) {
 
 int main() {
     // Test from small to large to find the crossover point
-    int sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16000};
-    for (int i = 0; i < 11; i++) {
+    int sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16000, 32000, 64000, 100000};
+    for (int i = 0; i < 14; i++) {
         benchmark_mul(sizes[i]);
     }
     return 0;

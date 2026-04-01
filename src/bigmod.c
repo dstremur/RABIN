@@ -7,6 +7,10 @@
 
 void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
+  if (bn_cmp(a, b) < 0) {
+    bn_copy(r, a);
+    return;
+  }
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);

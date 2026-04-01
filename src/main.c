@@ -29,7 +29,7 @@ int main()
   if (!fgets(buf1, sizeof(buf1), stdin)) return 1;
   buf1[strcspn(buf1, "\n")] = 0;  // Remove newline
 
-  printf("Enter second big number (b): ");
+  printf("Enter second big number (b, p): ");
   if (!fgets(buf2, sizeof(buf2), stdin)) return 1;
   buf2[strcspn(buf2, "\n")] = 0;  // Remove newline
 
@@ -37,66 +37,70 @@ int main()
   bn_init_val(&b, buf2);
   printf("Inputs: \n");
   printf("a: ");
-  bn_print(&a);
+  bn_println(&a);
   printf("b: ");
-  bn_print(&b);
-  printf("ADD: \n");
+  bn_println(&b);
+  printf("ADD: ");
   bn_add(&c, &a, &b);
-  bn_print(&c);
+  bn_println(&c);
   bn_init(&c);
   bn_sub(&c, &a, &b);
-  printf("SUB: \n");
-  bn_print(&c);
+  printf("SUB: ");
+  bn_println(&c);
   bn_init(&c);
   bn_mul(&c, &a, &b);
-  printf("MUL: \n");
-  bn_print(&c);
+  printf("MUL: ");
+  bn_println(&c);
   bn_init(&c);
   bn_div(&c, &a, &b);
-  printf("DIV: \n");
-  bn_print(&c);
-  printf("RSHIFT: \n");
+  printf("DIV: ");
+  bn_println(&c);
+  printf("RSHIFT: ");
   bn_rshift(&c, &a, 64);
-  bn_print(&c);
-  printf("LSHIFT: \n");
+  bn_println(&c);
+  printf("LSHIFT: ");
   bn_lshift(&c, &a, 32);
-  bn_print(&c);
-  printf("Pow: \n");
+  bn_println(&c);
+  printf("Pow: ");
   bn_pow(&c, &a, &b);
-  bn_print(&c);
+  bn_println(&c);
 
   i64 j = bn_jacobi(&a, &b);
 
   printf("JACOBI: %lli\n", (long long)j);
 
-  bignum p, n, r;
-  bn_init_multi(&p, &n, &r);
+  bignum r;
+  bn_init_multi(&r);
 
-  bn_set_u64(&p, 13);
-  bn_set_u64(&n, 13434634);
+  tonelli_shanks(&r, &a, &b);
 
-  tonelli_shanks(&r, &p, &n);
-
-  printf("root = ");
   bn_print(&r);
+  printf("^2 = ");
+  bn_print(&a);
+  printf(" mod ");
+  bn_print(&b);
   printf("\n");
 
-  bignum my_prime;
-  bn_init(&my_prime);
+  /*
+    bignum my_prime;
+    bn_init(&my_prime);
 
-  printf("Generating a 2048-bit prime... (this may take a minute)\n");
 
-  if (bn_gen_prime(&my_prime, 2048)) {
-    printf("\nSuccess! Your 2048-bit prime is:\n");
-    printf(
-        "----------------------------------------------------------------\n");
-    bn_print(&my_prime);
-    printf(
-        "----------------------------------------------------------------\n");
-  } else {
-    fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
-  }
+    printf("Generating a 2048-bit prime... (this may take a minute)\n");
 
-  bn_free(&my_prime);
+    if (bn_gen_prime(&my_prime, 2048)) {
+      printf("\nSuccess! Your 2048-bit prime is:\n");
+      printf(
+          "----------------------------------------------------------------\n");
+      bn_print(&my_prime);
+      printf(
+          "----------------------------------------------------------------\n");
+    } else {
+      fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
+    }
+
+    bn_free(&my_prime);
+
+  */
   return 0;
 }
