@@ -5,8 +5,7 @@
 
 #include "../include/bignum.h"
 
-void bn_div(bignum* q, const bignum* a, const bignum* b)
-{
+void bn_div(bignum* q, const bignum* a, const bignum* b) {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) {
     return;
   }

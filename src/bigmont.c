@@ -6,8 +6,7 @@
 
 #include "../include/bignum.h"
 
-void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n)
-{
+void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n) {
   bn_init(&ctx->n);
   bn_init(&ctx->one_mont);
   bn_init(&ctx->r_square);
@@ -45,8 +44,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n)
   }
 }
 
-void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
-{
+void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx) {
   u64 size = ctx->n.size;
   u64* n_limbs = ctx->n.limbs;
   u64* t_limbs = t->limbs;
@@ -87,8 +85,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
     bn_sub(r, r, &ctx->n);
   }
 }
-void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx)
-{
+void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx) {
   bignum T;
   bn_init(&T);
   bn_mul(&T, A, &ctx->r_square);
@@ -106,8 +103,7 @@ void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx)
   bn_mont_redc(A_bar, &T, ctx);
   bn_free(&T);
 }
-void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx)
-{
+void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx) {
   bignum T;
   bn_init(&T);
 
@@ -125,8 +121,21 @@ void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx)
   bn_free(&T);
 }
 
-void bn_mont_mul(bignum* result, bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx)
-{
+void bn_mont_mul(bignum* r, bignum* a_bar, bignum* b_bar, bn_mont_ctx* ctx) {
+  if (r == a_bar || r == b_bar) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_copy(&tmp, r);
+    bn_mont_mul(&tmp, a_bar, b_bar, ctx);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+  } else {
+    bn_mont_mul_raw(r, a_bar, b_bar, ctx);
+  }
+}
+
+void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
+                     bn_mont_ctx* ctx) {
   bignum T;
   bn_init(&T);
 

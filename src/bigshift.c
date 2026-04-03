@@ -5,8 +5,7 @@
 
 #include "../include/bignum.h"
 
-void bn_lshift1(bignum* r)
-{
+void bn_lshift1(bignum* r) {
   u64 carry = 0;
 
   for (u64 i = 0; i < r->size; i++) {
@@ -21,8 +20,7 @@ void bn_lshift1(bignum* r)
   }
 }
 
-void bn_rshift1(bignum* r)
-{
+void bn_rshift1(bignum* r) {
   if (r->size == 0) return;
   u64 carry = 0;
   for (i64 i = r->size - 1; i >= 0; i--) {
@@ -34,8 +32,7 @@ void bn_rshift1(bignum* r)
   bn_trim(r);
 }
 
-void bn_lshift(bignum* r, const bignum* a, int shift)
-{
+void bn_lshift(bignum* r, const bignum* a, int shift) {
   if (r == a) {
     bignum tmp;
     bn_init(&tmp);
@@ -90,8 +87,7 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-void bn_rshift(bignum* r, const bignum* a, int shift)
-{
+void bn_rshift(bignum* r, const bignum* a, int shift) {
   if (r == a) {
     bignum tmp;
     bn_init(&tmp);
@@ -145,8 +141,7 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
 }
 
 // Shift r left by 1 and add 0 or 1
-void bn_lshift1_add(bignum* r, int bit)
-{
+void bn_lshift1_add(bignum* r, int bit) {
   u64 carry = (bit != 0);
   for (u64 i = 0; i < r->size; i++) {
     u64 tmp = r->limbs[i] >> 63;

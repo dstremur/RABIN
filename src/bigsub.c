@@ -5,8 +5,7 @@
 
 #include "../include/bignum.h"
 
-void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
-{
+void bn_sub_abs(bignum* r, const bignum* a, const bignum* b) {
   // aliasing
 
   if (r == a || r == b) {
@@ -36,8 +35,7 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 }
 
 // Subtract: r = a - b
-void bn_sub(bignum* r, const bignum* a, const bignum* b)
-{
+void bn_sub(bignum* r, const bignum* a, const bignum* b) {
   // a - (-b) = a + b
   if (!a->is_neg && b->is_neg) {
     bn_add(r, a, b);

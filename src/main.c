@@ -16,8 +16,7 @@ typedef struct {
   const char* description;
 } test_case;
 
-int main()
-{
+int main() {
   bignum a, b, c;
   bn_init(&a);
   bn_init(&b);
@@ -61,14 +60,26 @@ int main()
   printf("LSHIFT: ");
   bn_lshift(&c, &a, 32);
   bn_println(&c);
-  printf("Pow: ");
-  bn_pow(&c, &a, &b);
+  // printf("Pow: ");
+  // bn_pow(&c, &a, &b);
   bn_println(&c);
 
-  if (bn_rabin(&a, &b)) {
-    printf("Prime");
+  bignum n, d;
+  bn_init_multi(&n, &d, NULL);
+  u64 n_1 = 10;
+
+  for (u64 i = 0; i < n_1; i++) {
+    bn_set_u64(&n, i);
+    bn_lucas(&c, &d, &a, &b, &n);
+    printf("Lucas\n");
+    bn_println(&c);
+    bn_println(&d);
+  }
+
+  if (bn_rabin_mont(&a, &b)) {
+    printf("a is Prime \n");
   } else {
-    printf("Not prime");
+    printf("a is not prime to base b \n");
   }
 
   i64 j = bn_jacobi(&a, &b);
@@ -84,12 +95,10 @@ int main()
   printf("^2 = ");
   bn_print(&a);
   printf(" mod ");
-  bn_print(&b);
-  printf("\n");
+  bn_println(&b);
 
   bignum my_prime;
   bn_init(&my_prime);
-
   printf("Generating a 2048-bit prime... (this may take a minute)\n");
 
   if (bn_gen_prime(&my_prime, 2048)) {
@@ -104,6 +113,5 @@ int main()
   }
 
   bn_free(&my_prime);
-
   return 0;
 }

@@ -11,6 +11,10 @@
 
   */
 
+
+typedef uint64_t u64;
+typedef int64_t i64;
+
 typedef struct bignum {
   uint64_t* limbs;  // 64-bit limbs (Base 2^64)
   size_t size;
@@ -25,8 +29,12 @@ typedef struct {
     bignum one_mont;   /* R   mod N   (representation of 1) */
 } bn_mont_ctx;
 
-typedef uint64_t u64;
-typedef int64_t i64;
+typedef struct bigmatrix {
+	bignum* rows;
+	bignum* cols;
+	u64 r_size;
+	u64 c_size;
+} bigmatrix;
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 
@@ -65,6 +73,7 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
 
 // bigmul.c
 void bn_mul(bignum* r, bignum* a, bignum* b);
+void bn_mul_raw(bignum* r, bignum* a, bignum* b);
 void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b);
 void bn_mul_school(bignum* r, bignum* a, bignum* b); 
 
@@ -80,6 +89,9 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 // bigexp.c
 void bn_pow(bignum* r, bignum* a, bignum* b);
 void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m); 
+void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx);
+
+void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m, bn_mont_ctx* ctx);
 
 // bigshift.c
 void bn_lshift1(bignum* r);
@@ -91,12 +103,14 @@ void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_lshift(bignum* r, const bignum* a, int shift);
 //bigrabin.c 
 bool bn_rabin(bignum* n, bignum* a); 
+bool bn_rabin_mont(bignum* n, bignum* a); 
 
 // bigmath.c 
 i64 bn_jacobi(bignum* a, bignum* m);
 void tonelli_shanks(bignum* r, bignum* n, bignum* p);
 
-
+// biglucas.c 
+void bn_lucas(bignum* u, bignum* v,  bignum* p, bignum* q, bignum* n);
 
 
 
@@ -110,11 +124,11 @@ void bn_mont_ctx_free(bn_mont_ctx *ctx);
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
 
 void bn_mont_mul(bignum* result,  bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx);
+void bn_mont_mul_raw(bignum* result,  bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx);
 
 void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx);
 
-void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m, bn_mont_ctx* ctx);
 
 #endif

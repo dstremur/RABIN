@@ -5,8 +5,7 @@
 
 #include "../include/bignum.h"
 
-void bn_mod(bignum* r, const bignum* a, const bignum* b)
-{
+void bn_mod(bignum* r, const bignum* a, const bignum* b) {
   if (bn_cmp(a, b) < 0) {
     bn_copy(r, a);
     return;
@@ -36,8 +35,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
 }
 
 // Fast modular inverse for a single 64-bit limb (Newton's method)
-uint64_t mod_inverse_u64(uint64_t n)
-{
+uint64_t mod_inverse_u64(uint64_t n) {
   uint64_t inv = 1;
   for (int i = 0; i < 6; i++) {
     inv *= (2 - n * inv);
@@ -45,8 +43,7 @@ uint64_t mod_inverse_u64(uint64_t n)
   return -inv;
 }
 
-uint64_t bn_mod_u64(const bignum* a, uint64_t d)
-{
+uint64_t bn_mod_u64(const bignum* a, uint64_t d) {
   unsigned __int128 rem = 0;
 
   // Purely mathematical reduction with zero memory allocation
@@ -58,8 +55,7 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d)
   return (uint64_t)rem;
 }
 
-uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
-{
+uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d) {
   if (q == a) {
     bignum tmp;
     bn_init(&tmp);

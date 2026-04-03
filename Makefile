@@ -28,6 +28,9 @@ test_primes: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o s
 	$(CC) $(CFLAGS) $^ -o test_primes $(LDFLAGS)
 	./test_primes
 
+test_lucas: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c tests/test_lucas.c
+	$(CC) $(CFLAGS) $^ -o test_lucas $(LDFLAGS)
+	./test_lucas
 clean:
 	rm -f $(OBJS) $(TARGET)
 
