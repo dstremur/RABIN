@@ -8,7 +8,8 @@
 
 // calculates a^b into r
 // binary exponentiation
-void bn_pow(bignum* r, bignum* a, bignum* b) {
+void bn_pow(bignum* r, bignum* a, bignum* b)
+{
   if (bn_is_zero(b)) {
     bn_set_u64(r, 1);
     return;
@@ -39,7 +40,8 @@ void bn_pow(bignum* r, bignum* a, bignum* b) {
 }
 
 // calculates a^d int r in the montgomery context
-void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx) {
+void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx)
+{
   bignum base, exponent;
 
   bn_init_multi(&base, &exponent, NULL);
@@ -65,7 +67,8 @@ void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx) {
 }
 
 // calculates a^b mod m into r
-void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
+void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m)
+{
   bignum base, exp, res, tmp;
   bn_init(&base);
   bn_init(&exp);
@@ -98,7 +101,8 @@ void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m) {
 
 // calculates a^b mod m into r in the montgomery domain
 void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m,
-                     bn_mont_ctx* ctx) {
+                     bn_mont_ctx* ctx)
+{
   assert(!bn_is_zero(m) && !bn_is_even(m));
 
   assert(bn_cmp(&ctx->n, m) == 0);

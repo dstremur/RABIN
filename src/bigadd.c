@@ -6,7 +6,8 @@
 #include "../include/bignum.h"
 
 // TODO: sign handling
-void bn_add(bignum* r, const bignum* a, const bignum* b) {
+void bn_add(bignum* r, const bignum* a, const bignum* b)
+{
   // aliasing
   //
   if (r == a || r == b) {
@@ -39,7 +40,8 @@ void bn_add(bignum* r, const bignum* a, const bignum* b) {
   bn_trim(r);
 }
 
-void bn_add_u64(bignum* r, const bignum* a, u64 b) {
+void bn_add_u64(bignum* r, const bignum* a, u64 b)
+{
   if (b == 0) {
     bn_copy(r, a);
     return;
@@ -68,7 +70,8 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b) {
   }
 }
 
-void bn_add_at_offset(bignum* r, const bignum* a, u64 offset) {
+void bn_add_at_offset(bignum* r, const bignum* a, u64 offset)
+{
   if (a->size == 0) return;
 
   u64 carry = 0;

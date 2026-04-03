@@ -7,7 +7,8 @@
 
 // based on wikipedia implementation
 // return the Jacobi symbol
-i64 bn_jacobi(bignum* a, bignum* m) {
+i64 bn_jacobi(bignum* a, bignum* m)
+{
   if (bn_is_zero(m) || bn_is_even(m)) {
     printf("m must be positive and odd\n");
     return 0;
@@ -21,7 +22,7 @@ i64 bn_jacobi(bignum* a, bignum* m) {
 
   bn_mod(&A, a, &M);
   if (a->is_neg && !bn_is_zero(&A)) {
-    bn_sub(&A, &M, &A);
+    bn_add(&A, &M, &A);
   }
 
   int t = 0;
@@ -71,7 +72,8 @@ i64 bn_jacobi(bignum* a, bignum* m) {
 // return the euler euler criterion
 // p must be an odd prime and a comprime to p
 // return 1 if there is a quadratic residue, -1 if not
-i64 euler_criterion(bignum* a, bignum* p) {
+i64 euler_criterion(bignum* a, bignum* p)
+{
   bignum exp, r, one, p_minus_one;
 
   bn_init_multi(&exp, &r, &one, &p_minus_one, NULL);
@@ -115,7 +117,8 @@ p, a prime
 n, an element of Z / p Z such that solutions to the congruence r^2 = n exist;
 when this is so we say that n is a quadratic residue mod p.
 */
-void tonelli_shanks(bignum* r, bignum* n, bignum* p) {
+void tonelli_shanks(bignum* r, bignum* n, bignum* p)
+{
   if (bn_is_zero(n)) {
     bn_set_u64(r, 0);
     return;

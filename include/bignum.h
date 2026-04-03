@@ -111,10 +111,12 @@ void tonelli_shanks(bignum* r, bignum* n, bignum* p);
 
 // biglucas.c 
 void bn_lucas(bignum* u, bignum* v,  bignum* p, bignum* q, bignum* n);
+void bn_lucas_mod(bignum* u, bignum* v,  bignum* p, bignum* q, bignum* n, bignum* m);
+void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
+                    bignum* n, bignum* m);
 
-
-
-
+// bigprime.c 
+bool bn_bpsw(bignum* n);
 
 
 void bn_mont_ctx_init(bn_mont_ctx *ctx, bignum *n);

@@ -16,7 +16,8 @@ typedef struct {
   const char* description;
 } test_case;
 
-int main() {
+int main()
+{
   bignum a, b, c;
   bn_init(&a);
   bn_init(&b);
@@ -76,7 +77,7 @@ int main() {
     bn_println(&d);
   }
 
-  if (bn_rabin_mont(&a, &b)) {
+  if (bn_bpsw(&a)) {
     printf("a is Prime \n");
   } else {
     printf("a is not prime to base b \n");
