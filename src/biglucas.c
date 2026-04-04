@@ -186,73 +186,85 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
     return;
   }
 
+  bn_mont_ctx ctx;
+  bn_mont_ctx_init(&ctx, m);
+  bignum u_bar, v_bar, qn_bar, p_bar, q_bar, one_bar;
+  bn_init_multi(&u_bar, &v_bar, &qn_bar, &q_bar, &p_bar, &one_bar, NULL);
+
+  // Transform constants into Montgomery space
+  bn_mont_in(&p_bar, p, &ctx);
+  bn_mont_in(&q_bar, q, &ctx);
+  bn_copy(&one_bar, &ctx.one_mont);
+
+  // Initial state for n=1: U=1, V=P, Q^n=Q
+  bn_copy(&u_bar, &one_bar);
+  bn_copy(&v_bar, &p_bar);
+  bn_copy(&qn_bar, &q_bar);
+
   bignum a, b, tmp;
   bn_init_multi(&a, &b, &tmp, NULL);
 
   u64 len = bn_bit_length(n);
 
-  bn_set_u64(u, 1);
-  bn_copy(v, p);
-  bn_copy(qn, q);
-
   for (i64 i = len - 2; i >= 0; i--) {
     // Precompute used values
-    bn_mul(&a, u, v);
-    bn_mul(&b, v, v);
+    bn_mont_mul(&a, &u_bar, &v_bar, &ctx);
 
-    bn_mod(&a, &a, m);
-    bn_mod(&b, &b, m);
+    bn_mont_mul(&b, &v_bar, &v_bar, &ctx);
 
     if (bn_get_bit(n, i) == 0) {
       // U_2n = a
-      bn_copy(u, &a);
+      bn_copy(&u_bar, &a);
       // V_2n = b - 2 * Q^k
-      bn_copy(v, &b);
-      bn_add(v, v, m);
-      bn_sub(v, v, qn);
-      bn_add(v, v, m);
-      bn_sub(v, v, qn);
-      bn_mod(v, v, m);
+      bn_sub(&v_bar, &b, &qn_bar);
+      if (v_bar.is_neg) bn_add(&v_bar, &v_bar, &ctx.n);
+      bn_sub(&v_bar, &v_bar, &qn_bar);
+      if (v_bar.is_neg) bn_add(&v_bar, &v_bar, &ctx.n);
       // Q^n = (Q^n/2)^2
-      bn_mul(qn, qn, qn);
-      bn_mod(qn, qn, m);
+      bn_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx);
     } else {
-      bn_mul(&tmp, p, &a);
+      bn_mont_mul(&tmp, &p_bar, &a, &ctx);
       bn_add(&tmp, &tmp, &b);
       // fix for modular arethmetic
       if (!bn_is_even(&tmp)) {
-        bn_add(&tmp, &tmp, m);
+        bn_add(&tmp, &tmp, &ctx.n);
       }
       bn_rshift1(&tmp);
 
-      bn_add(&tmp, &tmp, m);
-      bn_sub(u, &tmp, qn);
-      bn_mod(u, u, m);
+      // bn_sub(&u_bar, &tmp, &qn_bar);
+      bn_copy(&u_bar, &tmp);
+      if (u_bar.is_neg) bn_add(&u_bar, &u_bar, &ctx.n);
 
-      bn_mul(v, p, u);
-      bn_mod(v, v, m);
+      // v = P*u - Q*a
+      bn_mont_mul(&v_bar, &p_bar, &u_bar, &ctx);
+      bn_mont_mul(&tmp, &q_bar, &a, &ctx);
 
-      bn_mul(&tmp, q, &a);
-      bn_mod(&tmp, &tmp, m);
+      // Subtract Q*a twice (matches your original logic)
+      for (int j = 0; j < 2; j++) {
+        bn_sub(&v_bar, &v_bar, &tmp);
+        if (v_bar.is_neg) bn_add(&v_bar, &v_bar, &ctx.n);
+      }
 
-      bn_add(v, v, m);
-      bn_sub(v, v, &tmp);
-      bn_mod(v, v, m);
-
-      bn_add(v, v, m);
-      bn_sub(v, v, &tmp);
-      bn_mod(v, v, m);
-
-      bn_mul(qn, qn, qn);
-      bn_mod(qn, qn, m);
-      bn_mul(qn, qn, q);
-      bn_mod(qn, qn, m);
+      // Qn = Qn^2 * Q
+      bn_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx);
+      bn_mont_mul(&qn_bar, &qn_bar, &q_bar, &ctx);
     }
   }
+
+  bn_mont_out(u, &u_bar, &ctx);
+  bn_mont_out(v, &v_bar, &ctx);
+  bn_mont_out(qn, &qn_bar, &ctx);
 
   bn_free(&a);
   bn_free(&b);
   bn_free(&tmp);
+  bn_free(&u_bar);
+  bn_free(&v_bar);
+  bn_free(&qn_bar);
+  bn_free(&p_bar);
+  bn_free(&q_bar);
+  bn_free(&one_bar);
+  bn_mont_ctx_free(&ctx);
 }
 
 void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n)
