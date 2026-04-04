@@ -45,10 +45,11 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n)
   }
 }
 
-void bn_mont_ctx_free(bn_mont_ctx *ctx) {
-	bn_free(&ctx->one_mont);
-	bn_free(&ctx->n);
-	bn_free(&ctx->r_square);
+void bn_mont_ctx_free(bn_mont_ctx* ctx)
+{
+  bn_free(&ctx->one_mont);
+  bn_free(&ctx->n);
+  bn_free(&ctx->r_square);
 }
 
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
