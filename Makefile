@@ -31,6 +31,12 @@ test_primes: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o s
 test_lucas: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c tests/test_lucas.c
 	$(CC) $(CFLAGS) $^ -o test_lucas $(LDFLAGS)
 	./test_lucas
+
+
+test_bpsw: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_bpsw.c
+	$(CC) $(CFLAGS) $^ -o test_bpsw $(LDFLAGS)
+	./test_bpsw
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 
