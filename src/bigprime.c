@@ -1,13 +1,5 @@
 #include "../include/bignum.h"
 
-static const bool SQ_MOD64[64] = {
-    true,  true,  false, false, true,  false, false, false, true,  false, false,
-    false, false, false, false, false, true,  true,  false, false, false, false,
-    false, false, false, false, false, false, false, false, false, false, true,
-    true,  false, false, true,  false, false, false, false, false, false, false,
-    false, false, false, false, true,  true,  false, false, false, false, false,
-    false, false, false, false, false, false, false, false, false};
-
 bool bn_is_perfect_square(bignum* n)
 {
   // 0 is a perfect square
@@ -16,18 +8,11 @@ bool bn_is_perfect_square(bignum* n)
   // Negative numbers cannot be perfect squares
   if (n->is_neg) return false;
 
-  u64 mod64 =
-      bn_mod_u64(n, 64);  // or whatever your library's modulo function is
-  if (!SQ_MOD64[mod64]) {
-    return false;  // Rejects 80% of non-squares instantly!
-  }
-
   // --- STEP 2: Newton's Method Calculation ---
   bignum x, y, tmp, rem;
   bn_init_multi(&x, &y, &tmp, &rem, NULL);
 
   // Initial guess: x = 2^(bits/2)
-  // Assuming your library has a function to get total bit length
   int bits = bn_bit_length(n);
   bn_set_u64(&x, 1);
   bn_lshift(&x, &x, (bits + 1) / 2);
@@ -39,7 +24,6 @@ bool bn_is_perfect_square(bignum* n)
     bn_add(&y, &x, &tmp);  // y = x + n/x
     bn_rshift1(&y);        // y = y / 2
 
-    // If our new guess is not smaller, we have converged
     if (bn_cmp(&y, &x) >= 0) {
       break;
     }
