@@ -46,6 +46,7 @@ void bn_init_multi(bignum* first, ...);
 int bn_is_even(const bignum* a);
 bool bn_alloc(bignum* r, u64 capacity);
 void bn_init_val(bignum* n, const char* str);
+char* bn_to_string(bignum* n);
 void bn_print(bignum* n);
 void bn_println(bignum* n);
 void bn_free(bignum* r);

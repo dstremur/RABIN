@@ -5,7 +5,7 @@
 #include "../include/bignum.h"
 
 int main() {
-    int num_to_generate = 10;
+    int num_to_generate = 200;
     int bits = 2048;
     bignum p;
     bn_init(&p);

@@ -19,6 +19,8 @@ void bn_init(bignum* r)
   r->is_neg = false;
 }
 
+// initializes multiple bignums
+// IMPORTANT: terminate with NULL
 void bn_init_multi(bignum* r, ...)
 {
   if (r == NULL) return;
@@ -36,6 +38,7 @@ void bn_init_multi(bignum* r, ...)
   va_end(arg);
 }
 
+// returns 1 if a bignum is even, 0 else
 int bn_is_even(const bignum* n)
 {
   if (n->size == 0 || n->limbs == NULL) {
@@ -45,11 +48,13 @@ int bn_is_even(const bignum* n)
   return (n->limbs[0] & 1) == 0;
 }
 
+// returns true if a is even, false else
 bool bn_is_zero(const bignum* a)
 {
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
+// returns true if n is equal to the 64 bit signed integer a
 bool bn_is_eq_i64(const bignum* n, i64 a)
 {
   bignum test;
@@ -62,6 +67,7 @@ bool bn_is_eq_i64(const bignum* n, i64 a)
   }
 }
 
+// allocates more memory for r, at least the specified capacity
 bool bn_alloc(bignum* r, u64 capacity)
 {
   if (capacity <= r->capacity) return true;
@@ -80,6 +86,7 @@ bool bn_alloc(bignum* r, u64 capacity)
   return true;
 }
 
+// reads a string input in base 10 and sets n to that value
 void bn_init_val(bignum* n, const char* str)
 {
   bn_init(n);
@@ -93,10 +100,10 @@ void bn_init_val(bignum* n, const char* str)
 
   for (size_t i = 0; s[i]; i++) {
     if (!isdigit(s[i])) continue;
+
     int digit = s[i] - '0';
 
-    // Correct way to do n = n * 10 + digit:
-    // Perform a carry-propagation multiplication across ALL limbs
+    // go digits by digit propagating carry
     u64 carry = digit;
     for (u64 j = 0; j < n->size; j++) {
       unsigned __int128 prod = (unsigned __int128)n->limbs[j] * 10 + carry;
@@ -107,8 +114,7 @@ void bn_init_val(bignum* n, const char* str)
     // If there's still a carry after the last limb, grow the bignum
     while (carry) {
       bn_alloc(n, n->size + 1);
-      n->limbs[n->size++] = carry % 0xFFFFFFFFFFFFFFFFULL;  // Simplified
-      // Actually, with base 10, the carry will never exceed a single u64
+      n->limbs[n->size++] = carry % 0xFFFFFFFFFFFFFFFFULL;
       n->limbs[n->size - 1] = carry;
       carry = 0;
     }
@@ -116,6 +122,59 @@ void bn_init_val(bignum* n, const char* str)
   bn_trim(n);
 }
 
+// returns the n as a string
+char* bn_to_string(bignum* n)
+{
+  if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
+    return strdup("0");
+  }
+
+  bignum tmp;
+  bn_init(&tmp);
+  bn_copy(&tmp, n);
+
+  uint64_t* parts = NULL;
+  size_t parts_count = 0;
+
+  // Extract 19-digit chunks
+  while (!(tmp.size == 1 && tmp.limbs[0] == 0)) {
+    bignum q;
+    bn_init(&q);
+    // Ensure bn_divmod_u64 is correctly updating 'q' and returning 'rem'
+    uint64_t rem = bn_divmod_u64(&q, &tmp, BASE_10_19);
+
+    parts = realloc(parts, (parts_count + 1) * sizeof(uint64_t));
+    parts[parts_count++] = rem;
+
+    bn_free(&tmp);
+    tmp = q;
+  }
+
+  u64 buffer_size = (parts_count * 19) + 2;
+  char* result = (char*)malloc(buffer_size);
+  if (!result) return NULL;
+
+  char* ptr = result;
+
+  if (n->is_neg) {
+    *ptr++ = '-';
+  }
+
+  // 1. Print the most significant chunk (no leading zeros)
+  ptr += sprintf(ptr, "%llu", (unsigned long long)parts[parts_count - 1]);
+
+  // 2. Print all other chunks (MUST have 19 digits, pad with zeros)
+  for (int64_t i = (int64_t)parts_count - 2; i >= 0; i--) {
+    ptr += sprintf(ptr, "%019llu", (unsigned long long)parts[i]);
+  }
+
+  free(parts);
+  bn_free(&tmp);
+
+  return result;
+}
+
+// prints a bignum to the console in base 10
 void bn_print(bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
@@ -129,7 +188,6 @@ void bn_print(bignum* n)
   bn_init(&tmp);
   bn_copy(&tmp, n);
 
-  const uint64_t BASE10 = 10000000000000000000ULL;  // 10^19
   uint64_t* parts = NULL;
   size_t parts_count = 0;
 
@@ -159,6 +217,7 @@ void bn_print(bignum* n)
   bn_free(&tmp);
 }
 
+// same as bn_print with a newline
 void bn_println(bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
@@ -170,6 +229,7 @@ void bn_println(bignum* n)
   printf("\n");
 }
 
+// frees a bignum
 void bn_free(bignum* r)
 {
   if (r->limbs) {
@@ -180,6 +240,7 @@ void bn_free(bignum* r)
   r->capacity = 0;
 }
 
+// removes empty limbs from a bignum
 void bn_trim(bignum* r)
 {
   while (r->size > 1 && r->limbs[r->size - 1] == 0) {
@@ -190,8 +251,8 @@ void bn_trim(bignum* r)
 // Returns the value of the i-th bit (0 or 1)
 int bn_get_bit(const bignum* a, int i)
 {
-  int limb = i / 64;
-  int offset = i % 64;
+  u64 limb = i / 64;
+  u64 offset = i % 64;
 
   if (limb >= a->size) return 0;
 
@@ -223,6 +284,8 @@ int bn_cmp(const bignum* a, const bignum* b)
 
   return cmp;
 }
+
+// deep copies one a into r
 void bn_copy(bignum* r, const bignum* a)
 {
   if (r == a) return;
@@ -250,6 +313,7 @@ void bn_set_u64(bignum* n, uint64_t val)
   n->is_neg = false;
 }
 
+// Set to a 64 bit signed integer
 void bn_set_i64(bignum* n, int64_t val)
 {
   if (val >= 0) {
@@ -261,10 +325,11 @@ void bn_set_i64(bignum* n, int64_t val)
   }
 }
 
+// sets the i-th bit of a
 void bn_set_bit(bignum* a, int i)
 {
-  int limb = i / 64;
-  int offset = i % 64;
+  u64 limb = i / 64;
+  u64 offset = i % 64;
 
   if (limb >= a->size) {
     bn_alloc(a, limb + 1);
@@ -274,7 +339,7 @@ void bn_set_bit(bignum* a, int i)
   a->limbs[limb] |= ((u64)1 << offset);
 }
 
-// Bit length of a bignum (useful for division)
+// Bit length of a bignum
 int bn_bit_length(const bignum* a)
 {
   if (a->size == 0) return 0;
@@ -302,6 +367,7 @@ static inline u64 count_leading_zeros_u64(u64 val)
   return (u64)__builtin_clzll(val);
 }
 
+// returns the number of trailing zeros of a
 u64 bn_cnt_trailing_zeros(const bignum* a)
 {
   if (bn_is_zero(a)) return 0;
@@ -323,6 +389,7 @@ u64 bn_cnt_trailing_zeros(const bignum* a)
   return zeros;
 }
 
+// returns the number of leading zeros of a
 u64 bn_cnt_leading_zeros(const bignum* a)
 {
   if (bn_is_zero(a)) return 0;
@@ -344,9 +411,10 @@ u64 bn_cnt_leading_zeros(const bignum* a)
   return zeros;
 }
 
+// generates a random odd number using a hardware random number generator (on
+// Linux)
 bool bn_gen_random(bignum* r, int bits)
 {
-  int bytes = (bits + 7) / 8;
   int limbs_needed = (bits + 63) / 64;
 
   if (!bn_alloc(r, limbs_needed)) return false;
@@ -408,6 +476,8 @@ bool bn_gen_random_with_fd(bignum* r, int bits, int fd)
   return true;
 }
 
+// generates a random prime p with bits length using a variety of primality
+// tests
 bool bn_gen_prime(bignum* p, int bits)
 {
   bignum a;
@@ -433,7 +503,7 @@ bool bn_gen_prime(bignum* p, int bits)
       709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
       811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887,
       907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997};
-  u64 rounds = 0;
+
   int num_primes = sizeof(small_primes) / sizeof(small_primes[0]);
   while (true) {
     bool composite = false;
@@ -442,24 +512,27 @@ bool bn_gen_prime(bignum* p, int bits)
       bn_free(&a);
       return false;
     }
-    // printf("%llu\n", rounds);
-    // 1. Quick Trial Division
-    for (int i = 0; i < 70; i++) {
+
+    uint64_t multi_prime = 3ULL * 5 * 7 * 11 * 13 * 17;
+    uint64_t rem = bn_mod_u64(p, multi_prime);
+
+    if (rem % 3 == 0 || rem % 5 == 0 || rem % 7 == 0 || rem % 11 == 0 ||
+        rem % 13 == 0 || rem % 17 == 0)
+      continue;
+
+    for (int i = 0; i < num_primes; i++) {
       if (bn_mod_u64(p, small_primes[i]) == 0) {
         composite = true;
         break;
       }
     }
 
-    // 2. Heavy Miller-Rabin (only if it passes trial division)
+    // 2. BPSW deterministic :)
     if (!composite) {
-      // Checking bases 2, 3, and 5 is usually enough for a fast start
       if (bn_bpsw(p)) {
         close(fd);
         return true;
       }
     }
-
-    rounds++;
   }
 }

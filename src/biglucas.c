@@ -189,7 +189,8 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
   bn_mont_ctx ctx;
   bn_mont_ctx_init(&ctx, m);
   bignum u_bar, v_bar, qn_bar, p_bar, q_bar, one_bar, a, b, tmp;
-  bn_init_multi(&u_bar, &v_bar, &qn_bar, &q_bar, &p_bar, &one_bar, &a, &b, &tmp, NULL);
+  bn_init_multi(&u_bar, &v_bar, &qn_bar, &q_bar, &p_bar, &one_bar, &a, &b, &tmp,
+                NULL);
 
   // map constants into Montgomery space
   bn_mont_in(&p_bar, p, &ctx);
@@ -205,8 +206,8 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
 
   for (i64 i = len - 2; i >= 0; i--) {
     // Precompute used values
-	// a = U_n * V_n = U_2n
-	// b = V_n * V_n 
+    // a = U_n * V_n = U_2n
+    // b = V_n * V_n
     bn_mont_mul(&a, &u_bar, &v_bar, &ctx);
     bn_mont_mul(&b, &v_bar, &v_bar, &ctx);
 
@@ -222,7 +223,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
       // Q^n = (Q^n/2)^2
       bn_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx);
     } else {
-	  // tmp = P * U_2n + (V_n)^n / 2
+      // tmp = P * U_2n + V_2n / 2
       bn_mont_mul(&tmp, &p_bar, &a, &ctx);
       bn_add(&tmp, &tmp, &b);
 
@@ -232,16 +233,13 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
       }
       bn_rshift1(&tmp);
 
-	  // U_2n+1 = (P * U_2n + (V_n)^2 ) / 2 - Q^n
-      //bn_sub(&u_bar, &tmp, &qn_bar);
       bn_copy(&u_bar, &tmp);
-      if (u_bar.is_neg) bn_add(&u_bar, &u_bar, &ctx.n);
 
-      // V_2n+1 = P * U_2n+1 - 2 * Q * U_2n 
+      // V_2n+1 = P * U_2n+1 - 2 * Q * U_2n
       bn_mont_mul(&v_bar, &p_bar, &u_bar, &ctx);
       bn_mont_mul(&tmp, &q_bar, &a, &ctx);
 
-      // Subtract Q*a twice 
+      // Subtract Q*a twice
       for (int j = 0; j < 2; j++) {
         bn_sub(&v_bar, &v_bar, &tmp);
         if (v_bar.is_neg) bn_add(&v_bar, &v_bar, &ctx.n);

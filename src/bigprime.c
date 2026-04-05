@@ -5,10 +5,9 @@ bool bn_is_perfect_square(bignum* n)
   // 0 is a perfect square
   if (bn_is_zero(n)) return true;
 
-  // Negative numbers cannot be perfect squares
   if (n->is_neg) return false;
 
-  // --- STEP 2: Newton's Method Calculation ---
+  // Newton-Raphson method
   bignum x, y, tmp, rem;
   bn_init_multi(&x, &y, &tmp, &rem, NULL);
 
@@ -103,13 +102,15 @@ cleanup:
   return prime;
 }
 
+// check n for primality using a Baillie-PSW test
+// Assumes sufficient trial division was done previously
 bool bn_bpsw(bignum* n)
 {
-  // TODO trial division
-  bool prime = false;
-  if (bn_is_perfect_square(n)) {
-    return false;
-  }
+  /*
+    if (bn_is_perfect_square(n)) {
+      return false;
+    }
+  */
   // 1. run miller rabin base 2
   bignum two;
   bn_init(&two);
@@ -119,7 +120,6 @@ bool bn_bpsw(bignum* n)
     return false;
   }
 
-  // check if perfect square
   bignum D, magnitude;
   bn_init(&D);
   bn_init(&magnitude);
@@ -127,7 +127,17 @@ bool bn_bpsw(bignum* n)
 
   bool negative = false;
 
+  int rounds = 0;
+  // finds a D using Selfridges method A*
   while (1) {
+    // check if n is perfect square after 5 rounds
+    if (rounds == 5 && bn_is_perfect_square(n)) {
+      bn_free(&two);
+      bn_free(&D);
+      bn_free(&magnitude);
+      return false;
+    }
+
     bn_copy(&D, &magnitude);
     D.is_neg = negative;
 
@@ -144,6 +154,8 @@ bool bn_bpsw(bignum* n)
 
     bn_add_u64(&magnitude, &magnitude, 2);
     negative = !negative;
+
+    rounds++;
   }
 
   bignum P, Q;

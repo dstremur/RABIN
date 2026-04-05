@@ -97,6 +97,9 @@ int main()
   bn_print(&a);
   printf(" mod ");
   bn_println(&b);
+  char* s = bn_to_string(&b);
+  printf("Result: %s\n", s);
+  free(s);
 
   bignum my_prime;
   bn_init(&my_prime);
