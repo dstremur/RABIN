@@ -1,12 +1,12 @@
-#include <ctype.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "../include/bignum.h"
 
 void bn_lshift1(bignum* r)
 {
+  if (r->size == 0) return;
+
   u64 carry = 0;
 
   for (u64 i = 0; i < r->size; i++) {
@@ -36,6 +36,7 @@ void bn_rshift1(bignum* r)
 
 void bn_lshift(bignum* r, const bignum* a, int shift)
 {
+  // aliasing
   if (r == a) {
     bignum tmp;
     bn_init(&tmp);
@@ -47,6 +48,7 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
     return;
   }
 
+  // early exit
   if (shift == 0) {
     bn_copy(r, a);
     return;
@@ -56,11 +58,13 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
   u64 bits = shift % 64;
 
   u64 max_size = a->size + words + 1;
+  // if alloc fails just return 0
   if (!bn_alloc(r, max_size)) {
     bn_set_u64(r, 0);
     return;
   }
 
+  // zero the limbs
   memset(r->limbs, 0, max_size * sizeof(u64));
 
   r->size = max_size;
@@ -68,18 +72,22 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
 
   u64 carry = 0;
 
+  // shift left limb by limb
   for (u64 i = 0; i < a->size; i++) {
     u64 src = a->limbs[i];
-    u64 shifted = src << bits;
-    u64 high = bits ? (src >> (64 - bits)) : 0;
     u64 dst = i + words;
 
-    u64 sum = r->limbs[dst] + shifted + carry;
+    // use 128 bit sum, maybe optimize with assembly
+    unsigned __int128 sum = (unsigned __int128)src << bits;
+    sum += carry;
 
-    r->limbs[dst] = sum;
-    carry = (sum >> 64) + high;
+    // top 64 bits
+    r->limbs[dst] = (u64)sum;
+    // lower 64 bits go to the carry
+    carry = (u64)(sum >> 64);
   }
 
+  // handle remaining carry
   if (carry) {
     r->limbs[a->size + words] = carry;
     r->size = a->size + words + 1;
@@ -92,6 +100,7 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
 
 void bn_rshift(bignum* r, const bignum* a, int shift)
 {
+  // aliasing
   if (r == a) {
     bignum tmp;
     bn_init(&tmp);
@@ -103,6 +112,7 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
     return;
   }
 
+  // early exit
   if (shift == 0) {
     bn_copy(r, a);
     return;
@@ -111,6 +121,7 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
   u64 words = shift / 64;
   u64 bits = shift % 64;
 
+  // we shift more than the number of limbs
   if (words >= a->size) {
     bn_set_u64(r, 0);
     return;
@@ -118,7 +129,10 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
 
   u64 new_size = a->size - words;
 
-  bn_alloc(r, new_size);
+  if (!bn_alloc(r, new_size)) {
+    bn_set_u64(r, 0);
+    return;
+  }
 
   u64* new_limbs = r->limbs;
 
@@ -135,7 +149,6 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
     }
   }
 
-  // r->limbs = new_limbs;
   r->size = new_size;
 
   if (r->capacity > r->size) {

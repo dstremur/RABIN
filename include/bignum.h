@@ -5,12 +5,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
- /* Ideas
-  Catalan pseudoprime
+/* Ideas
+ Catalan pseudoprime
 
 
-  */
-
+ */
 
 typedef uint64_t u64;
 typedef int64_t i64;
@@ -23,18 +22,11 @@ typedef struct bignum {
 } bignum;
 
 typedef struct {
-    bignum n;          /* modulus (odd, > 1)               */
-    uint64_t n_inv;    /* -n^{-1} mod 2^64                  */
-    bignum r_square;   /* R^2 mod N   (R = 2^{64 * n.limbs})*/
-    bignum one_mont;   /* R   mod N   (representation of 1) */
+  bignum n;        /* modulus (odd, > 1)               */
+  uint64_t n_inv;  /* -n^{-1} mod 2^64                  */
+  bignum r_square; /* R^2 mod N   (R = 2^{64 * n.limbs})*/
+  bignum one_mont; /* R   mod N   (representation of 1) */
 } bn_mont_ctx;
-
-typedef struct bigmatrix {
-	bignum* rows;
-	bignum* cols;
-	u64 r_size;
-	u64 c_size;
-} bigmatrix;
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 
@@ -50,12 +42,13 @@ char* bn_to_string(bignum* n);
 void bn_print(bignum* n);
 void bn_println(bignum* n);
 void bn_free(bignum* r);
+void bn_free_multi(bignum* r, ...);
 void bn_trim(bignum* r);
 int bn_get_bit(const bignum* a, int i);
 bool bn_is_eq_i64(const bignum* n, i64 a);
 void bn_copy(bignum* dest, const bignum* src);
 void bn_set_u64(bignum* r, uint64_t val);
-void bn_set_i64(bignum* r, int64_t val); 
+void bn_set_i64(bignum* r, int64_t val);
 void bn_set_bit(bignum* a, int i);
 int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);
@@ -66,7 +59,7 @@ bool bn_gen_prime(bignum* p, int bits);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
-void bn_add_u64(bignum* r, const bignum* a, u64 b); 
+void bn_add_u64(bignum* r, const bignum* a, u64 b);
 void bn_add_at_offset(bignum* r, const bignum* a, u64 offset);
 // bigsub.c
 void bn_sub(bignum* r, const bignum* a, const bignum* b);
@@ -76,7 +69,7 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
 void bn_mul(bignum* r, bignum* a, bignum* b);
 void bn_mul_raw(bignum* r, bignum* a, bignum* b);
 void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b);
-void bn_mul_school(bignum* r, bignum* a, bignum* b); 
+void bn_mul_school(bignum* r, bignum* a, bignum* b);
 
 // bigdiv.c
 void bn_div(bignum* q, const bignum* a, const bignum* b);
@@ -89,10 +82,11 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 
 // bigexp.c
 void bn_pow(bignum* r, bignum* a, bignum* b);
-void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m); 
+void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m);
 void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx);
 
-void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m, bn_mont_ctx* ctx);
+void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m,
+                     bn_mont_ctx* ctx);
 
 // bigshift.c
 void bn_lshift1(bignum* r);
@@ -102,36 +96,37 @@ void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_rshift1(bignum* r);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_lshift(bignum* r, const bignum* a, int shift);
-//bigrabin.c 
-bool bn_rabin(bignum* n, bignum* a); 
-bool bn_rabin_mont(bignum* n, bignum* a); 
+// bigrabin.c
+bool bn_rabin(bignum* n, bignum* a);
+bool bn_rabin_mont(bignum* n, bignum* a);
 
-// bigmath.c 
+// bigmath.c
 i64 bn_jacobi(bignum* a, bignum* m);
 void tonelli_shanks(bignum* r, bignum* n, bignum* p);
 
-// biglucas.c 
-void bn_lucas(bignum* u, bignum* v,  bignum* p, bignum* q, bignum* n);
-void bn_lucas_mod(bignum* u, bignum* v,  bignum* p, bignum* q, bignum* n, bignum* m);
+// biglucas.c
+void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n);
+void bn_lucas_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n,
+                  bignum* m);
 void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
-                    bignum* n, bignum* m);
+                        bignum* n, bignum* m);
 
-// bigprime.c 
+// bigprime.c
 bool bn_bpsw(bignum* n);
 
+void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n);
 
-void bn_mont_ctx_init(bn_mont_ctx *ctx, bignum *n);
-
-void bn_mont_ctx_free(bn_mont_ctx *ctx);
+void bn_mont_ctx_free(bn_mont_ctx* ctx);
 
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
 
-void bn_mont_mul(bignum* result,  bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx);
-void bn_mont_mul_raw(bignum* result,  bignum* A_bar, bignum* B_bar, bn_mont_ctx* ctx);
+void bn_mont_mul(bignum* result, bignum* A_bar, bignum* B_bar,
+                 bn_mont_ctx* ctx);
+void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
+                     bn_mont_ctx* ctx);
 
 void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx);
-
 
 #endif

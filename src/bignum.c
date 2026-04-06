@@ -240,6 +240,25 @@ void bn_free(bignum* r)
   r->capacity = 0;
 }
 
+// frees multiple bignums
+// IMPORTANT: terminate with NULL
+void bn_free_multi(bignum* r, ...)
+{
+  if (r == NULL) return;
+
+  va_list arg;
+  va_start(arg, r);
+
+  bignum* next;
+  while ((next = va_arg(arg, bignum*)) != NULL) {
+    bn_free(next);
+  }
+
+  va_end(arg);
+
+  bn_free(r);
+}
+
 // removes empty limbs from a bignum
 void bn_trim(bignum* r)
 {

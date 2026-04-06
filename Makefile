@@ -41,6 +41,9 @@ test_openssl: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o 
 	$(CC) $(CFLAGS) $^ -o test_openssl $(LDFLAGS)
 	./test_openssl
 
+test_matrix: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/bigmatrix.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_matrix.c
+	$(CC) $(CFLAGS) $^ -o test_matrix $(LDFLAGS)
+	./test_matrix
 clean:
 	rm -f $(OBJS) $(TARGET)
 
