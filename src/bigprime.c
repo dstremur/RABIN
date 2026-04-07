@@ -2,7 +2,6 @@
 
 bool bn_is_perfect_square(bignum* n)
 {
-  // 0 is a perfect square
   if (bn_is_zero(n)) return true;
 
   if (n->is_neg) return false;
@@ -19,13 +18,14 @@ bool bn_is_perfect_square(bignum* n)
   // Newton-Raphson iteration
   while (true) {
     // y = (x + n/x) / 2
-    bn_div(&tmp, n, &x);   // tmp = n / x
-    bn_add(&y, &x, &tmp);  // y = x + n/x
-    bn_rshift1(&y);        // y = y / 2
+    bn_newton_div(&tmp, n, &x);
+    bn_add(&y, &x, &tmp);
+    bn_rshift1(&y);
 
     if (bn_cmp(&y, &x) >= 0) {
       break;
     }
+
     bn_copy(&x, &y);
   }
 

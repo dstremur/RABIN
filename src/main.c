@@ -52,7 +52,7 @@ int main()
   printf("MUL: ");
   bn_println(&c);
   bn_init(&c);
-  bn_div(&c, &a, &b);
+  bn_newton_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
   printf("RSHIFT: ");
@@ -64,6 +64,13 @@ int main()
   // printf("Pow: ");
   // bn_pow(&c, &a, &b);
   bn_println(&c);
+
+  if (bn_pollard(&c, &a)) {
+    printf("Factor found: ");
+    bn_println(&c);
+  } else {
+    printf("No non-trivial factor found (Number might be prime).\n");
+  }
 
   bignum n, d;
   bn_init_multi(&n, &d, NULL);

@@ -57,14 +57,8 @@ bool bn_is_zero(const bignum* a)
 // returns true if n is equal to the 64 bit signed integer a
 bool bn_is_eq_i64(const bignum* n, i64 a)
 {
-  bignum test;
-  bn_init(&test);
-  bn_set_i64(&test, a);
-  if (bn_cmp(n, &test) == 0) {
-    return true;
-  } else {
-    return false;
-  }
+  if (n->size != 1) return false;
+  return n->limbs[0] == (uint64_t)a;
 }
 
 // allocates more memory for r, at least the specified capacity
@@ -344,7 +338,7 @@ void bn_set_i64(bignum* n, int64_t val)
   }
 }
 
-// sets the i-th bit of a
+// sets the i-th bit of a to 1
 void bn_set_bit(bignum* a, int i)
 {
   u64 limb = i / 64;
@@ -356,6 +350,16 @@ void bn_set_bit(bignum* a, int i)
   }
 
   a->limbs[limb] |= ((u64)1 << offset);
+}
+
+void bn_clear_bit(bignum* a, int i)
+{
+  u64 limb = i / 64;
+  u64 offset = i % 64;
+
+  if (limb < a->size) {
+    a->limbs[limb] &= ~((u64)1 << offset);
+  }
 }
 
 // Bit length of a bignum

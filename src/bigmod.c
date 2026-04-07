@@ -11,6 +11,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
     bn_copy(r, a);
     return;
   }
+  // aliasing
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);
@@ -25,10 +26,13 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   int nbits = bn_bit_length(a);
 
   for (int i = nbits - 1; i >= 0; i--) {
-    bn_lshift1_add(r, bn_get_bit(a, i));
+    bn_lshift1(r);
+    if (bn_get_bit(a, i)) {
+      bn_set_bit(r, 0);
+    }
 
     if (bn_cmp(r, b) >= 0) {
-      bn_sub_abs(r, r, b);  // safe subtraction
+      bn_sub(r, r, b);
     }
   }
 
@@ -60,6 +64,7 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d)
 
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
 {
+  // aliasing
   if (q == a) {
     bignum tmp;
     bn_init(&tmp);
@@ -81,5 +86,5 @@ uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
   }
 
   bn_trim(q);
-  return (uint64_t)rem;
+  return (u64)rem;
 }

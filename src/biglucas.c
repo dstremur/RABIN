@@ -203,7 +203,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
   bn_copy(&qn_bar, &q_bar);
 
   u64 len = bn_bit_length(n);
-
+#pragma GCC unroll 8
   for (i64 i = len - 2; i >= 0; i--) {
     // Precompute used values
     // a = U_n * V_n = U_2n

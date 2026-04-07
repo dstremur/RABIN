@@ -33,7 +33,7 @@ i64 bn_jacobi(bignum* a, bignum* m)
     if (z > 0) {
       bn_rshift(&A, &A, z);
 
-      if (z % 2 == 1) {
+      if ((z & 1) == 1) {
         u64 m_val = M.size > 0 ? M.limbs[0] : 0;
         u64 m_mod8 = m_val & 7;
         if (m_mod8 == 3 || m_mod8 == 5) {
@@ -233,4 +233,55 @@ void tonelli_shanks(bignum* r, bignum* n, bignum* p)
   bn_free(&j);
   bn_free(&tmp2);
   bn_free(&b2);
+}
+// binary gcd algo
+void bn_gcd(bignum* d, bignum* a, bignum* b)
+{
+  if (bn_is_zero(a)) {
+    bn_copy(d, b);
+    return;
+  }
+  if (bn_is_zero(b)) {
+    bn_copy(d, a);
+    return;
+  }
+
+  bn_set_u64(d, 1);
+  bignum t, tmp_a, tmp_b;
+  bn_init_multi(&t, &tmp_a, &tmp_b, NULL);
+  bn_copy(&tmp_a, a);
+  bn_copy(&tmp_b, b);
+
+  u64 shifts = 0;
+
+  while (bn_is_even(&tmp_a) && bn_is_even(&tmp_b)) {
+    bn_rshift1(&tmp_a);
+    bn_rshift1(&tmp_b);
+    shifts++;
+  }
+
+  while (!bn_is_zero(&tmp_a)) {
+    while (bn_is_even(&tmp_a)) {
+      bn_rshift1(&tmp_a);
+    }
+    while (bn_is_even(&tmp_b)) {
+      bn_rshift1(&tmp_b);
+    }
+
+    if (bn_cmp(&tmp_a, &tmp_b) < 0) {
+      bn_sub(&t, &tmp_b, &tmp_a);
+      bn_rshift1(&t);
+      bn_copy(&tmp_b, &t);
+    } else {
+      bn_sub(&t, &tmp_a, &tmp_b);
+      bn_rshift1(&t);
+      bn_copy(&tmp_a, &t);
+    }
+  }
+
+  bn_lshift(d, &tmp_b, shifts);
+
+  bn_free(&tmp_a);
+  bn_free(&tmp_b);
+  bn_free(&t);
 }

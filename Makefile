@@ -1,6 +1,6 @@
 # Compiler
 CC = gcc
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto -march=native 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto -march=native
 
 LDFLAGS = -fopenmp -lm -flto
 
@@ -20,9 +20,13 @@ $(OBJS): include/bignum.h
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test_mul: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o tests/test_mul.c
+test_mul: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
 	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
 	./test_mul
+
+test_div: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c
+	$(CC) $(CFLAGS) $^ -o test_div $(LDFLAGS)
+	./test_div
 
 test_primes: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_primes.c
 	$(CC) $(CFLAGS) $^ -o test_primes $(LDFLAGS)

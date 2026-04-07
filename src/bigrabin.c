@@ -136,6 +136,7 @@ bool bn_rabin_mont(bignum* n, bignum* a)
     goto cleanup;
   }
 
+  // #pragma GCC unroll 4
   for (u64 r = 1; r < s; r++) {
     bn_mont_mul(&x_bar, &x_bar, &x_bar, &ctx);  // x = x^2 mod n
     // bn_copy(&x_bar, &tmp);
@@ -159,9 +160,8 @@ cleanup:
   bn_free(&a_bar);
   bn_free(&x_bar);
   bn_free(&n_minus_1_mont);
-  bn_free(&ctx.n);
-  bn_free(&ctx.one_mont);
-  bn_free(&ctx.r_square);
+  bn_free(&tmp);
+  bn_mont_ctx_free(&ctx);
 
   return !composite;
 }

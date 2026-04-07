@@ -14,13 +14,13 @@ void benchmark_mul(int limbs)
 
   // 1. Time Schoolbook
   clock_t start = clock();
-  bn_mul(&res_school, &a, &b);
+  bn_mul_school(&res_school, &a, &b);
   clock_t end = clock();
   double time_school = (double)(end - start) / CLOCKS_PER_SEC;
 
   // 2. Time Karatsuba
   start = clock();
-  bn_mul_karatsuba(&res_karat, &a, &b);
+  bn_mul(&res_karat, &a, &b);
   end = clock();
   double time_karat = (double)(end - start) / CLOCKS_PER_SEC;
 

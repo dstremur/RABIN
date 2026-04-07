@@ -50,6 +50,7 @@ void bn_copy(bignum* dest, const bignum* src);
 void bn_set_u64(bignum* r, uint64_t val);
 void bn_set_i64(bignum* r, int64_t val);
 void bn_set_bit(bignum* a, int i);
+void bn_clear_bit(bignum* a, int i);
 int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);
 int bn_cmp(const bignum* a, const bignum* b);
@@ -73,7 +74,7 @@ void bn_mul_school(bignum* r, bignum* a, bignum* b);
 
 // bigdiv.c
 void bn_div(bignum* q, const bignum* a, const bignum* b);
-
+void bn_newton_div(bignum* q, const bignum* a, const bignum* d);
 // bigmod.c
 void bn_mod(bignum* r, const bignum* a, const bignum* n);
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
@@ -103,13 +104,16 @@ bool bn_rabin_mont(bignum* n, bignum* a);
 // bigmath.c
 i64 bn_jacobi(bignum* a, bignum* m);
 void tonelli_shanks(bignum* r, bignum* n, bignum* p);
-
+void bn_gcd(bignum* d, bignum* a, bignum* b);
 // biglucas.c
 void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n);
 void bn_lucas_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n,
                   bignum* m);
 void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
                         bignum* n, bignum* m);
+
+// bigfactor.ctx
+bool bn_pollard(bignum* f, bignum* n);
 
 // bigprime.c
 bool bn_bpsw(bignum* n);
