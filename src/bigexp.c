@@ -113,7 +113,17 @@ void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m,
   bn_mont_in(&base, a, ctx);
 
   bn_copy(&result, &ctx->one_mont);
+  /*
+    u64 bits = bn_bit_length(b);
 
+
+    for (i64 i = bits - 1; i >= 0; i--) {
+      bn_mont_mul(&result, &result, &base, ctx);
+
+      if (bn_get_bit(b,i) == 1) {
+        bn_mont_mul(&result, &result, &base, ctx);
+      }
+    } */
   bignum exp;
   bn_init(&exp);
   bn_copy(&exp, b);

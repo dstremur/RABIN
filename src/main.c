@@ -19,8 +19,6 @@ typedef struct {
 int main()
 {
   bignum a, b, c;
-  bn_init(&a);
-  bn_init(&b);
   bn_init(&c);
   char buf1[1024];
   char buf2[1024];
@@ -43,15 +41,12 @@ int main()
   printf("ADD: ");
   bn_add(&c, &a, &b);
   bn_println(&c);
-  bn_init(&c);
   bn_sub(&c, &a, &b);
   printf("SUB: ");
   bn_println(&c);
-  bn_init(&c);
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);
-  bn_init(&c);
   bn_newton_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
@@ -95,7 +90,7 @@ int main()
   printf("JACOBI: %lli\n", (long long)j);
 
   bignum r;
-  bn_init_multi(&r);
+  bn_init(&r);
 
   tonelli_shanks(&r, &a, &b);
 
@@ -124,5 +119,6 @@ int main()
   }
 
   bn_free(&my_prime);
+  bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
   return 0;
 }

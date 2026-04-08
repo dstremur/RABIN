@@ -83,7 +83,7 @@ bool bn_alloc(bignum* r, u64 capacity)
 // reads a string input in base 10 and sets n to that value
 void bn_init_val(bignum* n, const char* str)
 {
-  bn_init(n);
+  bn_free(n);
   if (!str) return;
 
   n->is_neg = (str[0] == '-');
@@ -322,7 +322,6 @@ void bn_set_u64(bignum* n, uint64_t val)
   bn_alloc(n, 1);
   n->limbs[0] = val;
   n->size = 1;
-  n->capacity = 1;
   n->is_neg = false;
 }
 
@@ -432,130 +431,4 @@ u64 bn_cnt_leading_zeros(const bignum* a)
   zeros += count_leading_zeros_u64(a->limbs[i]);
 
   return zeros;
-}
-
-// generates a random odd number using a hardware random number generator (on
-// Linux)
-bool bn_gen_random(bignum* r, int bits)
-{
-  int limbs_needed = (bits + 63) / 64;
-
-  if (!bn_alloc(r, limbs_needed)) return false;
-  r->size = limbs_needed;
-
-  int fd = open("/dev/urandom", O_RDONLY);
-  if (fd < 0) return false;
-
-  // Read random bytes directly into the limb memory
-  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
-      (ssize_t)(limbs_needed * sizeof(u64))) {
-    close(fd);
-    return false;
-  }
-  close(fd);
-
-  // Mask the top limb to fit the exact bit length
-  int top_bits = bits % 64;
-  if (top_bits != 0) {
-    u64 mask = ((u64)1 << top_bits) - 1;
-    r->limbs[r->size - 1] &= mask;
-  }
-
-  // Ensure it's exactly 'bits' long by setting the MSB
-  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
-
-  // Ensure it's odd by setting the LSB
-  r->limbs[0] |= 1;
-
-  return true;
-}
-
-bool bn_gen_random_with_fd(bignum* r, int bits, int fd)
-{
-  int limbs_needed = (bits + 63) / 64;
-
-  if (!bn_alloc(r, limbs_needed)) return false;
-  r->size = limbs_needed;
-
-  // Read random bytes directly using the open file descriptor
-  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
-      (ssize_t)(limbs_needed * sizeof(u64))) {
-    return false;
-  }
-
-  // Mask the top limb to fit the exact bit length
-  int top_bits = bits % 64;
-  if (top_bits != 0) {
-    u64 mask = ((u64)1 << top_bits) - 1;
-    r->limbs[r->size - 1] &= mask;
-  }
-
-  // Ensure it's exactly 'bits' long by setting the MSB
-  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
-
-  // Ensure it's odd by setting the LSB
-  r->limbs[0] |= 1;
-
-  return true;
-}
-
-// generates a random prime p with bits length using a variety of primality
-// tests
-bool bn_gen_prime(bignum* p, int bits)
-{
-  bignum a;
-  bn_init(&a);
-
-  int fd = open("/dev/urandom", O_RDONLY);
-  if (fd < 0) {
-    bn_free(&a);
-    return false;
-  }
-
-  // Small primes to check for quick trial division
-  u64 small_primes[] = {
-      2,   3,   5,   7,   11,  13,  17,  19,  23,  29,  31,  37,  41,  43,
-      47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97,  101, 103, 107,
-      109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181,
-      191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263,
-      269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
-      353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433,
-      439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521,
-      523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613,
-      617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
-      709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
-      811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887,
-      907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997};
-
-  int num_primes = sizeof(small_primes) / sizeof(small_primes[0]);
-  while (true) {
-    bool composite = false;
-
-    if (!bn_gen_random_with_fd(p, bits, fd)) {
-      bn_free(&a);
-      return false;
-    }
-
-    uint64_t multi_prime = 3ULL * 5 * 7 * 11 * 13 * 17;
-    uint64_t rem = bn_mod_u64(p, multi_prime);
-
-    if (rem % 3 == 0 || rem % 5 == 0 || rem % 7 == 0 || rem % 11 == 0 ||
-        rem % 13 == 0 || rem % 17 == 0)
-      continue;
-
-    for (int i = 0; i < num_primes; i++) {
-      if (bn_mod_u64(p, small_primes[i]) == 0) {
-        composite = true;
-        break;
-      }
-    }
-
-    // 2. BPSW deterministic :)
-    if (!composite) {
-      if (bn_bpsw(p)) {
-        close(fd);
-        return true;
-      }
-    }
-  }
 }
