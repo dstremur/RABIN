@@ -1,6 +1,6 @@
 #include "../include/bignum.h"
 #include "stdio.h"
-bool bn_pollard(bignum* f, bignum* n)
+bool bn_pollard_rho(bignum* f, bignum* n)
 {
   if (bn_is_even(n)) {
     bn_set_u64(f, 2);
@@ -51,3 +51,5 @@ bool bn_pollard(bignum* f, bignum* n)
 
   return false;
 }
+
+void bn_pollard_p_minus_one(bignum* f, bignum* n, bignum* B) {}

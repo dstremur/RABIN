@@ -60,7 +60,7 @@ int main()
   // bn_pow(&c, &a, &b);
   bn_println(&c);
 
-  if (bn_pollard(&c, &a)) {
+  if (bn_pollard_rho(&c, &a)) {
     printf("Factor found: ");
     bn_println(&c);
   } else {

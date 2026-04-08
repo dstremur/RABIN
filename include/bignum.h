@@ -113,7 +113,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
                         bignum* n, bignum* m);
 
 // bigfactor.ctx
-bool bn_pollard(bignum* f, bignum* n);
+bool bn_pollard_rho(bignum* f, bignum* n);
 
 // bigprime.c
 bool bn_bpsw(bignum* n);
