@@ -238,7 +238,7 @@ cleanup:
 
 // check n for primality using a Baillie-PSW test
 // Assumes sufficient trial division was done previously
-bool bn_bpsw(bignum* n)
+bool bn_bpsw(const bignum* n)
 {
   // 1. run miller rabin base 2
   bignum two;

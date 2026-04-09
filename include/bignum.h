@@ -38,9 +38,9 @@ void bn_init_multi(bignum* first, ...);
 int bn_is_even(const bignum* a);
 bool bn_alloc(bignum* r, u64 capacity);
 void bn_init_val(bignum* n, const char* str);
-char* bn_to_string(bignum* n);
-void bn_print(bignum* n);
-void bn_println(bignum* n);
+char* bn_to_string(const bignum* n);
+void bn_print(const bignum* n);
+void bn_println(const bignum* n);
 void bn_free(bignum* r);
 void bn_free_multi(bignum* r, ...);
 void bn_trim(bignum* r);
@@ -67,10 +67,10 @@ void bn_sub(bignum* r, const bignum* a, const bignum* b);
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
 
 // bigmul.c
-void bn_mul(bignum* r, bignum* a, bignum* b);
-void bn_mul_raw(bignum* r, bignum* a, bignum* b);
-void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b);
-void bn_mul_school(bignum* r, bignum* a, bignum* b);
+void bn_mul(bignum* r, const bignum* a, const bignum* b);
+void bn_mul_raw(bignum* r, const bignum* a, const bignum* b);
+void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b);
+void bn_mul_school(bignum* r, const bignum* a, const bignum* b);
 
 // bigdiv.c
 void bn_div(bignum* q, const bignum* a, const bignum* b);
@@ -82,12 +82,11 @@ uint64_t mod_inverse_u64(uint64_t n);
 uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 
 // bigexp.c
-void bn_pow(bignum* r, bignum* a, bignum* b);
-void bn_mod_exp(bignum* r, bignum* a, bignum* b, bignum* m);
-void bn_mont_exp(bignum* r_bar, bignum* a_bar, bignum* d, bn_mont_ctx* ctx);
+void bn_pow(bignum* r, const bignum* a, const bignum* b);
+void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
+void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d, bn_mont_ctx* ctx);
 
-void bn_mod_exp_mont(bignum* r, bignum* a, bignum* b, bignum* m,
-                     bn_mont_ctx* ctx);
+void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b, const bignum* m, bn_mont_ctx* ctx);
 
 // bigshift.c
 void bn_lshift1(bignum* r);
@@ -98,27 +97,26 @@ void bn_rshift1(bignum* r);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_lshift(bignum* r, const bignum* a, int shift);
 // bigrabin.c
-bool bn_rabin(bignum* n, bignum* a);
-bool bn_rabin_mont(bignum* n, bignum* a);
+bool bn_rabin(const bignum* n, const bignum* a);
+bool bn_rabin_mont(const bignum* n, const bignum* a);
 
 // bigmath.c
-i64 bn_jacobi(bignum* a, bignum* m);
-void tonelli_shanks(bignum* r, bignum* n, bignum* p);
-void bn_gcd(bignum* d, bignum* a, bignum* b);
+i64 bn_jacobi(const bignum* a, const bignum* m);
+void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
+void bn_gcd(bignum* d, const bignum* a, const bignum* b);
 // biglucas.c
-void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n);
-void bn_lucas_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n,
-                  bignum* m);
-void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
-                        bignum* n, bignum* m);
+void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n);
+void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n,
+                  const bignum* m);
+void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, bignum* qn, const bignum* n, const bignum* m);
 
 // bigfactor.ctx
-bool bn_pollard_rho(bignum* f, bignum* n);
+bool bn_pollard_rho(bignum* f, const bignum* n);
 
 // bigprime.c
-bool bn_bpsw(bignum* n);
+bool bn_bpsw(const bignum* n);
 
-void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n);
+void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
 
 void bn_mont_ctx_free(bn_mont_ctx* ctx);
 
@@ -129,8 +127,8 @@ void bn_mont_mul(bignum* result, bignum* A_bar, bignum* B_bar,
 void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
                      bn_mont_ctx* ctx);
 
-void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx);
+void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 
-void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx);
+void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
 
 #endif

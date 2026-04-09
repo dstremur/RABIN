@@ -5,7 +5,7 @@
 
 #include "../include/bignum.h"
 
-bool bn_rabin(bignum* n, bignum* a)
+bool bn_rabin(const bignum* n, const bignum* a)
 {
   if (bn_is_even(n)) return false;
 
@@ -80,7 +80,7 @@ cleanup:
   return !composite;
 }
 
-bool bn_rabin_mont(bignum* n, bignum* a)
+bool bn_rabin_mont(const bignum* n, const bignum* a)
 {
   if (bn_is_even(n)) return false;
 

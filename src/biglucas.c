@@ -17,8 +17,8 @@ V_2n+1 = V_n+1V_n - P(Q)^n
 
 */
 
-void bn_lucas_solve(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
-                    bignum* n)
+void bn_lucas_solve(bignum* u, bignum* v, const bignum* p, const bignum* q,
+                    bignum* qn, const bignum* n)
 {
   if (bn_is_eq_i64(n, 0)) {
     bn_set_u64(u, 0);
@@ -78,8 +78,9 @@ void bn_lucas_solve(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
   bn_free(&tmp);
 }
 
-void bn_lucas_solve_mod_rec(bignum* u, bignum* v, bignum* p, bignum* q,
-                            bignum* qn, bignum* n, bignum* m)
+void bn_lucas_solve_mod_rec(bignum* u, bignum* v, const bignum* p,
+                            const bignum* q, bignum* qn, const bignum* n,
+                            const bignum* m)
 {
   if (bn_is_eq_i64(n, 0)) {
     bn_set_u64(u, 0);
@@ -166,8 +167,8 @@ void bn_lucas_solve_mod_rec(bignum* u, bignum* v, bignum* p, bignum* q,
   bn_free(&tmp);
 }
 
-void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
-                        bignum* n, bignum* m)
+void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
+                        bignum* qn, const bignum* n, const bignum* m)
 {
   if (bn_is_eq_i64(n, 0)) {
     bn_set_u64(u, 0);
@@ -267,7 +268,8 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* qn,
   bn_mont_ctx_free(&ctx);
 }
 
-void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n)
+void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q,
+              const bignum* n)
 {
   bignum qn;
 
@@ -276,8 +278,8 @@ void bn_lucas(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n)
   bn_free(&qn);
 }
 
-void bn_lucas_mod(bignum* u, bignum* v, bignum* p, bignum* q, bignum* n,
-                  bignum* m)
+void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
+                  const bignum* n, const bignum* m)
 {
   bignum qn;
 

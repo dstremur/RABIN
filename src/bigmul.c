@@ -7,7 +7,7 @@
 
 #define KARATSUBA_LIMIT 128
 
-void bn_mul(bignum* r, bignum* a, bignum* b)
+void bn_mul(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
   if (r == a || r == b) {
@@ -23,7 +23,7 @@ void bn_mul(bignum* r, bignum* a, bignum* b)
 }
 
 // now use karatsuba
-void bn_mul_raw(bignum* r, bignum* a, bignum* b)
+void bn_mul_raw(bignum* r, const bignum* a, const bignum* b)
 {
   // 1. Basic checks
   if (a->size == 0 || b->size == 0) {
@@ -40,7 +40,7 @@ void bn_mul_raw(bignum* r, bignum* a, bignum* b)
   r->is_neg = a->is_neg ^ b->is_neg;
 }
 
-void bn_mul_school(bignum* r, bignum* a, bignum* b)
+void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
   /*
 // Handle aliasing
@@ -90,7 +90,7 @@ return;
   bn_trim(r);
 }
 
-void bn_mul_karatsuba(bignum* r, bignum* a, bignum* b)
+void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
 {
   if (r == a || r == b) {
     bignum tmp;

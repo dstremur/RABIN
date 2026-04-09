@@ -117,7 +117,7 @@ void bn_init_val(bignum* n, const char* str)
 }
 
 // returns the n as a string
-char* bn_to_string(bignum* n)
+char* bn_to_string(const bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
     return strdup("0");
@@ -169,7 +169,7 @@ char* bn_to_string(bignum* n)
 }
 
 // prints a bignum to the console in base 10
-void bn_print(bignum* n)
+void bn_print(const bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
     printf("0");
@@ -212,7 +212,7 @@ void bn_print(bignum* n)
 }
 
 // same as bn_print with a newline
-void bn_println(bignum* n)
+void bn_println(const bignum* n)
 {
   if (n->size == 0 || (n->size == 1 && n->limbs[0] == 0)) {
     printf("0\n");

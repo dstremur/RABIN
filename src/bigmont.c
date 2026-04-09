@@ -6,7 +6,7 @@
 
 #include "../include/bignum.h"
 
-void bn_mont_ctx_init(bn_mont_ctx* ctx, bignum* n)
+void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 {
   bn_init(&ctx->n);
   bn_init(&ctx->one_mont);
@@ -94,7 +94,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
     bn_sub(r, r, &ctx->n);
   }
 }
-void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx)
+void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {
   bignum T;
   bn_init(&T);
@@ -113,7 +113,7 @@ void bn_mont_in(bignum* A_bar, bignum* A, bn_mont_ctx* ctx)
   bn_mont_redc(A_bar, &T, ctx);
   bn_free(&T);
 }
-void bn_mont_out(bignum* A, bignum* A_bar, bn_mont_ctx* ctx)
+void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
   bignum T;
   bn_init(&T);

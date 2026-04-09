@@ -20,11 +20,11 @@ $(OBJS): include/bignum.h
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test_mul: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
+test_mul: src/bigmul.o src/bigprime.c src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
 	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
 	./test_mul
 
-test_div: src/bigmul.o src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c
+test_div: src/bigmul.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c
 	$(CC) $(CFLAGS) $^ -o test_div $(LDFLAGS)
 	./test_div
 

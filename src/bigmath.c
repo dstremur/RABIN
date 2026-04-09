@@ -7,7 +7,7 @@
 
 // based on wikipedia implementation
 // return the Jacobi symbol
-i64 bn_jacobi(bignum* a, bignum* m)
+i64 bn_jacobi(const bignum* a, const bignum* m)
 {
   if (bn_is_zero(m) || bn_is_even(m)) {
     printf("m must be positive and odd\n");
@@ -117,7 +117,7 @@ p, a prime
 n, an element of Z / p Z such that solutions to the congruence r^2 = n exist;
 when this is so we say that n is a quadratic residue mod p.
 */
-void tonelli_shanks(bignum* r, bignum* n, bignum* p)
+void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
 {
   if (bn_is_zero(n)) {
     bn_set_u64(r, 0);
@@ -235,7 +235,7 @@ void tonelli_shanks(bignum* r, bignum* n, bignum* p)
   bn_free(&b2);
 }
 // binary gcd algo
-void bn_gcd(bignum* d, bignum* a, bignum* b)
+void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 {
   if (bn_is_zero(a)) {
     bn_copy(d, b);
