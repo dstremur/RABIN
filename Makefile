@@ -1,6 +1,6 @@
 # Compiler
 CC = gcc
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto -march=native
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto -march=native -mavx512ifma
 
 LDFLAGS = -fopenmp -lm -flto
 

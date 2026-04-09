@@ -32,6 +32,12 @@ typedef struct {
 
 #define MAX_LIMBS 512
 
+
+
+
+void fftest();
+
+
 // bignum.c
 void bn_init(bignum* r);
 void bn_init_multi(bignum* first, ...);
@@ -130,5 +136,9 @@ void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
+
+
+
+void avxtest();
 
 #endif

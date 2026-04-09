@@ -80,7 +80,8 @@ bool bn_alloc(bignum* r, u64 capacity)
   return true;
 }
 
-// reads a string input in base 10 and sets n to that value
+// reads a string input in base 10 and sets n to that value, n has to be
+// initialized
 void bn_init_val(bignum* n, const char* str)
 {
   bn_free(n);

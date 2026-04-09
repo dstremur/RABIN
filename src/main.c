@@ -19,7 +19,7 @@ typedef struct {
 int main()
 {
   bignum a, b, c;
-  bn_init(&c);
+  bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];
   char buf2[1024];
 
@@ -118,6 +118,9 @@ int main()
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
 
+  avxtest();
+
+  fftest();
   bn_free(&my_prime);
   bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
   return 0;
