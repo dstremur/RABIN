@@ -18,6 +18,8 @@ typedef struct {
 
 int main()
 {
+  nntest();
+
   bignum a, b, c;
   bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];
@@ -107,7 +109,7 @@ int main()
   bn_init(&my_prime);
   printf("Generating a 2048-bit prime... (this may take a minute)\n");
 
-  if (bn_gen_prime(&my_prime, 2048)) {
+  if (bn_gen_prime(&my_prime, 2048, 2000)) {
     printf("\nSuccess! Your 2048-bit prime is:\n");
     printf(
         "----------------------------------------------------------------\n");
@@ -117,6 +119,13 @@ int main()
   } else {
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
+
+
+    printf("Generating 512-bit provable prime...\n");
+    bn_provable_prime(&my_prime, 512);
+
+    printf("Result: ");
+    bn_println(&my_prime);
 
   avxtest();
 

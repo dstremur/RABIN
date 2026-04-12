@@ -3,102 +3,23 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
 #include "../include/bignum.h"
-
-// generates a random odd number using a hardware random number generator (on
-// Linux)
-bool bn_gen_random(bignum* r, int bits)
-{
-  int limbs_needed = (bits + 63) / 64;
-
-  if (!bn_alloc(r, limbs_needed)) return false;
-  r->size = limbs_needed;
-
-  int fd = open("/dev/urandom", O_RDONLY);
-  if (fd < 0) return false;
-
-  // Read random bytes directly into the limb memory
-  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
-      (ssize_t)(limbs_needed * sizeof(u64))) {
-    close(fd);
-    return false;
-  }
-  close(fd);
-
-  // Mask the top limb to fit the exact bit length
-  int top_bits = bits % 64;
-  if (top_bits != 0) {
-    u64 mask = ((u64)1 << top_bits) - 1;
-    r->limbs[r->size - 1] &= mask;
-  }
-
-  // Ensure it's exactly 'bits' long by setting the MSB
-  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
-
-  // Ensure it's odd by setting the LSB
-  r->limbs[0] |= 1;
-
-  return true;
-}
-
-bool bn_gen_random_with_fd(bignum* r, int bits, int fd)
-{
-  int limbs_needed = (bits + 63) / 64;
-
-  if (!bn_alloc(r, limbs_needed)) return false;
-  r->size = limbs_needed;
-
-  // Read random bytes directly using the open file descriptor
-  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
-      (ssize_t)(limbs_needed * sizeof(u64))) {
-    return false;
-  }
-
-  // Mask the top limb to fit the exact bit length
-  int top_bits = bits % 64;
-  if (top_bits != 0) {
-    u64 mask = ((u64)1 << top_bits) - 1;
-    r->limbs[r->size - 1] &= mask;
-  }
-
-  // Ensure it's exactly 'bits' long by setting the MSB
-  r->limbs[r->size - 1] |= ((u64)1 << ((bits - 1) % 64));
-
-  // Ensure it's odd by setting the LSB
-  r->limbs[0] |= 1;
-
-  return true;
-}
+#include "../include/primes.h"  
 
 // generates a random prime p with bits length using a variety of primality
 // tests
-bool bn_gen_prime(bignum* p, int bits)
+bool bn_gen_prime(bignum* p, int bits, u64 bound)
 {
   int fd = open("/dev/urandom", O_RDONLY);
   if (fd < 0) {
     close(fd);
     return false;
   }
-
-  // Small primes to check for quick trial division
-  u64 small_primes[] = {
-      2,   3,   5,   7,   11,  13,  17,  19,  23,  29,  31,  37,  41,  43,
-      47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97,  101, 103, 107,
-      109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181,
-      191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263,
-      269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
-      353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433,
-      439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521,
-      523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613,
-      617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701,
-      709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
-      811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887,
-      907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997};
-
-  int num_primes = sizeof(small_primes) / sizeof(small_primes[0]);
 
   while (true) {
     bool composite = false;
@@ -117,8 +38,8 @@ bool bn_gen_prime(bignum* p, int bits)
     //     rem % 13 == 0 || rem % 17 == 0)
     //   continue;
 
-    for (int i = 0; i < num_primes; i++) {
-      if (bn_mod_u64(p, small_primes[i]) == 0) {
+    for (int i = 0; i < bound; i++) {
+      if (bn_mod_u64(p, primes[i]) == 0) {
         composite = true;
         break;
       }
@@ -317,4 +238,148 @@ bool bn_bpsw(const bignum* n)
   bn_free(&magnitude);
   bn_free(&two);
   return res;
+}
+
+
+// Implementation of Maurers algorithm 
+void bn_provable_prime(bignum* p, u64 k)
+{
+    // ---- Small base case ----
+    if (k <= 20) {
+        do {
+            bn_gen_random(p, k);
+            bn_set_bit(p, k - 1);
+            p->limbs[0] |= 1;
+        } while (!bn_bpsw(p));
+        return;
+    }
+
+    // ---- Step 1: choose r ----
+    double r;
+    const u64 m = 20;
+
+    if (k > 2 * m) {
+        do {
+            double s = (double)rand() / RAND_MAX;
+            r = pow(2.0, s - 1.0);
+        } while ((u64)(r * k) <= m);
+    } else {
+        r = 0.5;
+    }
+
+    // trial division bound 
+    u64 B = k * k;
+
+
+    // ---- Step 2: recursively generate q ----
+    bignum q;
+    bn_init(&q);
+    bn_provable_prime(&q, (u64)(r * k));
+
+    // ---- Precompute ----
+    bignum I, R, n;
+    bignum a, b, d;
+    bignum tmp, two, one;
+    bignum n_minus_one, n_minus_two;
+
+    bn_init_multi(&I, &R, &n, &a, &b, &d, &tmp,
+                  &two, &one, &n_minus_one, &n_minus_two, NULL);
+
+    bn_set_u64(&two, 2);
+    bn_set_u64(&one, 1);
+
+    // I = 2^(k-1) / (2q)
+    bignum pow2, two_q;
+    bn_init_multi(&pow2, &two_q, NULL);
+
+    bn_set_u64(&pow2, 1);
+    bn_lshift(&pow2, &pow2, k - 1);
+
+
+    bn_div(&I, &pow2, &q);
+
+    bn_free(&pow2);
+    bn_free(&two_q);
+
+    // Precompute bounds: [I+1, 2I]
+    bignum low, high;
+    bn_init_multi(&low, &high, NULL);
+
+    bn_add_u64(&low, &I, 1);
+    bn_copy(&high, &I);
+    bn_lshift1(&high);
+
+    // Small primes for trial division
+    
+
+    int attempts = 0;
+
+    while (1) {
+        attempts++;
+        if (attempts > 100000) {
+            // fallback safety (should basically never happen)
+            bn_gen_prime(p, k, 1000);
+            break;
+        }
+
+        // ---- Step 3: pick R ----
+        bn_gen_random_range(&R, &low, &high);
+
+        // ---- Step 4: n = 2Rq + 1 ----
+        bn_mul(&n, &R, &q);
+        bn_mul(&n, &n, &two);
+        bn_add_u64(&n, &n, 1);
+
+        // Ensure n is k bits
+        if (bn_bit_length(&n) != (int)k) continue;
+
+        // ---- Step 5: trial division ----
+        int composite = 0;
+        u64 i = 0; 
+        for (; primes[i] < B; i++) {
+            if (bn_mod_u64(&n, primes[i]) == 0) {
+                composite = 1;
+                break;
+            }
+        }
+        if (composite) continue;
+
+        // ---- Step 6: enforce q > n^(1/3) ----
+        if (3 * bn_bit_length(&q) <= bn_bit_length(&n)) {
+            continue;
+        }
+
+        // ---- Step 7: prepare values ----
+        bn_copy(&n_minus_one, &n);
+        bn_sub(&n_minus_one, &n_minus_one, &one);
+
+        bn_copy(&n_minus_two, &n);
+        bn_sub(&n_minus_two, &n_minus_two, &two);
+
+        // ---- Step 8: pick random a ----
+        bn_gen_random_range(&a, &two, &n_minus_two);
+
+        // ---- Step 9: check a^(n-1) mod n == 1 ----
+        bn_mod_exp(&b, &a, &n_minus_one, &n);
+        if (!bn_is_eq_i64(&b, 1)) continue;
+
+        // ---- Step 10: Pocklington test ----
+        // exponent = (n-1)/q = 2R
+        bn_mul(&tmp, &R, &two);
+        bn_mod_exp(&b, &a, &tmp, &n);
+
+        bn_sub(&b, &b, &one);
+        bn_gcd(&d, &b, &n);
+
+        if (bn_is_eq_i64(&d, 1)) {
+            bn_copy(p, &n);
+            break;
+        }
+    }
+
+    // ---- Cleanup ----
+    bn_free(&q);
+    bn_free_multi(&I, &R, &n, &a, &b, &d, &tmp,
+                  &two, &one, &n_minus_one, &n_minus_two,
+                  &low, &high, NULL);
 }

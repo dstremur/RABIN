@@ -28,16 +28,31 @@ typedef struct {
   bignum one_mont; /* R   mod N   (representation of 1) */
 } bn_mont_ctx;
 
+typedef struct {
+	u64 n; // transform size (power of 2)
+	bignum q; // modulus
+	bn_mont_ctx ctx;
+	bignum* psi_pow;
+	bignum* inv_psi_pow;
+	bignum n_inv; 
+} bn_ntt;
+
+typedef struct {
+	u64* limbs;
+	u64 size;
+} bn52;
+
+void nntest(); 
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 
 #define MAX_LIMBS 512
 
 
-
+void bn_mul_512(bignum* r, bignum* a, bignum* b);
 
 void fftest();
-
-
+void bn_provable_prime(bignum* p, u64 k);
 // bignum.c
 void bn_init(bignum* r);
 void bn_init_multi(bignum* first, ...);
@@ -61,8 +76,8 @@ int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);
 int bn_cmp(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
-bool bn_gen_random(bignum* r, int bits);
-bool bn_gen_prime(bignum* p, int bits);
+
+bool bn_gen_prime(bignum* p, int bits, u64 bound);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
@@ -105,6 +120,11 @@ void bn_lshift(bignum* r, const bignum* a, int shift);
 // bigrabin.c
 bool bn_rabin(const bignum* n, const bignum* a);
 bool bn_rabin_mont(const bignum* n, const bignum* a);
+
+// bigrand.c 
+bool bn_gen_random(bignum* r, u64 bits);
+bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd); 
+void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high);
 
 // bigmath.c
 i64 bn_jacobi(const bignum* a, const bignum* m);
