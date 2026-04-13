@@ -115,23 +115,24 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
   bigmatrix_init(&T, A->c_size, A->r_size);
   bigmatrix_copy(&T, A);
 
-  // Assumption: leading principal minors are non zero
+  bignum prev, temp1, temp2, temp3;
+  bn_init_multi(&prev, &temp1, &temp2, &temp3, NULL);
 
-  bignum one, t1, t2, t3, t4, t5, t6, pivot, prev;
-  bn_init_multi(&one, &t1, &t2, &t3, &t4, &t5, &t6, &pivot, &prev, NULL);
-
+  // Track sign changes
   i64 sign = 1;
 
   bn_set_u64(&prev, 1);
 
   for (u64 k = 0; k < n - 1; k++) {
-    bigmatrix_get(&pivot, &T, k, k);
-    if (bn_is_zero(&pivot)) {
+    bignum* pivot = GET(&T, k, k);
+    // swap if pivot is zero
+    if (bn_is_zero(pivot)) {
       u64 swap = k + 1;
       bool found = false;
+
       while (swap < n) {
-        bigmatrix_get(&t1, &T, swap, k);
-        if (!bn_is_zero(&t1)) {
+        bignum* t1 = GET(&T, swap, k);
+        if (!bn_is_zero(t1)) {
           found = true;
           break;
         }
@@ -144,47 +145,36 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
       }
 
       // swap
-
       for (u64 j = k; j < n; j++) {
-        bigmatrix_get(&t1, &T, k, j);
-        bigmatrix_get(&t2, &T, swap, j);
-        bigmatrix_set(&T, &t2, k, j);
-        bigmatrix_set(&T, &t1, swap, j);
+        bn_swap(GET(&T, k, j), GET(&T, swap, j));
       }
       sign *= -1;
-      bigmatrix_get(&pivot, &T, k, k);
+      pivot = GET(&T, k, k);
     }
 
     // Check for zero pivot
     for (u64 i = k + 1; i < n; i++) {
       for (u64 j = k + 1; j < n; j++) {
-        // M_ij * M_kk
-        bigmatrix_get(&t1, &T, i, j);
-        bn_copy(&t2, &pivot);
-        bn_mul(&t3, &t1, &t2);
-        // M_ik * M_kj
-        bigmatrix_get(&t1, &T, i, k);
-        bigmatrix_get(&t2, &T, k, j);
-        bn_mul(&t4, &t1, &t2);
+        // T_ij = (T_ij * T_kk - T_ik * T_kj) / T_kk
 
-        bn_sub(&t6, &t3, &t4);
+        bn_mul(&temp1, GET(&T, i, j), pivot);
+        bn_mul(&temp2, GET(&T, i, k), GET(&T, k, j));
+        bn_sub(&temp3, &temp1, &temp2);
 
-        bn_div(&t5, &t6, &prev);
-
-        bigmatrix_set(&T, &t5, i, j);
+        bn_div(GET(&T, i, j), &temp3, &prev);
       }
     }
 
-    bn_copy(&prev, &pivot);
+    bn_copy(&prev, pivot);
   }
 
   // det = M_nn
-  bigmatrix_get(d, &T, n - 1, n - 1);
+  bn_copy(d, GET(&T, n - 1, n - 1));
   if (sign == -1) {
     d->is_neg = !d->is_neg;
   }
 
 cleanup:
   bigmatrix_free(&T);
-  bn_free_multi(&one, &t1, &t2, &t3, &t4, &t5, &t6, &pivot, &prev, NULL);
+  bn_free_multi(&prev, &temp1, &temp2, &temp3, NULL);
 }

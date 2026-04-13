@@ -38,6 +38,15 @@ void bn_init_multi(bignum* r, ...)
   va_end(arg);
 }
 
+void bn_swap(bignum* a, bignum* b)
+{
+  if (a == b) return;
+
+  bignum temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
 // returns 1 if a bignum is even, 0 else
 int bn_is_even(const bignum* n)
 {

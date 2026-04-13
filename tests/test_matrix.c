@@ -120,7 +120,7 @@ int main()
   printf("--- All Tests Passed! ---\n");
 
 
-  u64 n = 6; 
+  u64 n = 10; 
 
   bigmatrix X;
   bignum t;
@@ -129,7 +129,7 @@ int main()
   for (u64 i = 0; i < n; i++) {
 	  for (u64 j = 0; j < n; j++) {
 		//bn_set_i64(&t, rand()); 
-		bn_gen_random(&t, 100); 
+		bn_gen_random(&t, 32); 
 		bigmatrix_set(&X, &t, i, j);
 	  }
   }

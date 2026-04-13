@@ -76,6 +76,7 @@ void bn_println(const bignum* n);
 void bn_free(bignum* r);
 void bn_free_multi(bignum* r, ...);
 void bn_trim(bignum* r);
+void bn_swap(bignum* a, bignum* b); 
 int bn_get_bit(const bignum* a, int i);
 bool bn_is_eq_i64(const bignum* n, i64 a);
 void bn_copy(bignum* dest, const bignum* src);
