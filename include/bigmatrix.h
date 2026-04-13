@@ -24,5 +24,8 @@ void bigmatrix_get(bignum* R, bigmatrix* A, u64 r, u64 c);
 void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c);
 void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B);
 void bigmatrix_copy(bigmatrix* R, bigmatrix* A);
+void bigmatrix_det(bignum* d, bigmatrix* A); 
+void bigmatrix_print(bigmatrix* A); 
+
 
 #endif

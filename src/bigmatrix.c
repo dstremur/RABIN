@@ -1,5 +1,5 @@
 #include <../include/bigmatrix.h>
-
+#include <stdio.h>
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
 {
   M->c_size = c;
@@ -46,9 +46,7 @@ void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c)
 {
   if (r >= A->r_size || c >= A->c_size) return;
 
-  u64 index = r * A->c_size + c;
-
-  bn_copy(&A->data[index], a);
+  bn_copy(GET(A, r, c), a);
 }
 
 void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B)
@@ -61,6 +59,22 @@ void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B)
   }
 
   return;
+}
+
+void bigmatrix_print(bigmatrix* A)
+{
+  bignum temp;
+  bn_init(&temp);
+  for (u64 i = 0; i < A->r_size; i++) {
+    for (u64 j = 0; j < A->c_size; j++) {
+      bigmatrix_get(&temp, A, i, j);
+      bn_print(&temp);
+      printf(" ");
+    }
+    printf("\n");
+  }
+
+  bn_free(&temp);
 }
 
 void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
@@ -89,4 +103,88 @@ void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
 }
 
 // Bareiss algorithm
-void bigmatrix_det(bigmatrix* d, bigmatrix* A) {}
+void bigmatrix_det(bignum* d, bigmatrix* A)
+{
+  if (A->c_size != A->r_size) {
+    printf("Matrix must be square\n");
+    return;
+  }
+  u64 n = A->c_size;
+
+  bigmatrix T;
+  bigmatrix_init(&T, A->c_size, A->r_size);
+  bigmatrix_copy(&T, A);
+
+  // Assumption: leading principal minors are non zero
+
+  bignum one, t1, t2, t3, t4, t5, t6, pivot, prev;
+  bn_init_multi(&one, &t1, &t2, &t3, &t4, &t5, &t6, &pivot, &prev, NULL);
+
+  i64 sign = 1;
+
+  bn_set_u64(&prev, 1);
+
+  for (u64 k = 0; k < n - 1; k++) {
+    bigmatrix_get(&pivot, &T, k, k);
+    if (bn_is_zero(&pivot)) {
+      u64 swap = k + 1;
+      bool found = false;
+      while (swap < n) {
+        bigmatrix_get(&t1, &T, swap, k);
+        if (!bn_is_zero(&t1)) {
+          found = true;
+          break;
+        }
+        swap++;
+      }
+
+      if (!found) {
+        bn_set_u64(d, 0);
+        goto cleanup;
+      }
+
+      // swap
+
+      for (u64 j = k; j < n; j++) {
+        bigmatrix_get(&t1, &T, k, j);
+        bigmatrix_get(&t2, &T, swap, j);
+        bigmatrix_set(&T, &t2, k, j);
+        bigmatrix_set(&T, &t1, swap, j);
+      }
+      sign *= -1;
+      bigmatrix_get(&pivot, &T, k, k);
+    }
+
+    // Check for zero pivot
+    for (u64 i = k + 1; i < n; i++) {
+      for (u64 j = k + 1; j < n; j++) {
+        // M_ij * M_kk
+        bigmatrix_get(&t1, &T, i, j);
+        bn_copy(&t2, &pivot);
+        bn_mul(&t3, &t1, &t2);
+        // M_ik * M_kj
+        bigmatrix_get(&t1, &T, i, k);
+        bigmatrix_get(&t2, &T, k, j);
+        bn_mul(&t4, &t1, &t2);
+
+        bn_sub(&t6, &t3, &t4);
+
+        bn_div(&t5, &t6, &prev);
+
+        bigmatrix_set(&T, &t5, i, j);
+      }
+    }
+
+    bn_copy(&prev, &pivot);
+  }
+
+  // det = M_nn
+  bigmatrix_get(d, &T, n - 1, n - 1);
+  if (sign == -1) {
+    d->is_neg = !d->is_neg;
+  }
+
+cleanup:
+  bigmatrix_free(&T);
+  bn_free_multi(&one, &t1, &t2, &t3, &t4, &t5, &t6, &pivot, &prev, NULL);
+}

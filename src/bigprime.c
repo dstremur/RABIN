@@ -248,7 +248,6 @@ void bn_provable_prime(bignum* p, u64 k)
     do {
       bn_gen_random(p, k);
       bn_set_bit(p, k - 1);
-      p->limbs[0] |= 1;
     } while (!bn_bpsw(p));
     return;
   }

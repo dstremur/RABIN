@@ -8,6 +8,17 @@
 /* Ideas
  Catalan pseudoprime
 
+Hensel lifting
+
+berlenkamp algo
+
+LLL 
+
+Discrete log problem
+
+suntherlands algorithm
+
+smith normal form
 
  */
 

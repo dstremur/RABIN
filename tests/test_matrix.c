@@ -4,7 +4,7 @@
 #include "../include/bigmatrix.h"
 
 // Helper to print a matrix for manual debugging
-void bigmatrix_print(bigmatrix* M, const char* name)
+void bigmatrix_print22(bigmatrix* M, const char* name)
 {
   printf("Matrix %s (%llu x %llu):\n", name, M->r_size, M->c_size);
   for (u64 i = 0; i < M->r_size; i++) {
@@ -36,7 +36,7 @@ int main()
   bignum val;
   bn_init(&val);
 
-  bn_init_val(&val, "34346365635464576457457547574575");
+  bn_set_u64(&val, 1);
   bigmatrix_set(&A, &val, 0, 0);
   bn_set_u64(&val, 2);
   bigmatrix_set(&A, &val, 0, 1);
@@ -44,7 +44,6 @@ int main()
   bigmatrix_set(&A, &val, 1, 0);
   bn_set_u64(&val, 4);
   bigmatrix_set(&A, &val, 1, 1);
-
   // 3. Test bigmatrix_get
   bignum check;
   bn_init(&check);
@@ -100,6 +99,12 @@ int main()
   bigmatrix_get(&check, &RectR, 0, 0);
   assert(bn_is_eq_i64(&check, 3));
   printf("[PASS] Multiplication (Rectangular)\n");
+ 
+  bigmatrix_print(&R); 
+
+  bigmatrix_det(&val, &A); 
+  bn_println(&val); 
+
 
   // 8. Cleanup
   bn_free(&val);
@@ -113,6 +118,28 @@ int main()
 
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
+
+
+  u64 n = 6; 
+
+  bigmatrix X;
+  bignum t;
+  bn_init(&t); 
+  bigmatrix_init(&X, n, n); 
+  for (u64 i = 0; i < n; i++) {
+	  for (u64 j = 0; j < n; j++) {
+		//bn_set_i64(&t, rand()); 
+		bn_gen_random(&t, 100); 
+		bigmatrix_set(&X, &t, i, j);
+	  }
+  }
+
+  bigmatrix_print22(&X, "343");
+
+  
+	bigmatrix_det(&t, &X);
+
+	bn_println(&t);
 
   return 0;
 }
