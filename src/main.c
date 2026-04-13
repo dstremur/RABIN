@@ -72,15 +72,15 @@ int main()
   bignum n, d;
   bn_init_multi(&n, &d, NULL);
   u64 n_1 = 10;
-
-  for (u64 i = 0; i < n_1; i++) {
-    bn_set_u64(&n, i);
-    bn_lucas(&c, &d, &a, &b, &n);
-    printf("Lucas\n");
-    bn_println(&c);
-    bn_println(&d);
-  }
-
+  /*
+    for (u64 i = 0; i < n_1; i++) {
+      bn_set_u64(&n, i);
+      bn_lucas(&c, &d, &a, &b, &n);
+      printf("Lucas\n");
+      bn_println(&c);
+      bn_println(&d);
+    }
+  */
   if (bn_bpsw(&a)) {
     printf("a is Prime \n");
   } else {
@@ -109,7 +109,7 @@ int main()
   bn_init(&my_prime);
   printf("Generating a 2048-bit prime... (this may take a minute)\n");
 
-  if (bn_gen_prime(&my_prime, 2048, 2000)) {
+  if (bn_gen_prime(&my_prime, 2048)) {
     printf("\nSuccess! Your 2048-bit prime is:\n");
     printf(
         "----------------------------------------------------------------\n");
@@ -120,16 +120,15 @@ int main()
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
 
+  printf("Generating 512-bit provable prime...\n");
+  bn_provable_prime(&my_prime, 512);
 
-    printf("Generating 512-bit provable prime...\n");
-    bn_provable_prime(&my_prime, 512);
+  printf("Result: ");
+  bn_println(&my_prime);
 
-    printf("Result: ");
-    bn_println(&my_prime);
+  // avxtest();
 
-  avxtest();
-
-  fftest();
+  // fftest();
   bn_free(&my_prime);
   bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
   return 0;

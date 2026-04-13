@@ -41,7 +41,7 @@ test_bpsw: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src
 	$(CC) $(CFLAGS) $^ -o test_bpsw $(LDFLAGS)
 	./test_bpsw
 
-test_openssl: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_openssl.c
+test_openssl: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c src/bigrand.c tests/test_openssl.c
 	$(CC) $(CFLAGS) $^ -o test_openssl $(LDFLAGS)
 	./test_openssl
 

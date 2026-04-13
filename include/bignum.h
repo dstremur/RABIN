@@ -77,7 +77,7 @@ bool bn_is_zero(const bignum* a);
 int bn_cmp(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
 
-bool bn_gen_prime(bignum* p, int bits, u64 bound);
+bool bn_gen_prime(bignum* p, int bits);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
@@ -125,6 +125,9 @@ bool bn_rabin_mont(const bignum* n, const bignum* a);
 bool bn_gen_random(bignum* r, u64 bits);
 bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd); 
 void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high);
+
+// bigpseudo.c 
+bool bn_gen_strps(bignum* p, u64 k); 
 
 // bigmath.c
 i64 bn_jacobi(const bignum* a, const bignum* m);

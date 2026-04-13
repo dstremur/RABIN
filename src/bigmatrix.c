@@ -87,3 +87,6 @@ void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
   bn_free(&sum);
   bn_free(&tmp);
 }
+
+// Bareiss algorithm
+void bigmatrix_det(bigmatrix* d, bigmatrix* A) {}

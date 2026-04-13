@@ -1,24 +1,23 @@
-#include "../include/bignum.h"
 #include <ctype.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
 
-// generates a random bits long odd number 
+#include "../include/bignum.h"
+
+// generates a random bits long odd number
 bool bn_gen_random(bignum* r, u64 bits)
 {
-
   int fd = open("/dev/urandom", O_RDONLY);
   if (fd < 0) return false;
 
   bn_gen_random_with_fd(r, bits, fd);
   close(fd);
-
 
   return true;
 }
@@ -54,24 +53,24 @@ bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
 }
 
 // Helper to generate a random number in range [low, high]
-void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high) {
-    bignum range;
-    bn_init(&range);
-    bn_sub(&range, high, low);
+void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high)
+{
+  bignum range;
+  bn_init(&range);
+  bn_sub(&range, high, low);
 
-    
-    if (bn_is_zero(&range)) {
-        bn_copy(r, low);
-        bn_free(&range);
-        return;
-    }
-
-    int bits = bn_bit_length(&range);
-
-    do {
-        bn_gen_random(r, bits);
-    } while (bn_cmp(r, &range) > 0);
-
-    bn_add(r, r, low);
+  if (bn_is_zero(&range)) {
+    bn_copy(r, low);
     bn_free(&range);
+    return;
+  }
+
+  int bits = bn_bit_length(&range);
+
+  do {
+    bn_gen_random(r, bits);
+  } while (bn_cmp(r, &range) > 0);
+
+  bn_add(r, r, low);
+  bn_free(&range);
 }

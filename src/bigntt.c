@@ -28,7 +28,7 @@ void bn_ntt_init(bn_ntt* cfg, u64 n, const char* prime)
     bn_set_u64(&g, g_val++);
     bn_mod_exp(&psi, &g, &phi, &cfg->q);
 
-    // IMPORTANT: For negacyclic, psi^n must be -1 mod q, NOT 1 mod q.
+    // For negacyclic, psi^n must be -1 mod q, NOT 1 mod q.
     bn_set_u64(&temp, n);
     bn_mod_exp(&temp, &psi, &temp, &cfg->q);
     if (!bn_is_eq_i64(&temp, 1)) break;  // Found a valid 2n-th root
@@ -86,13 +86,13 @@ void ntt_forward(bignum* a, bn_ntt* cfg)
   bn_init_multi(&t1, &t2, NULL);
 
   // 1. Pre-weighting (Negacyclic Step)
-  // Allows to use a standart Cooley-Tukey algo
+  // Allows to use a standard Cooley-Tukey algo
   for (u64 i = 0; i < n; i++) {
     bn_mont_in(&a[i], &a[i], &cfg->ctx);
     bn_mont_mul(&a[i], &a[i], &cfg->psi_pow[i], &cfg->ctx);
   }
 
-  // 2. Bit-reverse 
+  // 2. Bit-reverse
   ntt_bit_reverse(a, n);
 
   // 3. Cooley-Tukey NTT
@@ -103,7 +103,7 @@ void ntt_forward(bignum* a, bn_ntt* cfg)
       for (u64 j = 0; j < half; j++) {
         bignum* u = &a[i + j];
         bignum* v = &a[i + j + half];
-        // Omega power: psi^(2 * j * step) Twiddle factor 
+        // Omega power: psi^(2 * j * step) Twiddle factor
         bignum* w = &cfg->psi_pow[2 * j * step];
 
         // Butterfly: T = V * W
