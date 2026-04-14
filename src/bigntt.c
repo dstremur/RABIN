@@ -200,7 +200,7 @@ void nntest()
   u64 val_a[] = {1, 2, 3, 4};
   u64 val_b[] = {5, 6, 7, 8};
 
-  for (int i = 0; i < n; i++) {
+  for (u64 i = 0; i < n; i++) {
     bn_init(&a[i]);
     bn_init(&b[i]);
     bn_init(&r[i]);
@@ -223,10 +223,11 @@ void nntest()
   // 5. Verification
   u64 expected[] = {12, 15, 2, 9};
   int passed = 1;
-  for (int i = 0; i < n; i++) {
+  for (u64 i = 0; i < n; i++) {
     if (!bn_is_eq_i64(&r[i], expected[i])) {
       passed = 0;
-      printf("Error at index %d: Expected %lu\n", i, expected[i]);
+      printf("Error at index %llu: Expected %lu\n", (unsigned long long)i,
+             expected[i]);
     }
   }
 
@@ -237,7 +238,7 @@ void nntest()
   }
 
   // Cleanup
-  for (int i = 0; i < n; i++) {
+  for (u64 i = 0; i < n; i++) {
     bn_free(&a[i]);
     bn_free(&b[i]);
     bn_free(&r[i]);

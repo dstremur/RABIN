@@ -53,7 +53,7 @@ static void bn52_alloc(bn52* n, uint64_t size)
   n->limbs = (uint64_t*)calloc(size + 8, sizeof(uint64_t));
 }
 
-static void bn52_free(bn52* n)
+void bn52_free(bn52* n)
 {
   if (n->limbs) free(n->limbs);
   n->limbs = NULL;

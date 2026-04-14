@@ -1,11 +1,8 @@
-#include <ctype.h>
 #include <fcntl.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 #include "../include/bignum.h"
@@ -55,7 +52,7 @@ bool bn_gen_prime(bignum* p, int bits)
   }
 }
 
-bool bn_is_perfect_square(bignum* n)
+bool bn_is_perfect_square(const bignum* n)
 {
   if (bn_is_zero(n)) return true;
 
@@ -96,7 +93,7 @@ bool bn_is_perfect_square(bignum* n)
   return is_square;
 }
 
-bool bn_stronglucas(bignum* n, bignum* P, bignum* Q)
+bool bn_stronglucas(const bignum* n, bignum* P, bignum* Q)
 {
   bignum p, q, d, u, v, qn, tmp, n_plus_1;
   bn_init_multi(&p, &q, &d, &u, &v, &qn, &tmp, &n_plus_1, NULL);

@@ -1,6 +1,4 @@
-#include <ctype.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "../include/bignum.h"
@@ -47,7 +45,6 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
  #include <stdint.h>
  #include <string.h>
 
- /*
   * High-Performance Schoolbook Multiplication
   * Result r must be pre-allocated to (a->used + b->used) limbs.
   *

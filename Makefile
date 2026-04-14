@@ -1,6 +1,6 @@
 # Compiler
 CC = gcc
-CFLAGS = -Iinclude -Wall -Wextra -g -O2 -fopenmp -flto=auto -march=native 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto=auto -march=native 
 
 LDFLAGS = -fopenmp -lm -flto
 
@@ -20,7 +20,7 @@ $(OBJS): include/bignum.h
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test_mul: src/bigmul.o src/bn_avx512.c src/bigprime.c src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
+test_mul: src/bigmul.o src/bigrand.c src/bn_avx512.c src/bigprime.c src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
 	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
 	./test_mul
 
@@ -41,7 +41,7 @@ test_lucas: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o sr
 	./test_lucas
 
 
-test_bpsw: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_bpsw.c
+test_bpsw: src/bigmul.o src/bigmod.o src/bigrand.c src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_bpsw.c
 	$(CC) $(CFLAGS) $^ -o test_bpsw $(LDFLAGS)
 	./test_bpsw
 

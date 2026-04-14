@@ -72,8 +72,8 @@ int main()
 
   bignum n, d;
   bn_init_multi(&n, &d, NULL);
-  u64 n_1 = 10;
   /*
+  u64 n_1 = 10;
     for (u64 i = 0; i < n_1; i++) {
       bn_set_u64(&n, i);
       bn_lucas(&c, &d, &a, &b, &n);

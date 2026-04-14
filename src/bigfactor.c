@@ -52,4 +52,4 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
   return false;
 }
 
-void bn_pollard_p_minus_one(bignum* f, bignum* n, bignum* B) {}
+// void bn_pollard_p_minus_one(bignum* f, bignum* n, bignum* B) {}

@@ -85,7 +85,6 @@ void fftest()
   int n = 8;  // Must be power of 2
   u64 original[8] = {1, 2, 3, 4, 0, 0, 0, 0};
   u64 a[8] = {1, 2, 3, 4, 0, 0, 0, 0};
-  u64 b[8] = {5, 6, 7, 8, 0, 0, 0, 0};
 
   printf("--- Test 1: Identity (Forward then Inverse) ---\n");
   ntt(a, n, false);  // Forward
