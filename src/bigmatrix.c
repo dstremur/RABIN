@@ -103,6 +103,15 @@ void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
 }
 
 // Bareiss algorithm
+/* optimize:
+ use exact division
+ better cache locality
+ preallocat using hadamards bound
+ openmp
+ calc mod primes larger than hadamard and then reconstruct using CRT
+ Jebelean’s algorithm
+ */
+
 void bigmatrix_det(bignum* d, bigmatrix* A)
 {
   if (A->c_size != A->r_size) {
@@ -152,7 +161,6 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
       pivot = GET(&T, k, k);
     }
 
-    // Check for zero pivot
     for (u64 i = k + 1; i < n; i++) {
       for (u64 j = k + 1; j < n; j++) {
         // T_ij = (T_ij * T_kk - T_ik * T_kj) / T_kk
@@ -161,7 +169,7 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
         bn_mul(&temp2, GET(&T, i, k), GET(&T, k, j));
         bn_sub(&temp3, &temp1, &temp2);
 
-        bn_div(GET(&T, i, j), &temp3, &prev);
+        bn_newton_div(GET(&T, i, j), &temp3, &prev);
       }
     }
 

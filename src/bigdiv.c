@@ -72,6 +72,7 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
   bn_free_multi(&x, &tmp, &two_p, &r, &error, &correction, NULL);
 }
 
+// algorithm D knuth
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) {

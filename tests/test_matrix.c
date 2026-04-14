@@ -120,7 +120,7 @@ int main()
   printf("--- All Tests Passed! ---\n");
 
 
-  u64 n = 10; 
+  u64 n = 100; 
 
   bigmatrix X;
   bignum t;

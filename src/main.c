@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "../include/bignum.h"
+#include "../include/bigpoly.h"
 #include "ctype.h"
 #include "string.h"
 
@@ -129,6 +130,12 @@ int main()
   // avxtest();
 
   // fftest();
+  //
+  bigpoly_test();
+  //
+  bigpoly p;
+  bigpoly_init(&p);
+
   bn_free(&my_prime);
   bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
   return 0;

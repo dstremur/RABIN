@@ -9,7 +9,7 @@
 int main()
 {
     int num_to_generate = 200;
-    int bits = 2048;
+    int bits = 1024;
 
     printf("Benchmarking: Generating %d primes at %d-bits (Parallel)...\n", num_to_generate, bits);
     printf("--------------------------------------------------\n");

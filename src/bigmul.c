@@ -43,15 +43,55 @@ void bn_mul_raw(bignum* r, const bignum* a, const bignum* b)
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
   /*
-// Handle aliasing
-if (r == a || r == b) {
-bignum tmp;
-bn_init(&tmp);
-bn_mul(&tmp, a, b);
-bn_copy(r, &tmp);
-bn_free(&tmp);
-return;
-} */
+   #include <immintrin.h>
+ #include <stdint.h>
+ #include <string.h>
+
+ /*
+  * High-Performance Schoolbook Multiplication
+  * Result r must be pre-allocated to (a->used + b->used) limbs.
+  *
+ void bn_mul_school(bignum *r, const bignum *a, const bignum *b) {
+     // 1. Initialize result to zero
+     // This is crucial because we accumulate directly into r->limbs
+     memset(r->limbs, 0, (a->used + b->used) * sizeof(uint64_t));
+     r->used = a->used + b->used;
+
+     uint64_t *ra = a->limbs;
+     uint64_t *rb = b->limbs;
+     uint64_t *rr = r->limbs;
+
+     for (size_t j = 0; j < b->used; j++) {
+         uint64_t b_limb = rb[j];
+         uint64_t chain_carry = 0; // This carries over to the next i iteration
+
+         // Inner loop: r = r + (a * b_limb)
+         for (size_t i = 0; i < a->used; i++) {
+             uint64_t prod_hi;
+             uint64_t prod_lo = _mulx_u64(ra[i], b_limb, &prod_hi);
+
+             // Step A: Add prod_lo to the existing result at this position
+             // c1 is the carry out from adding prod_lo to the destination
+             unsigned char c1 = _addcarry_u64(0, rr[i + j], prod_lo, &rr[i +
+ j]);
+
+             // Step B: Add prod_hi, the previous chain_carry, and the carry
+ from Step A
+             // This produces the chain_carry for the next limb
+             _addcarry_u64(c1, prod_hi, chain_carry, &chain_carry);
+         }
+
+         // Write the final carry of the chain to the end of the current row
+         rr[a->used + j] = chain_carry;
+     }
+
+     // Trim leading zeros if necessary
+     while (r->used > 1 && rr[r->used - 1] == 0) {
+         r->used--;
+     }
+ }
+
+ */
 
   u64 max = a->size + b->size;
   bn_alloc(r, max);

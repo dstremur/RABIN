@@ -1,6 +1,6 @@
 # Compiler
 CC = gcc
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto -march=native -mavx512ifma
+CFLAGS = -Iinclude -Wall -Wextra -g -O2 -fopenmp -flto=auto -march=native 
 
 LDFLAGS = -fopenmp -lm -flto
 
@@ -24,7 +24,7 @@ test_mul: src/bigmul.o src/bn_avx512.c src/bigprime.c src/bignum.o src/bigadd.o 
 	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
 	./test_mul
 
-test_div: src/bigmul.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c
+test_div: src/bigmul.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c src/bigrand.c
 	$(CC) $(CFLAGS) $^ -o test_div $(LDFLAGS)
 	./test_div
 
