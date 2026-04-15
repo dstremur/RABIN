@@ -100,22 +100,6 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
   bn_free_multi(&x, &tmp, &two_p, &r, &error, &c1, &c2, NULL);
 }
 
-static void bn_div_single_limb(bignum* q, const bignum* a, u64 b_limb)
-{
-  if (b_limb == 0) return;  // Divide by zero error
-
-  bn_alloc(q, a->size);
-  q->size = a->size;
-
-  u64 remainder = 0;
-  for (i64 i = a->size - 1; i >= 0; i--) {
-    __uint128_t temp = ((__uint128_t)remainder << 64) | a->limbs[i];
-    q->limbs[i] = (u64)(temp / b_limb);
-    remainder = (u64)(temp % b_limb);
-  }
-  bn_trim(q);
-}
-
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
@@ -134,30 +118,27 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
     return;
   }
 
-  if (b->size == 1) {
-    bn_div_single_limb(q, a, b->limbs[0]);
-    q->is_neg = a->is_neg ^ b->is_neg;
-    return;
-  }
-
   u64 n = b->size;
   u64 m = a->size - n;
 
   bignum u, v;
   bn_init_multi(&u, &v, NULL);
 
-  // Normalize
+  // Normalize, d = 2^s
   u64 s = __builtin_clzll(b->limbs[n - 1]);
 
+  // multiply by d
   bn_lshift(&v, b, s);
   bn_lshift(&u, a, s);
 
+  // introduce new digit position
   if (u.size == a->size) {
     bn_alloc(&u, u.size + 1);
     u.limbs[u.size] = 0;
     u.size++;
   }
 
+  // Allocate quotient
   bn_alloc(q, m + 1);
   q->size = m + 1;
   memset(q->limbs, 0, q->size * sizeof(u64));
@@ -172,36 +153,30 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
     u64 r_hat = 0;
     u64 uj_n = u.limbs[j + n];
     u64 uj_n1 = u.limbs[j + n - 1];
+    u64 uj_n2 = u.limbs[j + n - 2];
 
+    // check if quotient fits in 64 bit
     if (uj_n == vn1) {
       q_hat = ~0ULL;
-      // Knuth: if (uj_n1 + vn1) < base, r_hat = uj_n1 + vn1 and check
-      // refinement.
-      // Otherwise, r_hat >= base, so we stop refinement immediately.
-      if (uj_n1 <= (~0ULL - vn1)) {
-        r_hat = uj_n1 + vn1;
-        // Refine q_hat using the 3rd limb
-        while ((__uint128_t)q_hat * vn2 >
-               (((__uint128_t)r_hat << 64) | u.limbs[j + n - 2])) {
-          q_hat--;
-          r_hat += vn1;
-          if (r_hat < vn1)
-            break;  // r_hat >= base (overflowed u64), stop refinement
-        }
+      r_hat = uj_n1 + vn1;
+
+      // refine q_hat
+      while ((__uint128_t)q_hat * vn2 > (((__uint128_t)r_hat << 64) + uj_n2)) {
+        q_hat--;
+        r_hat += vn1;
+        if (r_hat < vn1) break;
       }
     } else {
-      __uint128_t temp = ((__uint128_t)uj_n << 64) | uj_n1;
+      __uint128_t temp = ((__uint128_t)uj_n << 64) + uj_n1;
       q_hat = (u64)(temp / vn1);
       r_hat = (u64)(temp % vn1);
     }
 
-    // Refine q_hat using the 3rd limb
-    while ((__uint128_t)q_hat * vn2 >
-           (((__uint128_t)r_hat << 64) | u.limbs[j + n - 2])) {
+    // refine q_hat
+    while ((__uint128_t)q_hat * vn2 > (((__uint128_t)r_hat << 64) + uj_n2)) {
       q_hat--;
       r_hat += vn1;
-      if (r_hat < vn1)
-        break;  // r_hat >= base (overflowed u64), stop refinement
+      if (r_hat < vn1) break;
     }
 
     // multiply and subtract
@@ -225,8 +200,7 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
     q->limbs[j] = q_hat;
 
     // add back
-
-    if (is_neg) {
+    if (__builtin_expect(is_neg, 0)) {
       q->limbs[j]--;
       u64 carry = 0;
       for (u64 i = 0; i < n; i++) {

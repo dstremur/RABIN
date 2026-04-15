@@ -38,58 +38,10 @@ void bn_mul_raw(bignum* r, const bignum* a, const bignum* b)
   r->is_neg = a->is_neg ^ b->is_neg;
 }
 
+extern void bn_mul_add_inner(uint64_t* r, const uint64_t* b, uint64_t a_limb, uint64_t len);
+
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
-  /*
-   #include <immintrin.h>
- #include <stdint.h>
- #include <string.h>
-
-  * High-Performance Schoolbook Multiplication
-  * Result r must be pre-allocated to (a->used + b->used) limbs.
-  *
- void bn_mul_school(bignum *r, const bignum *a, const bignum *b) {
-     // 1. Initialize result to zero
-     // This is crucial because we accumulate directly into r->limbs
-     memset(r->limbs, 0, (a->used + b->used) * sizeof(uint64_t));
-     r->used = a->used + b->used;
-
-     uint64_t *ra = a->limbs;
-     uint64_t *rb = b->limbs;
-     uint64_t *rr = r->limbs;
-
-     for (size_t j = 0; j < b->used; j++) {
-         uint64_t b_limb = rb[j];
-         uint64_t chain_carry = 0; // This carries over to the next i iteration
-
-         // Inner loop: r = r + (a * b_limb)
-         for (size_t i = 0; i < a->used; i++) {
-             uint64_t prod_hi;
-             uint64_t prod_lo = _mulx_u64(ra[i], b_limb, &prod_hi);
-
-             // Step A: Add prod_lo to the existing result at this position
-             // c1 is the carry out from adding prod_lo to the destination
-             unsigned char c1 = _addcarry_u64(0, rr[i + j], prod_lo, &rr[i +
- j]);
-
-             // Step B: Add prod_hi, the previous chain_carry, and the carry
- from Step A
-             // This produces the chain_carry for the next limb
-             _addcarry_u64(c1, prod_hi, chain_carry, &chain_carry);
-         }
-
-         // Write the final carry of the chain to the end of the current row
-         rr[a->used + j] = chain_carry;
-     }
-
-     // Trim leading zeros if necessary
-     while (r->used > 1 && rr[r->used - 1] == 0) {
-         r->used--;
-     }
- }
-
- */
-
   u64 max = a->size + b->size;
   bn_alloc(r, max);
 
@@ -99,29 +51,8 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 
   for (u64 i = 0; i < a->size; i++) {
     if (a->limbs[i] == 0) continue;
-    u64 carry = 0;
 
-    for (u64 j = 0; j < b->size; j++) {
-      u64 idx = i + j;
-
-      unsigned __int128 prod =
-          (unsigned __int128)a->limbs[i] * b->limbs[j] + r->limbs[idx] + carry;
-
-      r->limbs[idx] = (u64)prod;
-      carry = (u64)(prod >> 64);
-    }
-
-    // ripple carry
-    u64 k = i + b->size;
-    unsigned __int128 ripple = (unsigned __int128)r->limbs[k] + carry;
-    r->limbs[k] = (u64)ripple;
-    u64 extra = (u64)(ripple >> 64);
-
-    while (extra && ++k < r->size) {
-      ripple = (unsigned __int128)r->limbs[k] + extra;
-      r->limbs[k] = (u64)ripple;
-      extra = (u64)(ripple >> 64);
-    }
+	bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
   }
 
   bn_trim(r);

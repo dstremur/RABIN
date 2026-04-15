@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
-
+#include <time.h>
 #include "../include/bigmatrix.h"
 
 // Helper to print a matrix for manual debugging
@@ -16,6 +16,42 @@ void bigmatrix_print22(bigmatrix* M, const char* name)
     printf("\n");
   }
   printf("\n");
+}
+
+double get_time() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+void run_det_benchmark(u64 size, u64 bits) {
+    bigmatrix M;
+    bignum det, val;
+    
+    bn_init(&det);
+    bn_init(&val);
+    bigmatrix_init(&M, size, size);
+
+    // Populate with random data to prevent "easy" zeros
+    for (u64 i = 0; i < size; i++) {
+        for (u64 j = 0; j < size; j++) {
+            bn_gen_random(&val, bits);
+            bigmatrix_set(&M, &val, i, j);
+        }
+    }
+
+    printf("Benchmarking %llu x %llu (%llu-bit entries)... ", size, size, bits);
+    fflush(stdout);
+
+    double start = get_time();
+    bigmatrix_det(&det, &M);
+    double end = get_time();
+
+    printf("Time: %f seconds\n", end - start);
+
+    bigmatrix_free(&M);
+    bn_free(&det);
+    bn_free(&val);
 }
 
 int main()
@@ -140,6 +176,16 @@ int main()
 	bigmatrix_det(&t, &X);
 
 	bn_println(&t);
+
+  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 1000};
+    int num_tests = sizeof(sizes) / sizeof(sizes[0]);
+
+    for (int i = 0; i < num_tests; i++) {
+        run_det_benchmark(sizes[i], 32); // 32-bit random entries
+    }
+
+	bn_free(&t);
+	bigmatrix_free(&X);
 
   return 0;
 }
