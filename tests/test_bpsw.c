@@ -6,7 +6,7 @@
 int main()
 {
   int iterations = 100;  // Adjust based on how long you want to wait
-  int bits = 1024;
+  int bits = 2048;
   bignum n;
   bn_init(&n);
 
