@@ -32,7 +32,7 @@ test_mul: src/bigmul.o src/bn_mul_inner.o src/bigrand.c src/bn_avx512.c src/bigp
 	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
 	./test_mul
 
-test_div: src/bigmul.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c src/bigrand.c
+test_div: src/bigmul.o src/bn_mul_inner.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c src/bigrand.c
 	$(CC) $(CFLAGS) $^ -o test_div $(LDFLAGS)
 	./test_div
 

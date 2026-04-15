@@ -52,7 +52,31 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
   for (u64 i = 0; i < a->size; i++) {
     if (a->limbs[i] == 0) continue;
 
-	bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
+	u64 carry = 0;
+
+    for (u64 j = 0; j < b->size; j++) {
+      u64 idx = i + j;
+
+      unsigned __int128 prod =
+          (unsigned __int128)a->limbs[i] * b->limbs[j] + r->limbs[idx] + carry;
+
+      r->limbs[idx] = (u64)prod;
+      carry = (u64)(prod >> 64);
+    }
+
+    // ripple carry
+    u64 k = i + b->size;
+    unsigned __int128 ripple = (unsigned __int128)r->limbs[k] + carry;
+    r->limbs[k] = (u64)ripple;
+    u64 extra = (u64)(ripple >> 64);
+
+    while (extra && ++k < r->size) {
+      ripple = (unsigned __int128)r->limbs[k] + extra;
+      r->limbs[k] = (u64)ripple;
+      extra = (u64)(ripple >> 64);
+    }
+
+//	bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
   }
 
   bn_trim(r);
