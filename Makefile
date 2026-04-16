@@ -40,7 +40,7 @@ test_primes: src/bigmul.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o 
 	$(CC) $(CFLAGS) $^ -o test_primes $(LDFLAGS)
 	./test_primes
 
-test_primes_parallel: src/bigmul.o src/bn_mul_inner.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_primes_parallel.c
+test_primes_parallel: src/bigmul.o src/bn_mul_inner.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_primes_parallel.c 
 	$(CC) $(CFLAGS) $^ -o test_primes_p $(LDFLAGS)
 	./test_primes_p
 
@@ -57,7 +57,7 @@ test_openssl: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o 
 	$(CC) $(CFLAGS) $^ -o test_openssl $(LDFLAGS)
 	./test_openssl
 
-test_matrix: src/bigmul.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/bigmatrix.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_matrix.c
+test_matrix: src/bigmul.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/bigmatrix.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_matrix.c src/bn_mul_inner.o
 	$(CC) $(CFLAGS) $^ -o test_matrix $(LDFLAGS)
 	./test_matrix
 clean:

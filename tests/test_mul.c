@@ -24,19 +24,12 @@ void benchmark_mul(int limbs)
   end = clock();
   double time_karat = (double)(end - start) / CLOCKS_PER_SEC;
 
-  // Time avx 512 
-  
-  start = clock();
-  bn_mul_512(&res_karat, &a, &b);
-  end = clock();
-  double time_avx = (double)(end - start) / CLOCKS_PER_SEC;
-
   // 3. Verify Correctness
   if (bn_cmp(&res_school, &res_karat) != 0) {
     printf("[FAIL] Mismatch at %d limbs!\n", limbs);
   } else {
-    printf("Limbs: %4d | School: %fs | Karatsuba: %fs | Speedup: %.2fx | AVX: %fs \n",
-           limbs, time_school, time_karat, time_school / time_karat, time_avx);
+    printf("Limbs: %4d | School: %fs | Karatsuba: %fs | Speedup: %.2fx \n",
+           limbs, time_school, time_karat, time_school / time_karat);
   }
 
   bn_free(&a);

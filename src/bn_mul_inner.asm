@@ -8,18 +8,12 @@ bn_mul_add_inner:
     test rcx, rcx
     jz .done_early
 
-    ; No push/pop needed, we only use volatile registers
-	push rbx
-    clc             ; Clear Carry Flag (CF)
-    xor rax, rax    ; Clears Overflow Flag (OF)
     xor r8, r8      ; r8 will hold our Previous High Limb
 
     align 16        ; Align loop for instruction cache
 .loop:
-    mov r9, [rsi]
-    
     ; mulx: r11:r10 = a_limb * b[i]
-    mulx r11, r10, r9
+    mulx r11, r10, [rsi]
 
     ; Chain 1 (CF): Add previous high limb to current low limb
     adcx r10, r8
@@ -44,12 +38,9 @@ bn_mul_add_inner:
     ; Finalize the carries. 
     ; adcx and adox do NOT interfere with each other's flags!
     mov r10, 0
-    adcx r8, r10    ; Fold in remaining CF
+    adcx r8, r10   ; Fold in remaining CF
     adox r8, r10    ; Fold in remaining OF
     add [rdi], r8
-
-	pop rbx
-
 .done_early:
     ret
 

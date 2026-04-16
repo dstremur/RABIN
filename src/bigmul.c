@@ -3,7 +3,7 @@
 
 #include "../include/bignum.h"
 
-#define KARATSUBA_LIMIT 128
+#define KARATSUBA_LIMIT 64
 
 void bn_mul(bignum* r, const bignum* a, const bignum* b)
 {
@@ -38,8 +38,7 @@ void bn_mul_raw(bignum* r, const bignum* a, const bignum* b)
   r->is_neg = a->is_neg ^ b->is_neg;
 }
 
-extern void bn_mul_add_inner(uint64_t* r, const uint64_t* b, uint64_t a_limb,
-                             uint64_t len);
+extern void bn_mul_add_inner(uint64_t* r, const uint64_t* b, uint64_t a_limb, uint64_t len);
 
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
@@ -52,33 +51,8 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 
   for (u64 i = 0; i < a->size; i++) {
     if (a->limbs[i] == 0) continue;
-    /*
-            u64 carry = 0;
-
-        for (u64 j = 0; j < b->size; j++) {
-          u64 idx = i + j;
-
-          unsigned __int128 prod =
-              (unsigned __int128)a->limbs[i] * b->limbs[j] + r->limbs[idx] +
-       carry;
-
-          r->limbs[idx] = (u64)prod;
-          carry = (u64)(prod >> 64);
-        }
-
-        // ripple carry
-        u64 k = i + b->size;
-        unsigned __int128 ripple = (unsigned __int128)r->limbs[k] + carry;
-        r->limbs[k] = (u64)ripple;
-        u64 extra = (u64)(ripple >> 64);
-
-        while (extra && ++k < r->size) {
-          ripple = (unsigned __int128)r->limbs[k] + extra;
-          r->limbs[k] = (u64)ripple;
-          extra = (u64)(ripple >> 64);
-        }
-    */
-    bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
+	
+	bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
   }
 
   bn_trim(r);
