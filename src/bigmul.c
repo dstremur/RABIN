@@ -38,7 +38,8 @@ void bn_mul_raw(bignum* r, const bignum* a, const bignum* b)
   r->is_neg = a->is_neg ^ b->is_neg;
 }
 
-extern void bn_mul_add_inner(uint64_t* r, const uint64_t* b, uint64_t a_limb, uint64_t len);
+extern void bn_mul_add_inner(uint64_t* r, const uint64_t* b, uint64_t a_limb,
+                             uint64_t len);
 
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
@@ -51,8 +52,8 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 
   for (u64 i = 0; i < a->size; i++) {
     if (a->limbs[i] == 0) continue;
-	
-	bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
+
+    bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
   }
 
   bn_trim(r);

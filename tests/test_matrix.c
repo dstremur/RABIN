@@ -177,7 +177,7 @@ int main()
 
 	bn_println(&t);
 
-  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 1000};
+  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {

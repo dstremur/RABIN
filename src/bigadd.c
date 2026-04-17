@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,7 +10,6 @@
 void bn_add(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
-  //
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);
@@ -19,25 +19,40 @@ void bn_add(bignum* r, const bignum* a, const bignum* b)
     return;
   }
 
-  u64 max = MAX(a->size, b->size);
-
-  bn_alloc(r, max + 1);
-
-  u64 carry = 0;
-
-  for (u64 i = 0; i < max; i++) {
-    u64 av = (i < a->size) ? a->limbs[i] : 0;
-    u64 bv = (i < b->size) ? b->limbs[i] : 0;
-
-    unsigned __int128 sum = (unsigned __int128)av + bv + carry;
-
-    r->limbs[i] = (u64)sum;    // low 64 bits
-    carry = (u64)(sum >> 64);  // high 64 bits
+  if (a->size < b->size) {
+    const bignum* tmp = a;
+    a = b;
+    b = tmp;
   }
 
-  r->limbs[max] = carry;
-  r->size = max + (carry ? 1 : 0);
-  bn_trim(r);
+  if (r->capacity < a->size + 1) {
+    bn_alloc(r, a->size + 1);
+  }
+
+  u64 a_size = a->size;
+  u64 b_size = b->size;
+
+  char carry = 0;
+  u64 i = 0;
+
+  for (; i < b_size; i++) {
+    carry = _addcarry_u64(carry, a->limbs[i], b->limbs[i],
+                          (unsigned long long*)&r->limbs[i]);
+  }
+
+  for (; i < a_size; i++) {
+    if (carry == 0) {
+      if (r != a) {
+        memcpy(&r->limbs[i], &a->limbs[i], (a_size - i) * sizeof(u64));
+      }
+      break;
+    }
+    carry =
+        _addcarry_u64(carry, a->limbs[i], 0, (unsigned long long*)&r->limbs[i]);
+  }
+
+  r->limbs[a_size] = carry;
+  r->size = a_size + carry;
 }
 
 void bn_add_u64(bignum* r, const bignum* a, u64 b)
