@@ -3,21 +3,6 @@
 #include <time.h>
 #include "../include/bigmatrix.h"
 
-// Helper to print a matrix for manual debugging
-void bigmatrix_print22(bigmatrix* M, const char* name)
-{
-  printf("Matrix %s (%llu x %llu):\n", name, M->r_size, M->c_size);
-  for (u64 i = 0; i < M->r_size; i++) {
-    for (u64 j = 0; j < M->c_size; j++) {
-      // Replace 'bn_print' with your library's actual print function
-      bn_print(&M->data[i * M->c_size + j]);
-      printf("\t");
-    }
-    printf("\n");
-  }
-  printf("\n");
-}
-
 double get_time() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -155,37 +140,12 @@ int main()
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
-
-  u64 n = 100; 
-
-  bigmatrix X;
-  bignum t;
-  bn_init(&t); 
-  bigmatrix_init(&X, n, n); 
-  for (u64 i = 0; i < n; i++) {
-	  for (u64 j = 0; j < n; j++) {
-		//bn_set_i64(&t, rand()); 
-		bn_gen_random(&t, 32); 
-		bigmatrix_set(&X, &t, i, j);
-	  }
-  }
-
-  bigmatrix_print22(&X, "343");
-
-  
-	bigmatrix_det(&t, &X);
-
-	bn_println(&t);
-
   u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
         run_det_benchmark(sizes[i], 32); // 32-bit random entries
     }
-
-	bn_free(&t);
-	bigmatrix_free(&X);
 
   return 0;
 }
