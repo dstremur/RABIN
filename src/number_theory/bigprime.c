@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
-#include "../include/primes.h"
+#include "../../include/bignum.h"
+#include "../../include/primes.h"
 
 // generates a random prime p with bits length using a variety of primality
 // tests

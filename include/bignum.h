@@ -110,6 +110,7 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b);
 void bn_div(bignum* q, const bignum* a, const bignum* b);
 void bn_newton_div(bignum* q, const bignum* a, const bignum* d);
 void bn_div_knuth(bignum* q, const bignum* a, const bignum* b);
+void bn_div_exact(bignum* r, const bignum* a, const bignum* b); 
 // bigmod.c
 void bn_mod(bignum* r, const bignum* a, const bignum* n);
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);

@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
