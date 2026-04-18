@@ -262,71 +262,68 @@ void bn_div_long(bignum* q, const bignum* a, const bignum* b)
   bn_free(&r);
 }
 
-void bn_div_exact(bignum* r, const bignum* a, const bignum* b) 
+void bn_div_exact(bignum* r, const bignum* a, const bignum* b)
 {
-	if (b->size == 0 || b->size == 1 && b->limbs[0] == 0) return; 
+  if (b->size == 0 || b->size == 1 && b->limbs[0] == 0) return;
 
-	if (a->size < b->size) {
-    bn_set_u64(r,0);
+  if (a->size < b->size) {
+    bn_set_u64(r, 0);
     return;
+  }
+  if ((b->limbs[0] & 1) == 0) {
+    bignum t_a, t_b;
+    bn_init_multi(&t_a, &t_b, NULL);
 
+    u64 k = bn_cnt_trailing_zeros(b);
+
+    bn_rshift(&t_a, a, k);
+    bn_rshift(&t_b, b, k);
+
+    bn_trim(&t_a);
+    bn_trim(&t_b);
+    bn_div_exact(r, &t_a, &t_b);
+
+    bn_free_multi(&t_a, &t_b, NULL);
+  }
+
+  bignum temp_a;
+  bn_init(&temp_a);
+  bn_copy(&temp_a, a);
+
+  // 1. calculate mod inverse of lowest limb of b
+  u64 b_inv = -mod_inverse_u64(b->limbs[0]);
+
+  i64 len = a->size - b->size + 1;
+  bn_alloc(r, len);
+  r->size = len;
+
+  for (u64 i = 0; i < len; i++) {
+    u64 a_i = temp_a.limbs[i];
+
+    u64 q_i = a_i * b_inv;
+    r->limbs[i] = q_i;
+
+    u64 borrow = 0;
+
+    for (u64 j = 0; j < b->size; j++) {
+      __uint128_t prod = (__uint128_t)q_i * b->limbs[j] + borrow;
+      u64 low = (u64)prod;
+      u64 high = (u64)(prod >> 64);
+
+      if (temp_a.limbs[i + j] < low) {
+        high++;
+      }
+
+      temp_a.limbs[i + j] -= low;
+      borrow = high;
+    }
+
+    if (i + b->size < temp_a.size) {
+      temp_a.limbs[i + b->size] -= borrow;
+    }
+  }
+
+  bn_trim(r);
+
+  bn_free(&temp_a);
 }
-	if ((b->limbs[0] & 1) == 0) {
-		bignum t_a, t_b;
-		bn_init_multi(&t_a, &t_b, NULL);
-
-		u64 k = bn_cnt_trailing_zeros(b);
-
-		bn_rshift(&t_a, a, k);
-		bn_rshift(&t_b, b, k);
-		
-		bn_trim(&t_a);
-		bn_trim(&t_b);
-		bn_div_exact(r, &t_a, &t_b);
-
-		bn_free_multi(&t_a, &t_b, NULL);
-	}
-
-	bignum temp_a;
-	bn_init(&temp_a);
-	bn_copy(&temp_a, a);
-
-	// 1. calculate mod inverse of lowest limb of b
-	u64 b_inv = -mod_inverse_u64(b->limbs[0]);
-
-	i64 len = a->size - b->size + 1;
-	bn_alloc(r, len);
-	r->size = len; 
-
-	for (u64 i = 0; i < len; i++) {
-		u64 a_i = temp_a.limbs[i];
-
-		u64 q_i = a_i * b_inv; 
-		r->limbs[i] = q_i; 
-	
-		u64 borrow = 0; 
-
-		for (u64 j = 0; j < b->size; j++) {
-			__uint128_t prod = (__uint128_t)q_i * b->limbs[j] + borrow;
-			u64 low = (u64)prod;
-			u64 high = (u64)(prod >> 64);
-
-			if (temp_a.limbs[i + j] < low) {
-				high++;
-			}
-
-			temp_a.limbs[i + j] -= low;
-			borrow = high; 
-		}
-
-		if (i + b->size < temp_a.size) {
-			temp_a.limbs[i + b->size] -= borrow;
-		}
-
-	}
-
-	bn_trim(r); 
-
-	bn_free(&temp_a); 
-}
-

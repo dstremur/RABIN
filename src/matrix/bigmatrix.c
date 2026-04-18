@@ -1,4 +1,5 @@
 #include "../../include/bigmatrix.h"
+
 #include <stdio.h>
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
 {
