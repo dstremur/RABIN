@@ -1,65 +1,80 @@
 # Compiler
 CC = gcc
 AS = nasm
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -flto=auto -march=native 
-
+AR = ar
+# Flags 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native 
 ASFLAGS = -f elf64
-
 LDFLAGS = -fopenmp -lm -flto
 
-TARGET = bignum
+# directories 
+SRC_DIR = src
+INC_DIR = include
+BUILD_DIR = build
+CMD_DIR = cmd
+TEST_DIR = tests
 
-SRCS = $(wildcard src/*.c)
-ASMS = $(wildcard src/*.asm)
+SRCS = $(shell find $(SRC_DIR) -name '*.c')
+ASMS = $(shell find $(SRC_DIR) -name '*.asm' -o -name '*.s')
 
-OBJS = $(SRCS:.c=.o) src/bn_mul_inner.o
+OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/$(SRC_DIR)/%.o, $(SRCS))
+ASM_OBJS = $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/$(SRC_DIR)/%.o, $(filter %.asm, $(ASMS))) \
+           $(patsubst $(SRC_DIR)/%.s, $(BUILD_DIR)/$(SRC_DIR)/%.o, $(filter %.s, $(ASMS)))
+
+LIB = $(BUILD_DIR)/libbignum.a
+TARGET = $(BUILD_DIR)/bignum
+
+TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
+TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
+
+.PHONY: all clean tests $(TEST_BINS)
+.PHONY: $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS) 
+# 1. Compile the static library (Contains all logic from src/)
+$(LIB): $(OBJS) $(ASM_OBJS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $^
 
-$(OBJS): include/bignum.h
-
-%.o: %.c
+# 2. Compile the Main Application
+$(BUILD_DIR)/$(CMD_DIR)/main.o: $(CMD_DIR)/main.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Rule for Assembly files
-%.o: %.asm
+$(TARGET): $(BUILD_DIR)/$(CMD_DIR)/main.o $(LIB)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+# 3. Generic rules for compiling C and ASM files into build/
+$(BUILD_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.asm
+	@mkdir -p $(@D)
 	$(AS) $(ASFLAGS) $< -o $@
 
-test_mul: src/bigmul.o src/bn_mul_inner.o src/bigrand.c src/bn_avx512.c src/bigprime.c src/bignum.o src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_mul.c
-	$(CC) $(CFLAGS) $^ -o test_mul $(LDFLAGS)
-	./test_mul
+$(BUILD_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.s
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) $< -o $@
 
-test_div: src/bigmul.o src/bn_mul_inner.o src/bignum.o src/bigprime.c src/bigadd.o src/bigsub.o src/bigdiv.c src/bigshift.o tests/test_div.c src/bigrand.c
-	$(CC) $(CFLAGS) $^ -o test_div $(LDFLAGS)
-	./test_div
+# 4. Rules for compiling and linking Tests
+$(BUILD_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-test_primes: src/bigmul.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_primes.c src/bn_mul_inner.o
-	$(CC) $(CFLAGS) $^ -o test_primes $(LDFLAGS)
-	./test_primes
+$(BUILD_DIR)/%: $(BUILD_DIR)/$(TEST_DIR)/test_%.o $(LIB)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-test_primes_parallel: src/bigmul.o src/bn_mul_inner.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_primes_parallel.c 
-	$(CC) $(CFLAGS) $^ -o test_primes_p $(LDFLAGS)
-	./test_primes_p
+# 5. Convenience targets to run individual tests (e.g., `make test_mul`)
+test_%: $(BUILD_DIR)/%
+	./$<
 
-test_lucas: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c tests/test_lucas.c
-	$(CC) $(CFLAGS) $^ -o test_lucas $(LDFLAGS)
-	./test_lucas
+# 6. Build all tests without running them
+tests: $(TEST_BINS)
 
-
-test_bpsw: src/bigmul.o src/bigmod.o src/bn_mul_inner.o src/bigrand.c src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_bpsw.c
-	$(CC) $(CFLAGS) $^ -o test_bpsw $(LDFLAGS)
-	./test_bpsw
-
-test_openssl: src/bigmul.o src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c src/bigrand.c tests/test_openssl.c src/bn_mul_inner.o
-	$(CC) $(CFLAGS) $^ -o test_openssl $(LDFLAGS)
-	./test_openssl
-
-test_matrix: src/bigmul.o src/bigrand.c src/bigmod.o src/bigmont.o src/bigexp.o src/bignum.o src/bigadd.o src/bigsub.o src/bigshift.o src/bigrabin.c src/bigmatrix.c src/biglucas.c src/bigprime.c src/bigdiv.c src/bigmath.c tests/test_matrix.c src/bn_mul_inner.o
-	$(CC) $(CFLAGS) $^ -o test_matrix $(LDFLAGS)
-	./test_matrix
+# Clean up all build artifacts
 clean:
-	rm -f $(OBJS) $(TARGET)
-
+	rm -rf $(BUILD_DIR)

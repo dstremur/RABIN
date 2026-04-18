@@ -55,11 +55,6 @@ dkms.conf
 # debug information files
 *.dwo
 
-# Ignore all files starting with test_
-test_*
+build/
 
-# But do NOT ignore the source files or headers
-!test_*.c
-!test_*.h
-!test_*.s
-!test_*.asm
+
