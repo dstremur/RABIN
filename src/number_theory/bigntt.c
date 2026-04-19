@@ -1,7 +1,7 @@
 
 #include <stdio.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 void bn_ntt_init(bn_ntt* cfg, u64 n, const char* prime)
 {

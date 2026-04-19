@@ -1,4 +1,4 @@
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -236,10 +236,15 @@ void bn_println(const bignum* n)
 // frees a bignum
 void bn_free(bignum* r)
 {
+  if (!r) {
+    return;
+  }
+
   if (r->limbs) {
     free(r->limbs);
     r->limbs = NULL;
   }
+
   r->size = 0;
   r->capacity = 0;
 }

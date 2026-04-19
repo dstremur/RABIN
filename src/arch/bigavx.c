@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #include "../include/bignum.h"
-
+/*
 void mac_52bit_avx512(__m512i* lo, __m512i* hi, __m512i A, u64 b)
 {
   // broadcast to all 8 lanes
@@ -50,3 +50,5 @@ void avxtest()
            res_hi[i]);
   }
 }
+
+*/

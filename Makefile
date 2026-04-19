@@ -3,7 +3,7 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=x86-64
 ASFLAGS = -f elf64
 LDFLAGS = -fopenmp -lm -flto
 
@@ -27,8 +27,11 @@ TARGET = $(BUILD_DIR)/bignum
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
-.PHONY: all clean tests $(TEST_BINS)
+#.PHONY: all clean tests $(TEST_BINS)
 .PHONY: $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
+.SECONDARY: $(OBJS) $(ASM_OBJS) $(TEST_BINS)
+.PRECIOUS: $(BUILD_DIR)/tests/%.o $(BUILD_DIR)/%
+
 
 all: $(TARGET)
 

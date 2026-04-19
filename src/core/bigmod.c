@@ -6,7 +6,7 @@
 
 #include "../../include/bignum.h"
 
-void bn_mod22(bignum* r, const bignum* a, const bignum* b)
+void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
   if (bn_cmp(a, b) < 0) {
     bn_copy(r, a);
@@ -40,7 +40,7 @@ void bn_mod22(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-void bn_mod(bignum* r, const bignum* a, const bignum* b)
+void bn_mod22(bignum* r, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
 

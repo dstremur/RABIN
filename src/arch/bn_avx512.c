@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "../include/bignum.h"
-
+/*
 void convert_to_52(bn52* dest, const bignum* src)
 {
   if (src->size == 0) {
@@ -187,3 +187,5 @@ void bn_mul_512(bignum* r, bignum* a, bignum* b)
 
   r->is_neg = a->is_neg ^ b->is_neg;
 }
+
+*/

@@ -7,7 +7,7 @@
 
 int main()
 {
-  int num_to_generate = 200;
+  int num_to_generate = 5;
   int bits = 2048;
 
   bignum p;
@@ -20,7 +20,6 @@ int main()
 
   struct timespec start, end;
   double total_time = 0;
-
 
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);

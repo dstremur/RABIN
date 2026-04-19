@@ -37,6 +37,7 @@ typedef struct {
   uint64_t n_inv;  /* -n^{-1} mod 2^64                  */
   bignum r_square; /* R^2 mod N   (R = 2^{64 * n.limbs})*/
   bignum one_mont; /* R   mod N   (representation of 1) */
+  bignum tmp;	// scratchpad
 } bn_mont_ctx;
 
 typedef struct {

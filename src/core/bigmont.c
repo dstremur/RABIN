@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 {
@@ -43,6 +43,9 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
       bn_sub(&ctx->r_square, &ctx->r_square, n);
     }
   }
+
+  bn_init(&ctx->tmp);
+  bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
 
 void bn_mont_ctx_free(bn_mont_ctx* ctx)
@@ -50,6 +53,7 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx)
   bn_free(&ctx->one_mont);
   bn_free(&ctx->n);
   bn_free(&ctx->r_square);
+  bn_free(&ctx->tmp);
 }
 
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
@@ -73,15 +77,18 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
     }
 
     size_t k = i + size;
-    while (carry > 0 && k < t->size) {
+
+    for (; k < t->size; k++) {
       unsigned __int128 sum = (unsigned __int128)t_limbs[k] + carry;
       t_limbs[k] = (uint64_t)sum;
       carry = (uint64_t)(sum >> 64);
-      k++;
     }
   }
 
-  bn_alloc(r, size);
+  if (r->capacity < size) {
+    bn_alloc(r, size);
+  }
+
   for (u64 i = 0; i < size; i++) {
     r->limbs[i] = t_limbs[i + size];
   }
@@ -96,74 +103,37 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 }
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {
-  bignum T;
-  bn_init(&T);
-  bn_mul(&T, A, &ctx->r_square);
-
-  // CRITICAL FIX: Pad T to exactly 2*N + 1 limbs
-  u64 req_size = 2 * ctx->n.size + 1;
-  if (T.capacity < req_size) {
-    bn_alloc(&T, req_size);
-  }
-  for (u64 i = T.size; i < req_size; i++) {
-    T.limbs[i] = 0;
-  }
-  T.size = req_size;
-
-  bn_mont_redc(A_bar, &T, ctx);
-  bn_free(&T);
+  bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
-  bignum T;
-  bn_init(&T);
-
-  // Ensure starting size is exactly 2*N + 1
-  u64 req_size = 2 * ctx->n.size + 1;
-  bn_alloc(&T, req_size);
-  memset(T.limbs, 0, req_size * sizeof(u64));
-
-  for (size_t i = 0; i < A_bar->size; i++) {
-    T.limbs[i] = A_bar->limbs[i];
-  }
-  T.size = req_size;
-
-  bn_mont_redc(A, &T, ctx);
-  bn_free(&T);
+  bn_mont_mul(A, A_bar, &ctx->one_mont, ctx);
 }
 
 void bn_mont_mul(bignum* r, bignum* a_bar, bignum* b_bar, bn_mont_ctx* ctx)
 {
-  if (r == a_bar || r == b_bar) {
-    bignum tmp;
-    bn_init(&tmp);
-    bn_copy(&tmp, r);
-    bn_mont_mul(&tmp, a_bar, b_bar, ctx);
-    bn_copy(r, &tmp);
-    bn_free(&tmp);
-  } else {
-    bn_mont_mul_raw(r, a_bar, b_bar, ctx);
-  }
+  bn_mont_mul_raw(r, a_bar, b_bar, ctx);
 }
 
 void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
                      bn_mont_ctx* ctx)
 {
-  bignum T;
-  bn_init(&T);
+  bignum* T = &ctx->tmp;
 
-  bn_mul(&T, A_bar, B_bar);
-
-  // CRITICAL FIX: Pad T to exactly 2*N + 1 limbs
   u64 req_size = 2 * ctx->n.size + 1;
-  if (T.capacity < req_size) {
-    bn_alloc(&T, req_size);
+  // should already be big enough
+  if (T->capacity < req_size) {
+    bn_alloc(T, req_size);
   }
-  for (u64 i = T.size; i < req_size; i++) {
-    T.limbs[i] = 0;
-  }
-  T.size = req_size;
 
-  bn_mont_redc(result, &T, ctx);
-  bn_free(&T);
+  bn_mul(T, A_bar, B_bar);
+
+  if (T->size < req_size) {
+    for (u64 i = T->size; i < req_size; i++) {
+      T->limbs[i] = 0;
+    }
+    T->size = req_size;
+  }
+
+  bn_mont_redc(result, T, ctx);
 }
