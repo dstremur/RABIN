@@ -170,7 +170,7 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
         bn_mul(&temp2, GET(&T, i, k), GET(&T, k, j));
         bn_sub(&temp3, &temp1, &temp2);
 
-        bn_div(GET(&T, i, j), &temp3, &prev);
+        bn_div_exact(GET(&T, i, j), &temp3, &prev);
       }
     }
 

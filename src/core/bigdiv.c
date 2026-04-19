@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <immintrin.h>
 #include <stddef.h>
 #include <string.h>
@@ -101,10 +102,15 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
   bn_free_multi(&x, &tmp, &two_p, &r, &error, &c1, &c2, NULL);
 }
 
+void bn_div_long(bignum* q, const bignum* a, const bignum* b);
 // maybe use assembly from TAoCP
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
+  if (b->size == 1) {
+    bn_div_long(q, a, b);
+    return;
+  }
 
   if (q == a || q == b) {
     bignum tmp;
@@ -181,7 +187,7 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
       if (r_hat < vn1) break;
     }
 
-    // 6. Multiply and Subtract
+    // 6. Multiply and Subtract (FIXED SECTION)
     // We compute u = u - q_hat * v
     u64 borrow_multiply = 0;
     unsigned char borrow_sub = 0;
@@ -223,43 +229,59 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
 // algorithm D knuth
 void bn_div_long(bignum* q, const bignum* a, const bignum* b)
 {
-  if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) {
-    return;
-  }
-  // aliasing
+  if (bn_is_zero(b)) return;
+
+  // 1. Handle Aliasing
   if (q == a || q == b) {
     bignum tmp;
     bn_init(&tmp);
-    bn_div(&tmp, a, b);
+    bn_div_long(&tmp, a, b);
     bn_copy(q, &tmp);
     bn_free(&tmp);
     return;
   }
 
-  bignum r;
-  bn_init(&r);
+  bignum r, abs_b;
+  bn_init_multi(&r, &abs_b, NULL);
+
+  // 2. Work with the absolute value of the divisor
+  bn_copy(&abs_b, b);
+  abs_b.is_neg = false;
+
+  // 3. Prepare Quotient
+  bn_set_u64(q, 0);
+  if (bn_is_zero(a)) {
+    bn_free(&abs_b);
+    bn_free(&r);
+    return;
+  }
 
   bn_alloc(q, a->size);
   memset(q->limbs, 0, q->size * sizeof(u64));
   q->size = a->size;
-  q->is_neg = a->is_neg ^ b->is_neg;
 
   i64 nbits = bn_bit_length(a);
 
-  // binary long division
+  // 4. Binary long division (using absolute b)
   for (i64 i = nbits - 1; i >= 0; i--) {
     bn_lshift1(&r);
     if (bn_get_bit(a, i)) {
       bn_set_bit(&r, 0);
     }
 
-    if (bn_cmp(&r, b) >= 0) {
-      bn_sub(&r, &r, b);
+    // Compare against absolute b regardless of original b's sign
+    if (bn_cmp(&r, &abs_b) >= 0) {
+      bn_sub(&r, &r, &abs_b);  // r = r - |b|
       bn_set_bit(q, i);
     }
   }
+
+  // 5. Finalize sign and cleanup
+  q->is_neg = a->is_neg ^ b->is_neg;
   bn_trim(q);
+
   bn_free(&r);
+  bn_free(&abs_b);
 }
 
 void bn_div_exact(bignum* r, const bignum* a, const bignum* b)
@@ -324,6 +346,7 @@ void bn_div_exact(bignum* r, const bignum* a, const bignum* b)
   }
 
   bn_trim(r);
+  r->is_neg = a->is_neg ^ b->is_neg;
 
   bn_free(&temp_a);
 }
