@@ -65,33 +65,27 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   // Word for word reduction
   for (u64 i = 0; i < size; i++) {
     u64 m = t_limbs[i] * ctx->n_inv;
-
     u64 carry = 0;
+    // do in assembly
     for (u64 j = 0; j < size; j++) {
       unsigned __int128 product = (unsigned __int128)m * n_limbs[j];
       unsigned __int128 sum =
           (unsigned __int128)t_limbs[i + j] + carry + product;
-
       t_limbs[i + j] = (uint64_t)sum;
       carry = (uint64_t)(sum >> 64);
     }
 
-    size_t k = i + size;
+    t_limbs[i + size] += carry;
 
-    for (; k < t->size; k++) {
-      unsigned __int128 sum = (unsigned __int128)t_limbs[k] + carry;
-      t_limbs[k] = (uint64_t)sum;
-      carry = (uint64_t)(sum >> 64);
+    if (t_limbs[i + size] < carry) {
+      u64 k = i + size + 1;
+      while (k < t->size && ++t_limbs[k] == 0) k++;
     }
   }
 
-  if (r->capacity < size) {
-    bn_alloc(r, size);
-  }
+  if (r->capacity < size) bn_alloc(r, size);
+  memcpy(r->limbs, &t_limbs[size], size * sizeof(u64));
 
-  for (u64 i = 0; i < size; i++) {
-    r->limbs[i] = t_limbs[i + size];
-  }
   r->size = size;
 
   // Trim r before comparing so bn_cmp works accurately
