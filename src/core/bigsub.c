@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
+
+extern uint64_t bn_sub_inner(uint64_t* r, const uint64_t* a, uint64_t a_size,
+                             const uint64_t* b, uint64_t b_size);
 
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
-
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);
@@ -17,19 +19,12 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
     bn_free(&tmp);
     return;
   }
-  bn_alloc(r, a->size);
 
-  u64 borrow = 0;
-
-  for (u64 i = 0; i < a->size; i++) {
-    u64 av = a->limbs[i];
-    u64 bv = (i < b->size) ? b->limbs[i] : 0;
-
-    unsigned __int128 diff = (unsigned __int128)av - bv - borrow;
-
-    r->limbs[i] = (u64)diff;
-    borrow = (diff >> 127) & 1;  // detect underflow
+  if (r->capacity < a->size) {
+    bn_alloc(r, a->size);
   }
+
+  u64 borrow = bn_sub_inner(r->limbs, a->limbs, a->size, b->limbs, b->size);
 
   r->size = a->size;
   bn_trim(r);

@@ -1,11 +1,12 @@
 #include <ctype.h>
+#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "../../include/bignum.h"
 
-void bn_mod(bignum* r, const bignum* a, const bignum* b)
+void bn_mod22(bignum* r, const bignum* a, const bignum* b)
 {
   if (bn_cmp(a, b) < 0) {
     bn_copy(r, a);
@@ -39,16 +40,21 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-void bn_mod22(bignum* r, const bignum* a, const bignum* b)
+void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
 
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);
-    bn_div(&tmp, a, b);
+    bn_mod(&tmp, a, b);
     bn_copy(r, &tmp);
     bn_free(&tmp);
+    return;
+  }
+
+  if (bn_cmp(a, b) < 0) {
+    bn_copy(r, a);
     return;
   }
 
@@ -107,40 +113,42 @@ void bn_mod22(bignum* r, const bignum* a, const bignum* b)
       if (r_hat < vn1) break;
     }
 
-    // multiply and subtract
-    u64 borrow = 0;
-    for (u64 i = 0; i < n; i++) {
-      __uint128_t p = (__uint128_t)q_hat * v.limbs[i];
-      __uint128_t sub = p + borrow;
+    // 6. Multiply and Subtract
+    // We compute u = u - q_hat * v
+    u64 borrow_multiply = 0;
+    unsigned char borrow_sub = 0;
 
-      if (u.limbs[j + i] < (u64)sub) {
-        borrow = (sub >> 64) + 1;
-        u.limbs[j + i] -= (u64)sub;
-      } else {
-        borrow = (sub >> 64);
-        u.limbs[j + i] -= (u64)sub;
-      }
+    for (u64 i = 0; i < n; i++) {
+      __uint128_t p = (__uint128_t)q_hat * v.limbs[i] + borrow_multiply;
+      u64 p_low = (u64)p;
+      borrow_multiply = (u64)(p >> 64);
+
+      // Subtract the product limb from u with borrow propagation
+      borrow_sub = _subborrow_u64(borrow_sub, u.limbs[j + i], p_low,
+                                  (unsigned long long*)&u.limbs[j + i]);
     }
 
-    bool is_neg = u.limbs[j + n] < borrow;
-    u.limbs[j + n] -= borrow;
+    // Final borrow check against the "extra" limb
+    unsigned char final_borrow =
+        _subborrow_u64(borrow_sub, u.limbs[j + n], borrow_multiply,
+                       (unsigned long long*)&u.limbs[j + n]);
 
-    // add back
-    if (__builtin_expect(is_neg, 0)) {
-      u64 carry = 0;
+    // 7. Add Back (if q_hat was 1 too large)
+    if (final_borrow) {
+      unsigned char carry = 0;
       for (u64 i = 0; i < n; i++) {
-        __uint128_t sum = (__uint128_t)u.limbs[j + i] + v.limbs[i] + carry;
-        u.limbs[j + i] = (u64)sum;
-        carry = sum >> 64;
+        carry = _addcarry_u64(carry, u.limbs[j + i], v.limbs[i],
+                              (unsigned long long*)&u.limbs[j + i]);
       }
       u.limbs[j + n] += carry;
     }
   }
 
+  u.size = n;
   bn_rshift(r, &u, s);
-  r->size = n;
-  bn_trim(r);
+  r->is_neg = a->is_neg;
 
+  bn_trim(r);
   bn_free(&u);
   bn_free(&v);
 }
