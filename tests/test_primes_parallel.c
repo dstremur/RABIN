@@ -18,7 +18,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &global_start);
 
     // Use OpenMP to distribute the work of the for loop across threads
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < num_to_generate; i++) {
         struct timespec start, end;
         
