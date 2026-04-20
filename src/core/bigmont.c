@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
+#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -66,20 +67,23 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   for (u64 i = 0; i < size; i++) {
     u64 m = t_limbs[i] * ctx->n_inv;
     u64 carry = 0;
+
     // do in assembly
     for (u64 j = 0; j < size; j++) {
-      unsigned __int128 product = (unsigned __int128)m * n_limbs[j];
-      unsigned __int128 sum =
-          (unsigned __int128)t_limbs[i + j] + carry + product;
-      t_limbs[i + j] = (uint64_t)sum;
-      carry = (uint64_t)(sum >> 64);
+      unsigned __int128 prod =
+          (unsigned __int128)m * n_limbs[j] + t_limbs[i + j] + carry;
+      t_limbs[i + j] = (u64)prod;
+      carry = (u64)(prod >> 64);
     }
 
-    t_limbs[i + size] += carry;
-
-    if (t_limbs[i + size] < carry) {
-      u64 k = i + size + 1;
-      while (k < t->size && ++t_limbs[k] == 0) k++;
+    // Handle the final carry for this row
+    u64 k = i + size;
+    unsigned char c =
+        _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
+    k++;
+    while (c && k < t->size) {
+      c = _addcarry_u64(c, t_limbs[k], 0, (unsigned long long*)&t_limbs[k]);
+      k++;
     }
   }
 
