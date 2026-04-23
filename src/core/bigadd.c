@@ -32,30 +32,6 @@ void bn_add(bignum* r, const bignum* a, const bignum* b)
   if (r->capacity < a->size + 1) {
     bn_alloc(r, a->size + 1);
   }
-  /*
-    u64 a_size = a->size;
-    u64 b_size = b->size;
-
-    char carry = 0;
-    u64 i = 0;
-
-    for (; i < b_size; i++) {
-      carry = _addcarry_u64(carry, a->limbs[i], b->limbs[i],
-                            (unsigned long long*)&r->limbs[i]);
-    }
-
-    for (; i < a_size; i++) {
-      if (carry == 0) {
-        if (r != a) {
-          memcpy(&r->limbs[i], &a->limbs[i], (a_size - i) * sizeof(u64));
-        }
-        break;
-      }
-      carry =
-          _addcarry_u64(carry, a->limbs[i], 0, (unsigned long
-    long*)&r->limbs[i]);
-    }
-  */
 
   u64 carry = bn_add_inner(r->limbs, a->limbs, a->size, b->limbs, b->size);
 
