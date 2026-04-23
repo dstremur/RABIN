@@ -8,7 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 // generates a random bits long odd number
 bool bn_gen_random(bignum* r, u64 bits)

@@ -1,12 +1,18 @@
 
 #include "../../include/bigvector.h"
 
-#include "../../include/bignum.h"
+#include <stdio.h>
 
-void bigvector_init(bigvector* a)
+#include "../../include/bignum.h"
+void bigvector_init(bigvector* a, u64 d)
 {
-  a->data = NULL;
-  a->size = 0;
+  a->size = d;
+
+  a->data = malloc(d * sizeof(bignum));
+
+  for (u64 i = 0; i < d; i++) {
+    bn_init(&a->data[i]);
+  }
 }
 
 void bigvector_free(bigvector* a)
@@ -19,6 +25,12 @@ void bigvector_free(bigvector* a)
   a->size = 0;
 }
 
+void bigvector_set(bigvector* a, bignum* v, u64 i)
+{
+  if (a->size < i) return;
+
+  bn_copy(&a->data[i], v);
+}
 void bigvector_add(bigvector* r, const bigvector* a, const bigvector* b)
 {
   if (a->size != b->size) return;
@@ -50,4 +62,22 @@ void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
   }
 
   bn_free(&temp);
+}
+
+void bigvector_print(bigvector* a)
+{
+  printf("[ ");
+
+  for (u64 i = 0; i < a->size; i++) {
+    bn_print(&a->data[i]);
+    printf(", ");
+  }
+
+  printf("]");
+}
+
+void bigvector_println(bigvector* a)
+{
+  bigvector_print(a);
+  printf("\n");
 }

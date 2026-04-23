@@ -2,6 +2,7 @@
 
 #include <../include/bignum.h> 
 #include <stdio.h>
+#include <../include/bigvector.h>
 
 int main() 
 {
@@ -46,7 +47,7 @@ int main()
 	bn_gen_prime(&res, 2048);
 	bn_println(&res); 
 
-	printf("Provable prime 512 bits: ");
+	printf("Provable prime 100 bits: ");
 	bn_provable_prime(&res, 512);
 	bn_println(&res);
 
@@ -57,13 +58,19 @@ int main()
 	printf("JACOBI (b / a): %i \n", bn_jacobi(&b, &a));
 
 	tonelli_shanks(&res, &b, &a); 
-	bn_print(&res);
-	printf("^2 = ");
-	bn_print(&b);
-	printf(" mod ");
-	bn_println(&a);
 	
+	bigvector v; 
+	bigvector_init(&v, 5);
 	
+	bigvector_set(&v, &a, 0);
+	bigvector_set(&v, &b, 1);
+	bigvector_set(&v, &a, 2);
+	bigvector_set(&v, &b, 3);
+	bigvector_set(&v, &b, 4);
 
+	bigvector_println(&v);
+
+	bigvector_free(&v);
+	bn_free_multi(&a, &b, &res);
 
 }
