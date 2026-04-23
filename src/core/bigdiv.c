@@ -286,7 +286,7 @@ void bn_div_long(bignum* q, const bignum* a, const bignum* b)
 
 void bn_div_exact(bignum* r, const bignum* a, const bignum* b)
 {
-  if (b->size == 0 || b->size == 1 && b->limbs[0] == 0) return;
+  if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
 
   if (a->size < b->size) {
     bn_set_u64(r, 0);
@@ -319,7 +319,7 @@ void bn_div_exact(bignum* r, const bignum* a, const bignum* b)
   bn_alloc(r, len);
   r->size = len;
 
-  for (u64 i = 0; i < len; i++) {
+  for (i64 i = 0; i < len; i++) {
     u64 a_i = temp_a.limbs[i];
 
     u64 q_i = a_i * b_inv;

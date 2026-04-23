@@ -167,9 +167,9 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx);
 
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
 
-void bn_mont_mul(bignum* result, bignum* A_bar, bignum* B_bar,
+void bn_mont_mul(bignum* result, const bignum* A_bar, const bignum* B_bar,
                  bn_mont_ctx* ctx);
-void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
+void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
                      bn_mont_ctx* ctx);
 
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);

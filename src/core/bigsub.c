@@ -11,7 +11,6 @@ extern uint64_t bn_sub_inner(uint64_t* r, const uint64_t* a, uint64_t a_size,
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
-
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);

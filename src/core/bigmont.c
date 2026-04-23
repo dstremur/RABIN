@@ -108,12 +108,12 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
   bn_mont_mul(A, A_bar, &ctx->one_mont, ctx);
 }
 
-void bn_mont_mul(bignum* r, bignum* a_bar, bignum* b_bar, bn_mont_ctx* ctx)
+void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar, bn_mont_ctx* ctx)
 {
   bn_mont_mul_raw(r, a_bar, b_bar, ctx);
 }
 
-void bn_mont_mul_raw(bignum* result, bignum* A_bar, bignum* B_bar,
+void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
                      bn_mont_ctx* ctx)
 {
   bignum* T = &ctx->tmp;
