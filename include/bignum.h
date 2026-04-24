@@ -161,6 +161,11 @@ bool bn_pollard_rho(bignum* f, const bignum* n);
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 
+// bigsqrt.c 
+void bn_isqrt(bignum* r, bignum* a); 
+
+
+
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
 
 void bn_mont_ctx_free(bn_mont_ctx* ctx);

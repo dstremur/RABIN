@@ -43,6 +43,10 @@ int main()
 	printf("POW: ");
 	bn_println(&res);
 
+	bn_isqrt(&res, &a);
+	printf("sqrt of a: ");
+	bn_println(&res);
+
 	printf("Prime BPSW 2048 bits: ");
 	bn_gen_prime(&res, 2048);
 	bn_println(&res); 
@@ -69,6 +73,14 @@ int main()
 	bigvector_set(&v, &b, 4);
 
 	bigvector_println(&v);
+
+	bigvector_dot(&res, &v, &v);	
+
+	bn_println(&res);
+
+	bigvector_norm(&res, &v);
+
+	bn_println(&res);
 
 	bigvector_free(&v);
 	bn_free_multi(&a, &b, &res);

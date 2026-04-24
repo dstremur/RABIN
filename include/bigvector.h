@@ -16,7 +16,7 @@ void bigvector_add(bigvector* r, const bigvector* a, const bigvector* b);
 void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b); 
 void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b); 
 void bigvector_cross(bigvector* r, const bigvector* a, const bigvector* b); 
-void bigvector_norm(bigvector* r, const bigvector* a);
+void bigvector_norm(bignum* r, const bigvector* a);
 
 void bigvector_print(bigvector* a);
 void bigvector_println(bigvector* a); 
