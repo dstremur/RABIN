@@ -96,11 +96,11 @@ void bn_init_val(bignum* n, const char* str)
   bn_free(n);
   if (!str) return;
 
-  n->is_neg = (str[0] == '-');
-  const char* s = n->is_neg ? str + 1 : str;
-
   // Start with a value of 0
   bn_set_u64(n, 0);
+
+  n->is_neg = (str[0] == '-');
+  const char* s = n->is_neg ? str + 1 : str;
 
   for (size_t i = 0; s[i]; i++) {
     if (!isdigit(s[i])) continue;
@@ -311,6 +311,18 @@ int bn_cmp(const bignum* a, const bignum* b)
   }
 
   return cmp;
+}
+
+int bn_cmp_abs(const bignum* a, const bignum* b)
+{
+  if (a->size > b->size) return 1;
+  if (a->size < b->size) return -1;
+
+  for (i64 i = a->size - 1; i >= 0; i--) {
+    if (a->limbs[i] > b->limbs[i]) return 1;
+    if (a->limbs[i] < b->limbs[i]) return -1;
+  }
+  return 0;
 }
 
 // deep copies one a into r

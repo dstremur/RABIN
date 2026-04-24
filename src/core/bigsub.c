@@ -54,7 +54,7 @@ void bn_sub(bignum* r, const bignum* a, const bignum* b)
     return;
   }
 
-  i64 cmp = bn_cmp(a, b);
+  i64 cmp = bn_cmp_abs(a, b);
 
   if (cmp == 0) {
     bn_set_u64(r, 0);

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #include "bignum.h"
-
+#include "bigvector.h"
 // use a flat array structure
 // index = (row * nr_cols) + col
 typedef struct bigmatrix {
@@ -26,6 +26,6 @@ void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B);
 void bigmatrix_copy(bigmatrix* R, bigmatrix* A);
 void bigmatrix_det(bignum* d, bigmatrix* A); 
 void bigmatrix_print(bigmatrix* A); 
-
-
+void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col);
+void bigmatrix_hadamard(bignum* r, bigmatrix* A);
 #endif

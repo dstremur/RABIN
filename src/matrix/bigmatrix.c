@@ -50,6 +50,38 @@ void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c)
   bn_copy(GET(A, r, c), a);
 }
 
+// c needs to be allocated
+void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col)
+{
+  if (c->size != A->r_size) printf("Size does not match \n");
+
+  for (u64 i = 0; i < A->r_size; i++) {
+    bigvector_set(c, GET(A, i, col), i);
+  }
+}
+
+void bigmatrix_hadamard(bignum* r, bigmatrix* A)
+{
+  bn_set_u64(r, 1);
+
+  bigvector v;
+  bigvector_init(&v, A->r_size);
+  bignum tmp;
+  bn_init(&tmp);
+
+  for (u64 i = 0; i < A->c_size; i++) {
+    bigmatrix_get_col(&v, A, i);
+
+    bigvector_norm(&tmp, &v);
+    // add 1 since norm uses isqrt
+    bn_add_u64(&tmp, &tmp, 1);
+    bn_mul(r, r, &tmp);
+  }
+
+  bn_free(&tmp);
+  bigvector_free(&v);
+}
+
 void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B)
 {
   // check if sizes match

@@ -1,6 +1,7 @@
 #include "../../include/bignum.h"
 
-void bn_isqrt(bignum* r, bignum* a)
+// calculates the integer square root of a using Heron's method
+void bn_isqrt_heron(bignum* r, bignum* a)
 {
   if (a->is_neg) return;
 
@@ -12,7 +13,13 @@ void bn_isqrt(bignum* r, bignum* a)
   bignum xn, xnext, tmp;
   bn_init_multi(&xn, &xnext, &tmp, NULL);
 
-  bn_copy(&xn, a);
+  // set x0 = 2^{log_2(a) / 2 + 1}
+  u64 k = bn_bit_length(a);
+  bn_set_u64(&xn, 2);
+
+  bn_set_u64(&tmp, k + 2);
+  bn_rshift1(&tmp);
+  bn_pow(&xn, &xn, &tmp);
 
   while (true) {
     bn_div(&tmp, a, &xn);
@@ -30,3 +37,5 @@ void bn_isqrt(bignum* r, bignum* a)
 
   bn_free_multi(&xn, &xnext, &tmp, NULL);
 }
+
+void bn_isqrt(bignum* r, bignum* a) { bn_isqrt_heron(r, a); }

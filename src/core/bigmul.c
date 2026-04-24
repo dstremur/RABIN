@@ -12,12 +12,14 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
     bignum tmp;
     bn_init(&tmp);
     bn_copy(&tmp, r);
-    bn_mul_raw(&tmp, a, b);
+    bn_mul(&tmp, a, b);
     bn_copy(r, &tmp);
     bn_free(&tmp);
   } else {
     bn_mul_raw(r, a, b);
   }
+
+  r->is_neg = a->is_neg ^ b->is_neg;
 }
 
 // now use karatsuba

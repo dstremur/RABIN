@@ -89,6 +89,7 @@ void bn_clear_bit(bignum* a, int i);
 int bn_bitlen(const bignum* a);
 bool bn_is_zero(const bignum* a);
 int bn_cmp(const bignum* a, const bignum* b);
+int bn_cmp_abs(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
 
 bool bn_gen_prime(bignum* p, int bits);
@@ -162,8 +163,9 @@ bool bn_pollard_rho(bignum* f, const bignum* n);
 bool bn_bpsw(const bignum* n);
 
 // bigsqrt.c 
-void bn_isqrt(bignum* r, bignum* a); 
+void bn_isqrt_heron(bignum* r, bignum* a); 
 
+void bn_isqrt(bignum* r, bignum* a); 
 
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);

@@ -47,6 +47,9 @@ int main()
   bn_sub(&c, &a, &b);
   printf("SUB: ");
   bn_println(&c);
+  bn_isqrt(&c, &a);
+  printf("ISQRT (a): ");
+  bn_println(&c);
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);

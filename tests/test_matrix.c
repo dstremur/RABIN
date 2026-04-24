@@ -39,6 +39,76 @@ void run_det_benchmark(u64 size, u64 bits) {
     bn_free(&val);
 }
 
+void run_hadamard_benchmark(u64 size, u64 bits) {
+    bigmatrix M;
+    bignum det, val;
+    
+    bn_init(&det);
+    bn_init(&val);
+    bigmatrix_init(&M, size, size);
+
+    // Populate with random data to prevent "easy" zeros
+    for (u64 i = 0; i < size; i++) {
+        for (u64 j = 0; j < size; j++) {
+            bn_gen_random(&val, bits);
+            bigmatrix_set(&M, &val, i, j);
+        }
+    }
+
+    printf("Benchmarking %llu x %llu (%llu-bit entries) hadamard bound... ", size, size, bits);
+    fflush(stdout);
+
+    double start = get_time();
+    bigmatrix_hadamard(&det, &M);
+    double end = get_time();
+
+    printf("Time: %f seconds\n", end - start);
+
+    bigmatrix_free(&M);
+    bn_free(&det);
+    bn_free(&val);
+}
+
+void test_pascal_det(u64 size) {
+    bigmatrix P;
+    bignum det, val;
+    bn_init(&det);
+    bn_init(&val);
+    bigmatrix_init(&P, size, size);
+
+    // Generate Pascal Matrix: M[i][j] = combinations(i+j, i)
+    // For a 2x2, this is [[1, 1], [1, 2]] -> det = (2-1) = 1
+    for (u64 i = 0; i < size; i++) {
+        for (u64 j = 0; j < size; j++) {
+            // Note: You'll need a simple combinations function or 
+            // use the additive property: P[i][j] = P[i-1][j] + P[i][j-1]
+            if (i == 0 || j == 0) {
+                bn_set_u64(&val, 1);
+            } else {
+                bignum a, b;
+                bn_init(&a); bn_init(&b);
+                bigmatrix_get(&a, &P, i-1, j);
+                bigmatrix_get(&b, &P, i, j-1);
+                bn_add(&val, &a, &b);
+                bn_free(&a); bn_free(&b);
+            }
+            bigmatrix_set(&P, &val, i, j);
+        }
+    }
+
+    bigmatrix_det(&det, &P);
+    
+    printf("Pascal %llu x %llu Det: ", size, size);
+    bn_println(&det); // SHOULD ALWAYS BE 1
+    
+    assert(bn_is_eq_i64(&det, 1));
+
+    bigmatrix_free(&P);
+    bn_free(&det);
+    bn_free(&val);
+}
+
+
 int main()
 {
   printf("--- Starting BigMatrix Test Suite ---\n");
@@ -126,6 +196,9 @@ int main()
   bigmatrix_det(&val, &A); 
   bn_println(&val); 
 
+  bigmatrix_hadamard(&val, &A);
+  bn_println(&val);
+
 
   // 8. Cleanup
   bn_free(&val);
@@ -137,6 +210,29 @@ int main()
   bigmatrix_free(&RectB);
   bigmatrix_free(&RectR);
 
+
+  bigmatrix D;
+  bigmatrix_init(&D, 4, 4);
+  bignum tmp;
+  bn_init(&tmp);
+
+
+  for (u64 i = 0; i < 4; i++){
+    for (u64 j = 0; j < 4; j++){
+        bn_set_u64(&tmp, (i + j) % 4);
+        bigmatrix_set(&D, &tmp, i, j);
+    }
+  }
+
+  bigmatrix_print(&D);
+  bigmatrix_det(&tmp, &D);
+  bn_println(&tmp);
+
+  bn_free(&tmp);
+  bigmatrix_free(&D);
+
+  test_pascal_det(512);
+
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
@@ -145,6 +241,7 @@ int main()
 
     for (int i = 0; i < num_tests; i++) {
         run_det_benchmark(sizes[i], 32); // 32-bit random entries
+        run_hadamard_benchmark(sizes[i], 32);
     }
 
   return 0;
