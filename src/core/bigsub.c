@@ -42,14 +42,14 @@ void bn_sub(bignum* r, const bignum* a, const bignum* b)
 {
   // a - (-b) = a + b
   if (!a->is_neg && b->is_neg) {
-    bn_add(r, a, b);
+    bn_add_abs(r, a, b);
     r->is_neg = false;
     return;
   }
 
   // (-a) - b = -(a + b)
   if (a->is_neg && !b->is_neg) {
-    bn_add(r, a, b);
+    bn_add_abs(r, a, b);
     r->is_neg = true;
     return;
   }

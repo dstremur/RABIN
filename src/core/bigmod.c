@@ -33,8 +33,12 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
     }
 
     if (bn_cmp(r, b) >= 0) {
-      bn_sub(r, r, b);
+      bn_sub_abs(r, r, b);
     }
+  }
+
+  if (r->is_neg) {
+    bn_add_abs(r, r, b);
   }
 
   bn_trim(r);

@@ -30,7 +30,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   for (u64 i = 0; i < bits; i++) {
     bn_lshift1(&ctx->one_mont);
     if (bn_cmp(&ctx->one_mont, n) >= 0) {
-      bn_sub(&ctx->one_mont, &ctx->one_mont, n);
+      bn_sub_abs(&ctx->one_mont, &ctx->one_mont, n);
     }
   }
 
@@ -41,7 +41,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   for (u64 i = 0; i < bits; i++) {
     bn_lshift1(&ctx->r_square);
     if (bn_cmp(&ctx->r_square, n) >= 0) {
-      bn_sub(&ctx->r_square, &ctx->r_square, n);
+      bn_sub_abs(&ctx->r_square, &ctx->r_square, n);
     }
   }
 
@@ -96,7 +96,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   bn_trim(r);
 
   if (bn_cmp(r, &ctx->n) >= 0) {
-    bn_sub(r, r, &ctx->n);
+    bn_sub_abs(r, r, &ctx->n);
   }
 }
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)

@@ -96,6 +96,7 @@ bool bn_gen_prime(bignum* p, int bits);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
+void bn_add_abs(bignum* r, const bignum* a, const bignum* b);
 void bn_add_u64(bignum* r, const bignum* a, u64 b);
 void bn_add_at_offset(bignum* r, const bignum* a, u64 offset);
 // bigsub.c
