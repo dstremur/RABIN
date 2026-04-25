@@ -63,8 +63,8 @@ int main()
   printf("LSHIFT: ");
   bn_lshift(&c, &a, 32);
   bn_println(&c);
-  // printf("Pow: ");
-  // bn_pow(&c, &a, &b);
+  printf("Pow: ");
+  bn_pow(&c, &a, &b);
   bn_println(&c);
 
   if (bn_pollard_rho(&c, &a)) {
