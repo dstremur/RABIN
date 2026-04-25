@@ -217,6 +217,7 @@ int main()
   bn_init(&tmp);
 
 
+  // set matrix D
   for (u64 i = 0; i < 4; i++){
     for (u64 j = 0; j < 4; j++){
         bn_set_u64(&tmp, (i + j) % 4);
@@ -228,15 +229,54 @@ int main()
   bigmatrix_det(&tmp, &D);
   bn_println(&tmp);
 
-  bn_free(&tmp);
   bigmatrix_free(&D);
+
+
+  bigmatrix E; 
+  bigmatrix_init(&E, 3, 4); 
+  bigvector v, res;
+  bigvector_init(&v, 4); 
+  bigvector_init(&res, 3);
+
+  
+  bigmatrix_set(&E, &tmp, 0,0);
+  bn_add_u64(&tmp, &tmp, 1);
+  bigmatrix_set(&E, &tmp, 1,0);
+  bn_add_u64(&tmp, &tmp, 1);
+  bigmatrix_set(&E, &tmp, 1,1);
+  bn_add_u64(&tmp, &tmp, 1);
+  bigmatrix_set(&E, &tmp, 2,0);
+  bn_add_u64(&tmp, &tmp, 1);
+  bigmatrix_set(&E, &tmp, 2,1);
+  bn_add_u64(&tmp, &tmp, 1);
+  bigmatrix_set(&E, &tmp, 2,2);
+
+  bigmatrix_print(&E);
+
+  bigvector_set(&v, &tmp, 0);
+
+  bigvector_set(&v, &tmp, 1);
+  bigvector_set(&v, &tmp, 2);
+  bigvector_set(&v, &tmp, 3);
+
+  bigvector_print(&v);
+  printf("\n");
+
+  bigmatrix_mv(&res, &E, &v); 
+
+  printf("Matrix vector: ");
+  bigvector_print(&res); 
+  printf("\n");
+
+  
+  
 
   test_pascal_det(512);
 
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
-  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512};
+  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
@@ -245,4 +285,7 @@ int main()
     }
 
   return 0;
+
+
+  bn_free(&tmp);
 }

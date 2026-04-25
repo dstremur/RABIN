@@ -7,7 +7,7 @@
 
 int main()
 {
-  int num_to_generate = 5;
+  int num_to_generate = 200;
   int bits = 2048;
 
   bignum p;

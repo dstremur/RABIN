@@ -32,11 +32,17 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
   // choose initial estimate
   u64 a_bits = bn_bit_length(a);
   u64 d_bits = bn_bit_length(d);
+
   // tune if precision is lacking
   u64 P = a_bits + 32;
 
   bn_set_u64(&x, 1);
-  bn_lshift(&x, &x, P - d_bits);
+  bn_lshift(&x, &x, P);
+  bn_div(&x, &x, d);
+
+  // two_p = 2^{P}
+  bn_set_u64(&two_p, 1);
+  bn_lshift(&two_p, &two_p, P);
 
   u64 iters = estimate_iterations(d_bits);
 
@@ -45,43 +51,15 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
     // x = x + (x * (2^(P) - d * x)) >> P
 
     // tmp = d * x
-    bn_mul(&tmp, &x, d);
+    bn_mul(&tmp, d, &x);
 
-    // two_p = 2^{P}
-    bn_set_u64(&two_p, 1);
-    bn_lshift(&two_p, &two_p, P);
-
-    // Calculate (2^P - d*x) and update x
-    if (bn_cmp(&two_p, &tmp) >= 0) {
-      // x is to small or perfect
-      bn_sub(&error, &two_p, &tmp);
-
-      // c1 = (x * error) >> P
-      bn_mul(&c1, &x, &error);
-      bn_rshift(&c1, &c1, P);
-
-      // c2 = (c1 * error) >> P
-      bn_mul(&c2, &c1, &error);
-      bn_rshift(&c2, &c2, P);
-
-      // x = x + c1 + c2
-      bn_add(&x, &x, &c1);
-      bn_add(&x, &x, &c2);
-    } else {
-      // x was slightly too large, subtract correction instead
-      bn_sub(&error, &tmp, &two_p);
-
-      // c1 = (x * error) >> P
-      bn_mul(&c1, &x, &error);
-      bn_rshift(&c1, &c1, P);
-
-      // c2 = (c1 * error) >> P
-      bn_mul(&c2, &c1, &error);
-      bn_rshift(&c2, &c2, P);
-
-      bn_sub(&x, &x, &c1);
-      bn_add(&x, &x, &c2);
-    }
+    // error = 2^P - d * x
+    bn_set_u64(&error, 1);
+    bn_sub(&error, &two_p, &tmp);
+    // x = x + x * error >> P
+    bn_mul(&tmp, &x, &error);
+    bn_rshift(&tmp, &tmp, P);
+    bn_add(&x, &x, &tmp);
 
     if (bn_is_zero(&error)) break;
   }

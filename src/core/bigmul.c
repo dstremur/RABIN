@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 #define KARATSUBA_LIMIT 64
 
@@ -135,12 +135,12 @@ void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
 
   bn_mul(&z2, &a1, &b1);
 
-  bn_add(&s_a, &a0, &a1);
-  bn_add(&s_b, &b0, &b1);
+  bn_add_abs(&s_a, &a0, &a1);
+  bn_add_abs(&s_b, &b0, &b1);
   bn_mul(&z1, &s_a, &s_b);
 
-  bn_sub(&tmp, &z1, &z0);
-  bn_sub(&z1, &tmp, &z2);
+  bn_sub_abs(&tmp, &z1, &z0);
+  bn_sub_abs(&z1, &tmp, &z2);
 
   u64 max_len = a->size + b->size;
   bn_alloc(r, max_len);

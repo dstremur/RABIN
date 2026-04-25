@@ -7,6 +7,7 @@
 
 #include "../include/bignum.h"
 #include "../include/bigpoly.h"
+#include "../include/bigmatrix.h" 
 #include "ctype.h"
 #include "string.h"
 
@@ -53,7 +54,7 @@ int main()
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);
-  bn_newton_div(&c, &a, &b);
+  bn_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
   printf("RSHIFT: ");

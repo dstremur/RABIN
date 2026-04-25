@@ -27,5 +27,8 @@ void bigmatrix_copy(bigmatrix* R, bigmatrix* A);
 void bigmatrix_det(bignum* d, bigmatrix* A); 
 void bigmatrix_print(bigmatrix* A); 
 void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col);
+void bigmatrix_get_row(bigvector* r, bigmatrix* A, u64 row);
 void bigmatrix_hadamard(bignum* r, bigmatrix* A);
+void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* a);
+void bigmatrix_vm(bigvector* r, bigmatrix* A, bigvector* a);
 #endif

@@ -60,6 +60,68 @@ void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col)
   }
 }
 
+// c needs to be allocated
+void bigmatrix_get_row(bigvector* r, bigmatrix* A, u64 row)
+{
+  if (r->size != A->c_size) printf("Size does not match \n");
+
+  for (u64 i = 0; i < A->c_size; i++) {
+    bigvector_set(r, GET(A, row, i), i);
+  }
+}
+
+// calc A * v = r
+void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* v)
+{
+  if (r->size != A->r_size || v->size != A->c_size) {
+    printf("Size does not match \n");
+    return;
+  }
+
+  bigvector tmp;
+  bigvector_init(&tmp, A->c_size);
+
+  bignum dot;
+  bn_init(&dot);
+
+  for (u64 i = 0; i < A->r_size; i++) {
+    bigmatrix_get_row(&tmp, A, i);
+    bigvector_dot(&dot, v, &tmp);
+    bigvector_set(r, &dot, i);
+    // If bigvector_dot accumulates, you must reset dot to 0 here:
+    // bn_set_zero(&dot);
+  }
+
+  bn_free(&dot);
+  bigvector_free(&tmp);
+}
+
+// calc v * A = r
+void bigmatrix_vm(bigvector* r, bigmatrix* A, bigvector* v)
+{
+  if (r->size != A->c_size || v->size != A->r_size) {
+    printf("Size does not match \n");
+    return;
+  }
+
+  bigvector tmp;
+  bigvector_init(&tmp, A->r_size);
+
+  bignum dot;
+  bn_init(&dot);
+
+  for (u64 i = 0; i < A->c_size; i++) {
+    bigmatrix_get_col(&tmp, A, i);
+    bigvector_dot(&dot, v, &tmp);
+    bigvector_set(r, &dot, i);
+  }
+
+  bn_free(&dot);
+  bigvector_free(&tmp);
+}
+/*
+ * Sheldon Axler: let c be the max entry
+ * then |det A| <= c^n * n^{n / 2} */
 void bigmatrix_hadamard(bignum* r, bigmatrix* A)
 {
   bn_set_u64(r, 1);
@@ -157,11 +219,15 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
   bigmatrix_init(&T, A->c_size, A->r_size);
   bigmatrix_copy(&T, A);
 
-  bignum prev, temp1, temp2, temp3;
-  bn_init_multi(&prev, &temp1, &temp2, &temp3, NULL);
+  bignum prev;
+  bn_init(&prev);
 
   // Track sign changes
   i64 sign = 1;
+
+  bigmatrix_hadamard(&prev, A);
+
+  bn_alloc(d, prev.size);
 
   bn_set_u64(&prev, 1);
 
@@ -194,16 +260,25 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
       pivot = GET(&T, k, k);
     }
 
-    for (u64 i = k + 1; i < n; i++) {
-      for (u64 j = k + 1; j < n; j++) {
-        // T_ij = (T_ij * T_kk - T_ik * T_kj) / T_kk
+#pragma omp parallel
+    {
+      bignum temp1, temp2, temp3;
+      bn_init_multi(&temp1, &temp2, &temp3, NULL);
+#pragma omp for collapse(2) schedule(static)
+      for (u64 i = k + 1; i < n; i++) {
+        bignum* t = GET(&T, i, k);
+        for (u64 j = k + 1; j < n; j++) {
+          // T_ij = (T_ij * T_kk - T_ik * T_kj) / T_kk
 
-        bn_mul(&temp1, GET(&T, i, j), pivot);
-        bn_mul(&temp2, GET(&T, i, k), GET(&T, k, j));
-        bn_sub(&temp3, &temp1, &temp2);
+          bn_mul(&temp1, GET(&T, i, j), pivot);
+          bn_mul(&temp2, t, GET(&T, k, j));
+          bn_sub(&temp3, &temp1, &temp2);
 
-        bn_div_exact(GET(&T, i, j), &temp3, &prev);
+          bn_div_exact(GET(&T, i, j), &temp3, &prev);
+        }
       }
+
+      bn_free_multi(&temp1, &temp2, &temp3, NULL);
     }
 
     bn_copy(&prev, pivot);
@@ -217,5 +292,5 @@ void bigmatrix_det(bignum* d, bigmatrix* A)
 
 cleanup:
   bigmatrix_free(&T);
-  bn_free_multi(&prev, &temp1, &temp2, &temp3, NULL);
+  bn_free_multi(&prev, NULL);
 }
