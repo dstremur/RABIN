@@ -56,7 +56,7 @@ void bn_lucas_solve(bignum* u, bignum* v, const bignum* p, const bignum* q,
     bn_mul(qn, &q_n, &q_n);
   } else {
     bn_mul(&tmp, p, &a);
-    bn_add_abs(&tmp, &tmp, &b);
+    bn_add(&tmp, &tmp, &b);
     bn_rshift1(&tmp);
     bn_sub(u, &tmp, &q_n);
 
@@ -118,9 +118,9 @@ void bn_lucas_solve_mod_rec(bignum* u, bignum* v, const bignum* p,
     bn_copy(u, &a);
     // V_2n = b - 2 * Q^k
     bn_copy(v, &b);
-    bn_add_abs(v, v, m);
+    bn_add(v, v, m);
     bn_sub(v, v, &q_n);
-    bn_add_abs(v, v, m);
+    bn_add(v, v, m);
     bn_sub(v, v, &q_n);
     bn_mod(v, v, m);
     // Q^n = (Q^n/2)^2
@@ -128,14 +128,14 @@ void bn_lucas_solve_mod_rec(bignum* u, bignum* v, const bignum* p,
     bn_mod(qn, qn, m);
   } else {
     bn_mul(&tmp, p, &a);
-    bn_add_abs(&tmp, &tmp, &b);
+    bn_add(&tmp, &tmp, &b);
     // fix for modular arethmetic
     if (!bn_is_even(&tmp)) {
-      bn_add_abs(&tmp, &tmp, m);
+      bn_add(&tmp, &tmp, m);
     }
     bn_rshift1(&tmp);
 
-    bn_add_abs(&tmp, &tmp, m);
+    bn_add(&tmp, &tmp, m);
     bn_sub(u, &tmp, &q_n);
     bn_mod(u, u, m);
 
@@ -145,10 +145,10 @@ void bn_lucas_solve_mod_rec(bignum* u, bignum* v, const bignum* p,
     bn_mul(&tmp, q, &a);
     bn_mod(&tmp, &tmp, m);
 
-    bn_add_abs(v, v, m);
+    bn_add(v, v, m);
     bn_sub(v, v, &tmp);
     bn_mod(v, v, m);
-    bn_add_abs(v, v, m);
+    bn_add(v, v, m);
     bn_sub(v, v, &tmp);
     bn_mod(v, v, m);
 
@@ -226,11 +226,11 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
     } else {
       // tmp = P * U_2n + V_2n / 2
       bn_mont_mul(&tmp, &p_bar, &a, &ctx);
-      bn_add_abs(&tmp, &tmp, &b);
+      bn_add(&tmp, &tmp, &b);
 
       // fix for modular arethmetic division by 2
       if (!bn_is_even(&tmp)) {
-        bn_add_abs(&tmp, &tmp, &ctx.n);
+        bn_add(&tmp, &tmp, &ctx.n);
       }
       bn_rshift1(&tmp);
 
@@ -243,6 +243,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
       // Subtract Q*a twice
       for (int j = 0; j < 2; j++) {
         bn_sub(&v_bar, &v_bar, &tmp);
+        // this needs to be add_abs. I have no idea why
         if (v_bar.is_neg) bn_add_abs(&v_bar, &v_bar, &ctx.n);
       }
 
