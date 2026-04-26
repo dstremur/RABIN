@@ -96,6 +96,7 @@ void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
   bn_init_multi(&base, &result, &exp, NULL);
 
   bn_mont_in(&base, a, ctx);
+  bn_mont_in(&exp, b, ctx);
 
   bn_mont_exp(&result, &base, &exp, ctx);
 

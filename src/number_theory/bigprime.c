@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -28,12 +29,12 @@ bool bn_gen_prime(bignum* p, int bits)
     bn_set_bit(p, bits - 1);
     bn_set_bit(p, 0);
 
-    // uint64_t multi_prime = 3ULL * 5 * 7 * 11 * 13 * 17;
-    // uint64_t rem = bn_mod_u64(p, multi_prime);
+    uint64_t multi_prime = 3ULL * 5 * 7 * 11 * 13 * 17;
+    uint64_t rem = bn_mod_u64(p, multi_prime);
 
-    // if (rem % 3 == 0 || rem % 5 == 0 || rem % 7 == 0 || rem % 11 == 0 ||
-    //     rem % 13 == 0 || rem % 17 == 0)
-    //   continue;
+    if (rem % 3 == 0 || rem % 5 == 0 || rem % 7 == 0 || rem % 11 == 0 ||
+        rem % 13 == 0 || rem % 17 == 0)
+      continue;
 
     for (int i = 0; i < 1500; i++) {
       if (bn_mod_u64(p, primes[i]) == 0) {
@@ -237,140 +238,158 @@ bool bn_bpsw(const bignum* n)
   return res;
 }
 
-// Implementation of Maurers algorithm
+bool trialdiv(bignum* n, u64 g)
+{
+  u64 i = 0;
+
+  while (i < 100000 && primes[i] < g) {
+    if (bn_mod_u64(n, primes[i]) == 0) {
+      return false;
+    }
+    i++;
+  }
+
+  return true;
+}
+
+// simple version for r = 1
+bool checkLemma1(bignum* n, bignum* n_min1, bignum* a, bignum* q)
+{
+  bignum tmp, exp;
+  bn_init_multi(&tmp, &exp, NULL);
+
+  // 1. condition a^(n-1) == 1 (mod n)
+  bn_mod_exp(&tmp, a, n_min1, n);
+
+  if (!bn_is_eq_i64(&tmp, 1)) {
+    bn_free_multi(&tmp, &exp, NULL);
+    // printf("   [FAIL] Fermat Test: a^(n-1) mod n != 1\n");
+    return false;
+  }
+
+  // 2. condition gcd(a^((n-1)/q) - 1, n) == 1
+  bn_copy(&exp, n_min1);
+  bn_div(&exp, &exp, q);
+
+  bn_mod_exp(&tmp, a, &exp, n);
+
+  if (bn_is_eq_i64(&tmp, 1)) {
+    bn_free_multi(&tmp, &exp, NULL);
+    // printf("   [FAIL] Lemma 1: a^((n-1)/q) mod n is 1 (GCD would be n)\n");
+    return false;
+  }
+
+  bn_set_u64(&exp, 1);
+  bn_sub(&tmp, &tmp, &exp);
+
+  bignum gcd_res;
+  bn_init(&gcd_res);
+  bn_gcd(&gcd_res, &tmp, n);
+
+  bool result = bn_is_eq_i64(&gcd_res, 1);
+
+  bn_free_multi(&tmp, &exp, &gcd_res, NULL);
+  return result;
+}
+
+double gen_rel_size()
+{
+  // Generate uniform random variable u in [0, 1]
+  double u = (double)rand() / RAND_MAX;
+
+  // Inverse Transform Sampling for F(x) = 1 + log2(x)
+  // Returns a value between 0.5 and 1.0 exactly according to Maurer's curve
+  return pow(2.0, u - 1.0);
+}
+
+// Implementation of Maurers simpler algorithm
 void bn_provable_prime(bignum* p, u64 k)
 {
-  // ---- Small base case ----
+  // printf("k: %llu \n", k);
+  //  base case k <= 20
+  //  use Baillie-PSW instead of trial factoring
   if (k <= 20) {
     do {
       bn_gen_random(p, k);
       bn_set_bit(p, k - 1);
+      bn_println(p);
     } while (!bn_bpsw(p));
+
     return;
   }
 
-  // ---- Step 1: choose r ----
-  double r;
-  const u64 m = 20;
+  // constants
+  const double c_opt = 0.1;
+  u64 margin = k / 4;
 
-  if (k > 2 * m) {
-    do {
-      double s = (double)rand() / RAND_MAX;
-      r = pow(2.0, s - 1.0);
-    } while ((u64)(r * k) <= m);
-  } else {
-    r = 0.5;
-  }
+  bignum a, n, q, I, R, twoI, n_min1, two, two_q;
+  bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, NULL);
+  i64 i, g;
+  bool success;
+  bn_set_u64(&two, 2);
 
   // trial division bound
-  u64 B = k * k;
+  g = (u64)(c_opt * k * k);
 
-  // ---- Step 2: recursively generate q ----
-  bignum q;
-  bn_init(&q);
-  bn_provable_prime(&q, (u64)(r * k));
+  bool found_p = false;
 
-  // ---- Precompute ----
-  bignum I, R, n;
-  bignum a, b, d;
-  bignum tmp, two, one;
-  bignum n_minus_one, n_minus_two;
+  while (!found_p) {
+    double rel_size;
+    do {
+      rel_size = gen_rel_size();
+    } while ((k * rel_size >= (k - margin)));
 
-  bn_init_multi(&I, &R, &n, &a, &b, &d, &tmp, &two, &one, &n_minus_one,
-                &n_minus_two, NULL);
+    // printf("new size %llu \n", (u64)(rel_size * k));
 
-  bn_set_u64(&two, 2);
-  bn_set_u64(&one, 1);
+    // recursive call
+    bn_provable_prime(&q, (u64)(rel_size * k));
 
-  // I = 2^(k-1) / (2q)
-  bignum pow2, two_q;
-  bn_init_multi(&pow2, &two_q, NULL);
+    // I = (2^(k-1) - 1) / q
+    bn_set_u64(&I, 1);
+    bn_lshift(&I, &I, k - 1);
+    bn_mul(&two_q, &two, &q);  // 2 * q
+    bn_div(&I, &I, &two_q);    // Divide by 2q
 
-  bn_set_u64(&pow2, 1);
-  bn_lshift(&pow2, &pow2, k - 1);
+    // twoI = 2^k / 2q
+    bn_set_u64(&twoI, 1);
+    bn_lshift(&twoI, &twoI, k);
+    bn_div(&twoI, &twoI, &two_q);  // Divide by 2q
 
-  bn_div(&I, &pow2, &q);
+    success = false;
 
-  bn_free(&pow2);
-  bn_free(&two_q);
+    u64 attempts = 0;
+    bool found_r = false;
+    while (!found_r) {
+      attempts++;
 
-  // Precompute bounds: [I+1, 2I]
-  bignum low, high;
-  bn_init_multi(&low, &high, NULL);
-
-  bn_add_u64(&low, &I, 1);
-  bn_copy(&high, &I);
-  bn_lshift1(&high);
-
-  // Small primes for trial division
-
-  int attempts = 0;
-
-  while (1) {
-    attempts++;
-    if (attempts > 100000) {
-      // fallback safety (should basically never happen)
-      bn_gen_prime(p, k);
-      break;
-    }
-
-    // ---- Step 3: pick R ----
-    bn_gen_random_range(&R, &low, &high);
-
-    // ---- Step 4: n = 2Rq + 1 ----
-    bn_mul(&n, &R, &q);
-    bn_mul(&n, &n, &two);
-    bn_add_u64(&n, &n, 1);
-
-    // Ensure n is k bits
-    if (bn_bit_length(&n) != (int)k) continue;
-
-    // ---- Step 5: trial division ----
-    int composite = 0;
-    u64 i = 0;
-    for (; primes[i] < B; i++) {
-      if (bn_mod_u64(&n, primes[i]) == 0) {
-        composite = 1;
+      if (attempts > 10000) {
         break;
       }
-    }
-    if (composite) continue;
 
-    // ---- Step 6: enforce q > n^(1/3) ----
-    if (3 * bn_bit_length(&q) <= bn_bit_length(&n)) {
-      continue;
-    }
+      bn_gen_random_range(&R, &I, &twoI);
 
-    // ---- Step 7: prepare values ----
-    bn_copy(&n_minus_one, &n);
-    bn_sub(&n_minus_one, &n_minus_one, &one);
+      // n = 2 * rand(I, 2I) * q + 1
+      bn_mul(&n, &R, &q);
+      bn_lshift1(&n);
+      bn_copy(&n_min1, &n);
+      bn_add_u64(&n, &n, 1);
 
-    bn_copy(&n_minus_two, &n);
-    bn_sub(&n_minus_two, &n_minus_two, &two);
+      bn_gen_random_range(&a, &two, &n_min1);
 
-    // ---- Step 8: pick random a ----
-    bn_gen_random_range(&a, &two, &n_minus_two);
-
-    // ---- Step 9: check a^(n-1) mod n == 1 ----
-    bn_mod_exp(&b, &a, &n_minus_one, &n);
-    if (!bn_is_eq_i64(&b, 1)) continue;
-
-    // ---- Step 10: Pocklington test ----
-    // exponent = (n-1)/q = 2R
-    bn_mul(&tmp, &R, &two);
-    bn_mod_exp(&b, &a, &tmp, &n);
-
-    bn_sub(&b, &b, &one);
-    bn_gcd(&d, &b, &n);
-
-    if (bn_is_eq_i64(&d, 1)) {
-      bn_copy(p, &n);
-      break;
+      if (trialdiv(&n, g)) {
+        // printf("success \n");
+        success = checkLemma1(&n, &n_min1, &a, &q);
+        if (success) {
+          printf("   [FOUND] %llu-bit prime\n", k);
+          // if (success) break;
+          found_r = true;
+          found_p = true;
+        }
+      }
     }
   }
 
-  // ---- Cleanup ----
-  bn_free(&q);
-  bn_free_multi(&I, &R, &n, &a, &b, &d, &tmp, &two, &one, &n_minus_one,
-                &n_minus_two, &low, &high, NULL);
+  bn_copy(p, &n);
+
+  bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, NULL);
 }
