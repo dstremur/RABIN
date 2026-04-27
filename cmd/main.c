@@ -125,8 +125,8 @@ int main()
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
 
-  printf("Generating 512-bit provable prime...\n");
-  bn_provable_prime(&my_prime, 512);
+  printf("Generating 256-bit provable prime...\n");
+  bn_provable_prime(&my_prime, 256);
 
   printf("Result: ");
   bn_println(&my_prime);

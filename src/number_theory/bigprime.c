@@ -255,40 +255,34 @@ bool trialdiv(bignum* n, u64 g)
 // simple version for r = 1
 bool checkLemma1(bignum* n, bignum* n_min1, bignum* a, bignum* q)
 {
-  bignum tmp, exp;
-  bn_init_multi(&tmp, &exp, NULL);
+  bignum tmp, exp, X, gcd;
+  bn_init_multi(&tmp, &exp, &X, &gcd, NULL);
 
-  // 1. condition a^(n-1) == 1 (mod n)
-  bn_mod_exp(&tmp, a, n_min1, n);
+  bool result = false;
 
-  if (!bn_is_eq_i64(&tmp, 1)) {
-    bn_free_multi(&tmp, &exp, NULL);
-    // printf("   [FAIL] Fermat Test: a^(n-1) mod n != 1\n");
-    return false;
-  }
-
-  // 2. condition gcd(a^((n-1)/q) - 1, n) == 1
   bn_copy(&exp, n_min1);
   bn_div(&exp, &exp, q);
 
-  bn_mod_exp(&tmp, a, &exp, n);
+  bn_mod_exp(&X, a, &exp, n);
 
-  if (bn_is_eq_i64(&tmp, 1)) {
-    bn_free_multi(&tmp, &exp, NULL);
-    // printf("   [FAIL] Lemma 1: a^((n-1)/q) mod n is 1 (GCD would be n)\n");
-    return false;
+  if (bn_is_eq_i64(&X, 1)) {
+    goto cleanup;
   }
 
-  bn_set_u64(&exp, 1);
-  bn_sub(&tmp, &tmp, &exp);
+  bn_set_u64(&tmp, 1);
+  bn_sub(&tmp, &X, &tmp);
 
-  bignum gcd_res;
-  bn_init(&gcd_res);
-  bn_gcd(&gcd_res, &tmp, n);
+  bn_gcd(&gcd, &tmp, n);
+  if (!bn_is_eq_i64(&gcd, 1)) {
+    goto cleanup;
+  }
 
-  bool result = bn_is_eq_i64(&gcd_res, 1);
+  bn_mod_exp(&X, &X, q, n);
 
-  bn_free_multi(&tmp, &exp, &gcd_res, NULL);
+  result = bn_is_eq_i64(&X, 1);
+
+cleanup:
+  bn_free_multi(&tmp, &exp, &X, &gcd, NULL);
   return result;
 }
 
@@ -320,7 +314,7 @@ void bn_provable_prime(bignum* p, u64 k)
 
   // constants
   const double c_opt = 0.1;
-  u64 margin = k / 4;
+  u64 margin = k / 6;
 
   bignum a, n, q, I, R, twoI, n_min1, two, two_q;
   bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, NULL);
@@ -344,16 +338,14 @@ void bn_provable_prime(bignum* p, u64 k)
     // recursive call
     bn_provable_prime(&q, (u64)(rel_size * k));
 
-    // I = (2^(k-1) - 1) / q
+    // I = 2^(k-1) / q
     bn_set_u64(&I, 1);
     bn_lshift(&I, &I, k - 1);
-    bn_mul(&two_q, &two, &q);  // 2 * q
-    bn_div(&I, &I, &two_q);    // Divide by 2q
+    bn_div(&I, &I, &q);
 
     // twoI = 2^k / 2q
-    bn_set_u64(&twoI, 1);
-    bn_lshift(&twoI, &twoI, k);
-    bn_div(&twoI, &twoI, &two_q);  // Divide by 2q
+    bn_copy(&twoI, &q);
+    bn_lshift1(&twoI);
 
     success = false;
 
