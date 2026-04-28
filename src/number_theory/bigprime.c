@@ -316,8 +316,8 @@ void bn_provable_prime(bignum* p, u64 k)
   const double c_opt = 0.1;
   u64 margin = k / 6;
 
-  bignum a, n, q, I, R, twoI, n_min1, two, two_q;
-  bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, NULL);
+  bignum a, n, q, I, R, twoI, n_min1, two, two_q, tmp;
+  bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
   i64 i, g;
   bool success;
   bn_set_u64(&two, 2);
@@ -338,14 +338,23 @@ void bn_provable_prime(bignum* p, u64 k)
     // recursive call
     bn_provable_prime(&q, (u64)(rel_size * k));
 
+    bn_copy(&two_q, &q);
+    bn_lshift1(&two_q);
+
     // I = 2^(k-1) / q
+    bn_set_u64(&tmp, 1);
     bn_set_u64(&I, 1);
     bn_lshift(&I, &I, k - 1);
-    bn_div(&I, &I, &q);
+    bn_sub(&I, &I, &tmp);
+    bn_div(&I, &I, &two_q);
+    bn_add_u64(&I, &I, 1);
 
     // twoI = 2^k / 2q
-    bn_copy(&twoI, &q);
-    bn_lshift1(&twoI);
+    bn_set_u64(&tmp, 2);
+    bn_set_u64(&twoI, 1);
+    bn_lshift(&twoI, &twoI, k);
+    bn_sub(&twoI, &twoI, &tmp);
+    bn_div(&twoI, &twoI, &two_q);
 
     success = false;
 
