@@ -305,8 +305,7 @@ void bn_provable_prime(bignum* p, u64 k)
   if (k <= 20) {
     do {
       bn_gen_random(p, k);
-      bn_set_bit(p, k - 1);
-      bn_println(p);
+      //bn_set_bit(p, k - 1);
     } while (!bn_bpsw(p));
 
     return;
@@ -361,10 +360,9 @@ void bn_provable_prime(bignum* p, u64 k)
     u64 attempts = 0;
     bool found_r = false;
     while (!found_r) {
-	  attempts++;
+      attempts++;
 
-	  if (attempts > 10000)
-		  break;
+      if (attempts > 1000) break;
       bn_gen_random_range(&R, &I, &twoI);
 
       // n = 2 * rand(I, 2I) * q + 1
@@ -373,25 +371,25 @@ void bn_provable_prime(bignum* p, u64 k)
       bn_copy(&n_min1, &n);
       bn_add_u64(&n, &n, 1);
 
-	  if (trialdiv(&n, g)) {
-    success = false;
+      if (trialdiv(&n, g)) {
+        success = false;
 
-    for (int j = 0; j < 5; j++) {   
-        bn_gen_random_range(&a, &two, &n_min1);
+        for (int j = 0; j < 50; j++) {
+          bn_gen_random_range(&a, &two, &n_min1);
 
-        if (checkLemma1(&n, &n_min1, &a, &q)) {
+          if (checkLemma1(&n, &n_min1, &a, &q)) {
             success = true;
             break;
+          }
         }
-    }
 
-    if (success) {
-        printf("   [FOUND] %llu-bit prime\n", k);
-        found_r = true;
-        found_p = true;
-    }
-}
-
+        if (success) {
+          printf("   [FOUND] %llu-bit prime\n", k);
+          found_r = true;
+          found_p = true;
+          break;
+        }
+      }
     }
   }
 
