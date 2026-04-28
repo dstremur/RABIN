@@ -17,7 +17,7 @@ void bn_isqrt_heron(bignum* r, bignum* a)
   u64 k = bn_bit_length(a);
   bn_set_u64(&xn, 1);
 
-  bn_lshift(&xn, &xn, (k + 1) / 2 + 1); 
+  bn_lshift(&xn, &xn, (k + 1) / 2 + 1);
 
   while (true) {
     bn_div(&tmp, a, &xn);

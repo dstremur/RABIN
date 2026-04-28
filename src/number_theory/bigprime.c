@@ -291,21 +291,18 @@ double gen_rel_size()
   // Generate uniform random variable u in [0, 1]
   double u = (double)rand() / RAND_MAX;
 
-  // Inverse Transform Sampling for F(x) = 1 + log2(x)
-  // Returns a value between 0.5 and 1.0 exactly according to Maurer's curve
   return pow(2.0, u - 1.0);
 }
 
 // Implementation of Maurers simpler algorithm
 void bn_provable_prime(bignum* p, u64 k)
 {
-  // printf("k: %llu \n", k);
   //  base case k <= 20
   //  use Baillie-PSW instead of trial factoring
   if (k <= 20) {
     do {
+      // generates a random odd k-bit integer
       bn_gen_random(p, k);
-      //bn_set_bit(p, k - 1);
     } while (!bn_bpsw(p));
 
     return;
@@ -322,73 +319,56 @@ void bn_provable_prime(bignum* p, u64 k)
   bn_set_u64(&two, 2);
 
   // trial division bound
-  g = (u64)(c_opt * k * k);
+  g = (u64)(c_opt * k * k + 1);
 
-  bool found_p = false;
+  double rel_size;
+  do {
+    rel_size = gen_rel_size();
+  } while ((k * rel_size >= (k - margin)));
 
-  while (!found_p) {
-    double rel_size;
-    do {
-      rel_size = gen_rel_size();
-    } while ((k * rel_size >= (k - margin)));
+  printf("new size %llu \n", (u64)(rel_size * k));
+  // recursive call
+  bn_provable_prime(&q, (u64)(rel_size * k));
 
-    // printf("new size %llu \n", (u64)(rel_size * k));
+  bn_copy(&two_q, &q);
+  bn_lshift1(&two_q);
 
-    // recursive call
-    bn_provable_prime(&q, (u64)(rel_size * k));
+  // I = 2^(k-1) / 2q
+  bn_set_u64(&I, 1);
+  bn_lshift(&I, &I, k - 1);
+  bn_div(&I, &I, &two_q);
 
-    bn_copy(&two_q, &q);
-    bn_lshift1(&two_q);
+  // twoI = 2^k / 2q
+  bn_set_u64(&twoI, 1);
+  bn_lshift(&twoI, &twoI, k);
+  bn_div(&twoI, &twoI, &two_q);
 
-    // I = 2^(k-1) / q
-    bn_set_u64(&tmp, 1);
-    bn_set_u64(&I, 1);
-    bn_lshift(&I, &I, k - 1);
-    bn_sub(&I, &I, &tmp);
-    bn_div(&I, &I, &two_q);
-    bn_add_u64(&I, &I, 1);
+  success = false;
 
-    // twoI = 2^k / 2q
-    bn_set_u64(&tmp, 2);
-    bn_set_u64(&twoI, 1);
-    bn_lshift(&twoI, &twoI, k);
-    bn_sub(&twoI, &twoI, &tmp);
-    bn_div(&twoI, &twoI, &two_q);
+  while (!success) {
+    bn_gen_random_range(&R, &I, &twoI);
 
-    success = false;
+    // n = 2 * rand(I, 2I) * q + 1
+    bn_mul(&n, &R, &q);
+    bn_lshift1(&n);
+    bn_copy(&n_min1, &n);
+    bn_add_u64(&n, &n, 1);
 
-    u64 attempts = 0;
-    bool found_r = false;
-    while (!found_r) {
-      attempts++;
+    if (trialdiv(&n, g)) {
+      success = false;
 
-      if (attempts > 1000) break;
-      bn_gen_random_range(&R, &I, &twoI);
+      for (int j = 0; j < 50; j++) {
+        bn_gen_random_range(&a, &two, &n_min1);
 
-      // n = 2 * rand(I, 2I) * q + 1
-      bn_mul(&n, &R, &q);
-      bn_lshift1(&n);
-      bn_copy(&n_min1, &n);
-      bn_add_u64(&n, &n, 1);
-
-      if (trialdiv(&n, g)) {
-        success = false;
-
-        for (int j = 0; j < 50; j++) {
-          bn_gen_random_range(&a, &two, &n_min1);
-
-          if (checkLemma1(&n, &n_min1, &a, &q)) {
-            success = true;
-            break;
-          }
-        }
-
-        if (success) {
-          printf("   [FOUND] %llu-bit prime\n", k);
-          found_r = true;
-          found_p = true;
+        if (checkLemma1(&n, &n_min1, &a, &q)) {
+          success = true;
           break;
         }
+      }
+
+      if (success) {
+        printf("   [FOUND] %llu-bit prime\n", k);
+        break;
       }
     }
   }
