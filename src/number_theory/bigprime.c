@@ -361,12 +361,10 @@ void bn_provable_prime(bignum* p, u64 k)
     u64 attempts = 0;
     bool found_r = false;
     while (!found_r) {
-      attempts++;
+	  attempts++;
 
-      if (attempts > 10000) {
-        break;
-      }
-
+	  if (attempts > 10000)
+		  break;
       bn_gen_random_range(&R, &I, &twoI);
 
       // n = 2 * rand(I, 2I) * q + 1
@@ -375,22 +373,29 @@ void bn_provable_prime(bignum* p, u64 k)
       bn_copy(&n_min1, &n);
       bn_add_u64(&n, &n, 1);
 
-      bn_gen_random_range(&a, &two, &n_min1);
+	  if (trialdiv(&n, g)) {
+    success = false;
 
-      if (trialdiv(&n, g)) {
-        // printf("success \n");
-        success = checkLemma1(&n, &n_min1, &a, &q);
-        if (success) {
-          printf("   [FOUND] %llu-bit prime\n", k);
-          // if (success) break;
-          found_r = true;
-          found_p = true;
+    for (int j = 0; j < 5; j++) {   
+        bn_gen_random_range(&a, &two, &n_min1);
+
+        if (checkLemma1(&n, &n_min1, &a, &q)) {
+            success = true;
+            break;
         }
-      }
+    }
+
+    if (success) {
+        printf("   [FOUND] %llu-bit prime\n", k);
+        found_r = true;
+        found_p = true;
+    }
+}
+
     }
   }
 
   bn_copy(p, &n);
 
-  bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, NULL);
+  bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
 }
