@@ -78,8 +78,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 
     // Handle the final carry for this row
     u64 k = i + size;
-    unsigned char c =
-        _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
+    unsigned char c = _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
     k++;
     while (c && k < t->size) {
       c = _addcarry_u64(c, t_limbs[k], 0, (unsigned long long*)&t_limbs[k]);
@@ -89,15 +88,12 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 
   if (r->capacity < size) bn_alloc(r, size);
   memcpy(r->limbs, &t_limbs[size], size * sizeof(u64));
-
   r->size = size;
-
-  // Trim r before comparing so bn_cmp works accurately
-  bn_trim(r);
 
   if (bn_cmp(r, &ctx->n) >= 0) {
     bn_sub_abs(r, r, &ctx->n);
   }
+
 }
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {

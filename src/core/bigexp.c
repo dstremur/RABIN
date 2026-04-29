@@ -29,14 +29,6 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b)
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
                  bn_mont_ctx* ctx)
 {
-  bignum base, exponent;
-
-  bn_init_multi(&base, &exponent, NULL);
-  bn_alloc(&base, ctx->n.size);
-  bn_alloc(&exponent, d->size);
-
-  bn_copy(&base, a_bar);
-  bn_copy(&exponent, d);
   bn_copy(r_bar, &ctx->one_mont);
 
   for (i64 i = bn_bit_length(d) - 1; i >= 0; i--) {
@@ -47,13 +39,15 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
     }
   }
 
-  bn_free(&base);
-  bn_free(&exponent);
 }
 
 // calculates a^b mod m into r
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
 {
+
+
+  if (bn_is_even(m)){
+	
   bignum base, exp, res, tmp;
   bn_init(&base);
   bn_init(&exp);
@@ -82,6 +76,15 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
   bn_free(&exp);
   bn_free(&res);
   bn_free(&tmp);
+
+  return;
+  }
+
+  // fast path
+  bn_mont_ctx ctx;
+  bn_mont_ctx_init(&ctx, m);
+  bn_mod_exp_mont(r, a, b, m, &ctx);
+  bn_mont_ctx_free(&ctx);
 }
 
 // calculates a^b mod m into r in the montgomery domain
@@ -89,20 +92,17 @@ void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
                      const bignum* m, bn_mont_ctx* ctx)
 {
   assert(!bn_is_zero(m) && !bn_is_even(m));
-
   assert(bn_cmp(&ctx->n, m) == 0);
 
-  bignum base, result, exp;
-  bn_init_multi(&base, &result, &exp, NULL);
+  bignum base, result;
+  bn_init_multi(&base, &result, NULL);
 
   bn_mont_in(&base, a, ctx);
-  bn_mont_in(&exp, b, ctx);
 
-  bn_mont_exp(&result, &base, &exp, ctx);
+  bn_mont_exp(&result, &base, b, ctx);
 
   bn_mont_out(r, &result, ctx);
 
   bn_free(&base);
   bn_free(&result);
-  bn_free(&exp);
 }
