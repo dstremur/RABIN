@@ -311,7 +311,7 @@ void bn_provable_prime(bignum* p, u64 k)
 
   // constants
   const double c_opt = 0.1;
-  u64 margin = k / 6;
+  u64 margin = k/6;
 
   bignum a, n, q, I, R, twoI, n_min1, two, two_q, tmp;
   bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
@@ -347,7 +347,7 @@ void bn_provable_prime(bignum* p, u64 k)
   success = false;
   u64 attempts = 0;
   while (!success) {
-	  attempts++;
+    attempts++;
     if (attempts % 100 == 0) printf("Tried %llu candidates...\n", attempts);
     bn_gen_random_range(&R, &I, &twoI);
 

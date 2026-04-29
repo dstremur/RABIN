@@ -12,43 +12,32 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   bn_init(&ctx->n);
   bn_init(&ctx->one_mont);
   bn_init(&ctx->r_square);
-
-  bn_alloc(&ctx->n, n->size);
+  bn_init(&ctx->tmp);
 
   bn_copy(&ctx->n, n);
 
+  // Your mod_inverse_u64 already returns -inv, so use it directly
   ctx->n_inv = mod_inverse_u64(n->limbs[0]);
 
-  u64 k = n->size;
+  bignum two, exp_r;
+  bn_init_multi(&two, &exp_r, NULL);
+  bn_set_u64(&two, 2);
 
-  bn_alloc(&ctx->one_mont, k + 2);
-  ctx->one_mont.limbs[0] = 1;
-  ctx->one_mont.size = 1;
+  // Calculate 64 * size as a native u64 first
+  u64 exp_val = (u64)n->size * 64;
+  bn_set_u64(&exp_r, exp_val);
 
-  u64 bits = k * 64;
+  // one_mont = 2^(64 * size) mod n
+  bn_mod_exp_slow(&ctx->one_mont, &two, &exp_r, n);
 
-  for (u64 i = 0; i < bits; i++) {
-    bn_lshift1(&ctx->one_mont);
-    if (bn_cmp(&ctx->one_mont, n) >= 0) {
-      bn_sub_abs(&ctx->one_mont, &ctx->one_mont, n);
-    }
-  }
+  // r_square = (one_mont * one_mont) mod n
+  bn_mul(&ctx->r_square, &ctx->one_mont, &ctx->one_mont);
+  bn_mod(&ctx->r_square, &ctx->r_square, n);
 
-  bn_init(&ctx->r_square);
-  bn_alloc(&ctx->r_square, k);
-  bn_copy(&ctx->r_square, &ctx->one_mont);
+  bn_free_multi(&two, &exp_r, NULL);
 
-  for (u64 i = 0; i < bits; i++) {
-    bn_lshift1(&ctx->r_square);
-    if (bn_cmp(&ctx->r_square, n) >= 0) {
-      bn_sub_abs(&ctx->r_square, &ctx->r_square, n);
-    }
-  }
-
-  bn_init(&ctx->tmp);
   bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
-
 
 void bn_mont_ctx_free(bn_mont_ctx* ctx)
 {
@@ -107,11 +96,9 @@ void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 }
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
-
-	bignum one;
+  bignum one;
   bn_init(&one);
   bn_set_u64(&one, 1);
-
 
   bn_mont_mul(A, A_bar, &one, ctx);
 

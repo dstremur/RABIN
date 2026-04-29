@@ -124,7 +124,7 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 void bn_pow(bignum* r, const bignum* a, const bignum* b);
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d, bn_mont_ctx* ctx);
-
+void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b, const bignum* m);
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b, const bignum* m, bn_mont_ctx* ctx);
 
 // bigshift.c

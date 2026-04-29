@@ -38,21 +38,13 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
       bn_mont_mul(r_bar, r_bar, a_bar, ctx);
     }
   }
-
 }
 
-// calculates a^b mod m into r
-void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
+void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
+                     const bignum* m)
 {
-
-
-  if (bn_is_even(m)){
-	
   bignum base, exp, res, tmp;
-  bn_init(&base);
-  bn_init(&exp);
-  bn_init(&res);
-  bn_init(&tmp);
+  bn_init_multi(&base, &exp, &res, &tmp, NULL);
 
   bn_copy(&base, a);
   bn_copy(&exp, b);
@@ -63,21 +55,21 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
       bn_mul(&tmp, &res, &base);
       bn_mod(&res, &tmp, m);
     }
-
     bn_mul(&tmp, &base, &base);
     bn_mod(&base, &tmp, m);
-
     bn_rshift1(&exp);
   }
 
   bn_copy(r, &res);
+  bn_free_multi(&base, &exp, &res, &tmp, NULL);
+}
 
-  bn_free(&base);
-  bn_free(&exp);
-  bn_free(&res);
-  bn_free(&tmp);
-
-  return;
+// calculates a^b mod m into r
+void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
+{
+  if (bn_is_even(m)) {
+    bn_mod_exp_slow(r, a, b, m);
+    return;
   }
 
   // fast path
