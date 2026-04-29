@@ -262,8 +262,9 @@ bool checkLemma1(bignum* n, bignum* n_min1, bignum* a, bignum* q)
 
   bn_copy(&exp, n_min1);
   bn_div(&exp, &exp, q);
+  bn_copy(&tmp, a);
 
-  bn_mod_exp(&X, a, &exp, n);
+  bn_mod_exp(&X, &tmp, &exp, n);
 
   if (bn_is_eq_i64(&X, 1)) {
     goto cleanup;
@@ -344,8 +345,10 @@ void bn_provable_prime(bignum* p, u64 k)
   bn_div(&twoI, &twoI, &two_q);
 
   success = false;
-
+  u64 attempts = 0;
   while (!success) {
+	  attempts++;
+    if (attempts % 100 == 0) printf("Tried %llu candidates...\n", attempts);
     bn_gen_random_range(&R, &I, &twoI);
 
     // n = 2 * rand(I, 2I) * q + 1
@@ -355,8 +358,6 @@ void bn_provable_prime(bignum* p, u64 k)
     bn_add_u64(&n, &n, 1);
 
     if (trialdiv(&n, g)) {
-      success = false;
-
       for (int j = 0; j < 50; j++) {
         bn_gen_random_range(&a, &two, &n_min1);
 

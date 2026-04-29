@@ -11,13 +11,14 @@ int main()
 	bn_init_multi(&a, &b, &res, NULL); 
 
 	bn_init_val(&a, "214240923082520938209829358290858352903593285");
-	bn_init_val(&b, "234"); 
+	bn_init_val(&b, "2344"); 
 
 	printf("A: "); 
 	bn_println(&a);
 	printf("B: ");
 	bn_println(&b); 
 
+	
 
 	bn_add(&res, &a, &b);
 	printf("ADD: ");
@@ -41,6 +42,10 @@ int main()
 
 	bn_pow(&res, &a, &b);
 	printf("POW: ");
+	bn_println(&res);
+
+	bn_mod_exp(&res, &a, &b, &b);
+	printf("mod b POW: ");
 	bn_println(&res);
 
 	bn_isqrt(&res, &a);

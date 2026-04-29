@@ -8,7 +8,7 @@
 int main()
 {
   int num_to_generate = 1;
-  int bits = 512;
+  int bits = 200;
 
   bignum p;
   bn_init(&p);
@@ -31,6 +31,7 @@ int main()
           (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
       total_time += elapsed;
 
+	  bn_println(&p);
       printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
     } 
 

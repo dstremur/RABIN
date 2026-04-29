@@ -21,7 +21,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 
   u64 k = n->size;
 
-  bn_alloc(&ctx->one_mont, k);
+  bn_alloc(&ctx->one_mont, k + 2);
   ctx->one_mont.limbs[0] = 1;
   ctx->one_mont.size = 1;
 
@@ -48,6 +48,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   bn_init(&ctx->tmp);
   bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
+
 
 void bn_mont_ctx_free(bn_mont_ctx* ctx)
 {
@@ -78,7 +79,8 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 
     // Handle the final carry for this row
     u64 k = i + size;
-    unsigned char c = _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
+    unsigned char c =
+        _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
     k++;
     while (c && k < t->size) {
       c = _addcarry_u64(c, t_limbs[k], 0, (unsigned long long*)&t_limbs[k]);
@@ -88,20 +90,32 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 
   if (r->capacity < size) bn_alloc(r, size);
   memcpy(r->limbs, &t_limbs[size], size * sizeof(u64));
+
   r->size = size;
 
-  if (bn_cmp(r, &ctx->n) >= 0) {
+  // Trim r before comparing so bn_cmp works accurately
+  bn_trim(r);
+
+  while (bn_cmp(r, &ctx->n) >= 0) {
     bn_sub_abs(r, r, &ctx->n);
   }
-
 }
+
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {
   bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
-  bn_mont_mul(A, A_bar, &ctx->one_mont, ctx);
+
+	bignum one;
+  bn_init(&one);
+  bn_set_u64(&one, 1);
+
+
+  bn_mont_mul(A, A_bar, &one, ctx);
+
+  bn_free(&one);
 }
 
 void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
