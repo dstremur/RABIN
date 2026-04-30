@@ -66,6 +66,7 @@ void bn_mul_512(bignum* r, bignum* a, bignum* b);
 
 void fftest();
 void bn_provable_prime(bignum* p, u64 k);
+bool bn_provable_prime_inner(bignum* p, u64 k);
 // bignum.c
 void bn_init(bignum* r);
 void bn_init_multi(bignum* first, ...);

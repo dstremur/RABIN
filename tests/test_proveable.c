@@ -8,7 +8,7 @@
 int main()
 {
   int num_to_generate = 1;
-  int bits = 200;
+  int bits = 256;
 
   bignum p;
   bn_init(&p);

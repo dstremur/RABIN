@@ -295,8 +295,18 @@ double gen_rel_size()
   return pow(2.0, u - 1.0);
 }
 
-// Implementation of Maurers simpler algorithm
 void bn_provable_prime(bignum* p, u64 k)
+{
+  // Keep trying from the absolute top until it succeeds.
+  // Every time it fails, it will have cleanly unwound the stack and freed all
+  // memory.
+  while (!bn_provable_prime_inner(p, k)) {
+    printf("Restarting prime generation from scratch...\n");
+  }
+}
+
+// Implementation of Maurers simpler algorithm
+bool bn_provable_prime_inner(bignum* p, u64 k)
 {
   //  base case k <= 20
   //  use Baillie-PSW instead of trial factoring
@@ -306,12 +316,12 @@ void bn_provable_prime(bignum* p, u64 k)
       bn_gen_random(p, k);
     } while (!bn_bpsw(p));
 
-    return;
+    return true;
   }
 
   // constants
   const double c_opt = 0.1;
-  u64 margin = k/6;
+  u64 margin = k / 6;
 
   bignum a, n, q, I, R, twoI, n_min1, two, two_q, tmp;
   bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
@@ -322,6 +332,8 @@ void bn_provable_prime(bignum* p, u64 k)
   // trial division bound
   g = (u64)(c_opt * k * k + 1);
 
+restart:
+
   double rel_size;
   do {
     rel_size = gen_rel_size();
@@ -329,7 +341,10 @@ void bn_provable_prime(bignum* p, u64 k)
 
   printf("new size %llu \n", (u64)(rel_size * k));
   // recursive call
-  bn_provable_prime(&q, (u64)(rel_size * k));
+  if (!bn_provable_prime_inner(&q, (u64)(rel_size * k))) {
+    bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
+    return false;
+  }
 
   bn_copy(&two_q, &q);
   bn_lshift1(&two_q);
@@ -348,7 +363,12 @@ void bn_provable_prime(bignum* p, u64 k)
   u64 attempts = 0;
   while (!success) {
     attempts++;
-    if (attempts % 100 == 0) printf("Tried %llu candidates...\n", attempts);
+    if (attempts > 1000) {
+      bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp,
+                    NULL);
+      return false;
+    }
+
     bn_gen_random_range(&R, &I, &twoI);
 
     // n = 2 * rand(I, 2I) * q + 1
@@ -358,7 +378,7 @@ void bn_provable_prime(bignum* p, u64 k)
     bn_add_u64(&n, &n, 1);
 
     if (trialdiv(&n, g)) {
-      for (int j = 0; j < 50; j++) {
+      for (int j = 0; j < 200; j++) {
         bn_gen_random_range(&a, &two, &n_min1);
 
         if (checkLemma1(&n, &n_min1, &a, &q)) {
@@ -377,4 +397,5 @@ void bn_provable_prime(bignum* p, u64 k)
   bn_copy(p, &n);
 
   bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
+  return true;
 }
