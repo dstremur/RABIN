@@ -3,9 +3,9 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=x86-64 -lgmp
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=x86-64 -lgmp -lflint
 ASFLAGS = -f elf64
-LDFLAGS = -fopenmp -lm -flto -lgmp
+LDFLAGS = -fopenmp -lm -flto -lgmp -lflint
 
 # directories 
 SRC_DIR = src
