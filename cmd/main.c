@@ -22,6 +22,7 @@ int main()
 {
   nntest();
 
+  bn_init_constants();
   bignum a, b, c;
   bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];
@@ -51,6 +52,9 @@ int main()
   bn_isqrt(&c, &a);
   printf("ISQRT (a): ");
   bn_println(&c);
+  bn_ln(&c, &a);
+  printf("LN (a): "); 
+  bn_println(&c); 
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);
@@ -73,6 +77,15 @@ int main()
   } else {
     printf("No non-trivial factor found (Number might be prime).\n");
   }
+
+  if (bn_pollard_p_minus_one(&c, &a, 10000)){
+	  printf("Factor found p - 1: ");
+	  bn_println(&c);
+  } else {
+	  printf("p - 1 fail \n" );
+  }
+
+
 
   bignum n, d;
   bn_init_multi(&n, &d, NULL);
@@ -142,5 +155,6 @@ int main()
 
   bn_free(&my_prime);
   bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
+  bn_free_constants();
   return 0;
 }

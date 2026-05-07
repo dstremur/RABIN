@@ -62,6 +62,17 @@ void nntest();
 #define MAX_LIMBS 512
 
 
+extern bignum BN_ONE; 
+extern bignum BN_TWO;
+extern bignum BN_ZERO; 
+
+void bn_init_constants();
+
+void bn_free_constants();
+
+
+
+
 void bn_mul_512(bignum* r, bignum* a, bignum* b);
 
 void fftest();
@@ -160,14 +171,16 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, 
 
 // bigfactor.ctx
 bool bn_pollard_rho(bignum* f, const bignum* n);
-
+bool bn_pollard_p_minus_one(bignum* f, bignum* n, u64 B); 
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 
 // bigsqrt.c 
 void bn_isqrt_heron(bignum* r, bignum* a); 
-
 void bn_isqrt(bignum* r, bignum* a); 
+
+void bn_ln(bignum* r, bignum* a); 
+void bn_log_2(bignum* r, bignum* a); 
 
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
