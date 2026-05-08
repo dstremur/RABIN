@@ -20,9 +20,10 @@ typedef struct {
 
 int main()
 {
+  bn_init_constants();
   nntest();
 
-  bn_init_constants();
+  bn_gen_proth_primes(100, 50, 2);
   bignum a, b, c;
   bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];
@@ -78,7 +79,7 @@ int main()
     printf("No non-trivial factor found (Number might be prime).\n");
   }
 
-  if (bn_pollard_p_minus_one(&c, &a, 10000)){
+  if (bn_pollard_p_minus_one(&c, &a)){
 	  printf("Factor found p - 1: ");
 	  bn_println(&c);
   } else {

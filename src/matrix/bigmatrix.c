@@ -36,14 +36,14 @@ void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
   }
 }
 
-void bigmatrix_get(bignum* R, bigmatrix* A, u64 r, u64 c)
+void bigmatrix_get(bignum* R, const bigmatrix* A, u64 r, u64 c)
 {
   if (r >= A->r_size || c >= A->c_size) return;
 
   bn_copy(R, GET(A, r, c));
 }
 
-void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c)
+void bigmatrix_set(bigmatrix* A, const bignum* a, u64 r, u64 c)
 {
   if (r >= A->r_size || c >= A->c_size) return;
 
@@ -51,7 +51,7 @@ void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c)
 }
 
 // c needs to be allocated
-void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col)
+void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col)
 {
   if (c->size != A->r_size) printf("Size does not match \n");
 
@@ -61,7 +61,7 @@ void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col)
 }
 
 // c needs to be allocated
-void bigmatrix_get_row(bigvector* r, bigmatrix* A, u64 row)
+void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
 {
   if (r->size != A->c_size) printf("Size does not match \n");
 
@@ -71,7 +71,7 @@ void bigmatrix_get_row(bigvector* r, bigmatrix* A, u64 row)
 }
 
 // calc A * v = r
-void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* v)
+void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* v)
 {
   if (r->size != A->r_size || v->size != A->c_size) {
     printf("Size does not match \n");
@@ -88,8 +88,6 @@ void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* v)
     bigmatrix_get_row(&tmp, A, i);
     bigvector_dot(&dot, v, &tmp);
     bigvector_set(r, &dot, i);
-    // If bigvector_dot accumulates, you must reset dot to 0 here:
-    // bn_set_zero(&dot);
   }
 
   bn_free(&dot);
@@ -97,7 +95,7 @@ void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* v)
 }
 
 // calc v * A = r
-void bigmatrix_vm(bigvector* r, bigmatrix* A, bigvector* v)
+void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* v)
 {
   if (r->size != A->c_size || v->size != A->r_size) {
     printf("Size does not match \n");
@@ -122,7 +120,7 @@ void bigmatrix_vm(bigvector* r, bigmatrix* A, bigvector* v)
 /*
  * Sheldon Axler: let c be the max entry
  * then |det A| <= c^n * n^{n / 2} */
-void bigmatrix_hadamard(bignum* r, bigmatrix* A)
+void bigmatrix_hadamard(bignum* r, const bigmatrix* A)
 {
   bn_set_u64(r, 1);
 
@@ -144,7 +142,7 @@ void bigmatrix_hadamard(bignum* r, bigmatrix* A)
   bigvector_free(&v);
 }
 
-void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B)
+void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 {
   // check if sizes match
   if (A->c_size != B->c_size || A->r_size != B->r_size) return;
@@ -156,7 +154,7 @@ void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B)
   return;
 }
 
-void bigmatrix_print(bigmatrix* A)
+void bigmatrix_print(const bigmatrix* A)
 {
   bignum temp;
   bn_init(&temp);
@@ -172,7 +170,7 @@ void bigmatrix_print(bigmatrix* A)
   bn_free(&temp);
 }
 
-void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
+void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 {
   // check if sizes match
   if (A->c_size != B->r_size) return;
@@ -207,7 +205,7 @@ void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B)
  Jebelean’s algorithm
  */
 
-void bigmatrix_det(bignum* d, bigmatrix* A)
+void bigmatrix_det(bignum* d, const bigmatrix* A)
 {
   if (A->c_size != A->r_size) {
     printf("Matrix must be square\n");

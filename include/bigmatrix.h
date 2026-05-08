@@ -19,16 +19,19 @@ typedef struct bigmatrix {
 
 void bigmatrix_init(bigmatrix* A, u64 r, u64 c);
 void bigmatrix_free(bigmatrix* A);
-void bigmatrix_add(bigmatrix* R, bigmatrix* A, bigmatrix* B);
-void bigmatrix_get(bignum* R, bigmatrix* A, u64 r, u64 c);
-void bigmatrix_set(bigmatrix* A, bignum* a, u64 r, u64 c);
-void bigmatrix_mul(bigmatrix* R, bigmatrix* A, bigmatrix* B);
+void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
+void bigmatrix_get(bignum* R, const bigmatrix* A, u64 r, u64 c);
+void bigmatrix_set(bigmatrix* A, const bignum* a, u64 r, u64 c);
+void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
 void bigmatrix_copy(bigmatrix* R, bigmatrix* A);
-void bigmatrix_det(bignum* d, bigmatrix* A); 
-void bigmatrix_print(bigmatrix* A); 
-void bigmatrix_get_col(bigvector* c, bigmatrix* A, u64 col);
-void bigmatrix_get_row(bigvector* r, bigmatrix* A, u64 row);
-void bigmatrix_hadamard(bignum* r, bigmatrix* A);
-void bigmatrix_mv(bigvector* r, bigmatrix* A, bigvector* a);
-void bigmatrix_vm(bigvector* r, bigmatrix* A, bigvector* a);
+void bigmatrix_det(bignum* d, const bigmatrix* A); 
+void bigmatrix_print(const bigmatrix* A); 
+void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col);
+void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row);
+void bigmatrix_hadamard(bignum* r, const bigmatrix* A);
+void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* a);
+void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* a);
+
+
+
 #endif

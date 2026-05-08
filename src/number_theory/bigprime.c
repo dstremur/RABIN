@@ -399,3 +399,49 @@ restart:
   bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
   return true;
 }
+
+void bn_gen_proth_primes(u64 count, u64 k, u64 c)
+{
+  bignum p_bn, c_bn, two_k;
+  bn_init_multi(&p_bn, &c_bn, &two_k, NULL);
+
+  // 1. Calculate 2^k ONCE outside the loop
+  bignum k_bn;
+  bn_init(&k_bn);
+  bn_set_u64(&k_bn, k);
+  bn_pow(&two_k, &BN_TWO, &k_bn);
+  bn_free(&k_bn);
+
+  u64 curr_c = (c & 1) ? c : c + 1;
+  u64 found = 0;
+
+  printf("/* Generated %llu Proth Primes with k=%llu */\n", count, k);
+  printf("static const uint64_t RNS_PRIMES[] = {\n");
+
+  while (found < count) {
+    // 2. p = curr_c * (precomputed 2^k)
+    bn_set_u64(&c_bn, curr_c);
+    bn_mul(&p_bn, &two_k, &c_bn);
+
+    // 3. p = p + 1
+    bn_add(&p_bn, &p_bn, &BN_ONE);
+
+    if (bn_bpsw(&p_bn)) {
+      // Using limbs[0] works IF your limbs are 64-bit.
+      u64 prime = p_bn.limbs[0];
+      printf("    %lluULL, // c=%llu\n", prime, curr_c);
+      found++;
+    }
+
+    curr_c += 2;
+
+    // 64-bit boundary check
+    if (curr_c > (0xFFFFFFFFFFFFFFFF >> k)) {
+      fprintf(stderr, "\nError: Search space exhausted.\n");
+      break;
+    }
+  }
+
+  printf("};\n");
+  bn_free_multi(&p_bn, &c_bn, &two_k, NULL);
+}

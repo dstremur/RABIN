@@ -1,0 +1,2 @@
+*.asm linguist-language=Assembly
+*.asm linguist-detectable=true

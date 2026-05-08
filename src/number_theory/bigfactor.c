@@ -115,7 +115,15 @@ cleanup:
   return res;
 }
 
-bool bn_pollard_p_minus_one(bignum* f, bignum* n, u64 B)
+bool bn_pollard_p_minus_one(bignum* f, bignum* n)
 {
-  return bn_pollard_p_minus_one_stage_1(f, n, B, 10);
+  if (bn_pollard_p_minus_one_stage_1(f, n, 1000, 1000)) {
+    return true;
+  }
+
+  if (bn_pollard_p_minus_one_stage_1(f, n, 10000, 100)) {
+    return true;
+  }
+
+  return bn_pollard_p_minus_one_stage_1(f, n, 100000, 100);
 }

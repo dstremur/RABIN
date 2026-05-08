@@ -70,11 +70,6 @@ void bn_init_constants();
 
 void bn_free_constants();
 
-
-
-
-void bn_mul_512(bignum* r, bignum* a, bignum* b);
-
 void fftest();
 void bn_provable_prime(bignum* p, u64 k);
 bool bn_provable_prime_inner(bignum* p, u64 k);
@@ -105,6 +100,7 @@ int bn_cmp_abs(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
 
 bool bn_gen_prime(bignum* p, int bits);
+void bn_gen_proth_primes(u64 count, u64 k, u64 c); 
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);
@@ -147,6 +143,7 @@ void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_rshift1(bignum* r);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_lshift(bignum* r, const bignum* a, int shift);
+
 // bigrabin.c
 bool bn_rabin(const bignum* n, const bignum* a);
 bool bn_rabin_mont(const bignum* n, const bignum* a);
@@ -163,6 +160,7 @@ bool bn_gen_strps(bignum* p, u64 k);
 i64 bn_jacobi(const bignum* a, const bignum* m);
 void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
 void bn_gcd(bignum* d, const bignum* a, const bignum* b);
+
 // biglucas.c
 void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n);
 void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n,
@@ -171,7 +169,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, 
 
 // bigfactor.ctx
 bool bn_pollard_rho(bignum* f, const bignum* n);
-bool bn_pollard_p_minus_one(bignum* f, bignum* n, u64 B); 
+bool bn_pollard_p_minus_one(bignum* f, bignum* n); 
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 
@@ -181,7 +179,6 @@ void bn_isqrt(bignum* r, bignum* a);
 
 void bn_ln(bignum* r, bignum* a); 
 void bn_log_2(bignum* r, bignum* a); 
-
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
 
@@ -197,8 +194,6 @@ void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
-
-
 
 void avxtest();
 

@@ -1,4 +1,4 @@
-#include "../include/bigpoly.h"
+#include "../../include/bigpoly.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -79,7 +79,7 @@ void bigpoly_trim(bigpoly* p)
   }
 }
 
-void bigpoly_print(bigpoly* p)
+void bigpoly_print(const bigpoly* p)
 {
   for (i64 i = p->deg; i >= 0; i--) {
     bn_print(&p->coeff[i]);
@@ -88,7 +88,7 @@ void bigpoly_print(bigpoly* p)
 }
 
 // adds two polynomials
-void bigpoly_add(bigpoly* r, bigpoly* p, bigpoly* q)
+void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   u64 min = MIN(p->deg, q->deg);
   u64 max = MAX(p->deg, q->deg);
@@ -103,7 +103,7 @@ void bigpoly_add(bigpoly* r, bigpoly* p, bigpoly* q)
     bn_add(&r->coeff[i], &p->coeff[i], &q->coeff[i]);
   }
 
-  bigpoly* longer = (p->deg > q->deg) ? p : q;
+  const bigpoly* longer = (p->deg > q->deg) ? p : q;
   for (u64 i = min + 1; i <= max; i++) {
     bn_copy(&r->coeff[i], &longer->coeff[i]);
   }
@@ -113,7 +113,7 @@ void bigpoly_add(bigpoly* r, bigpoly* p, bigpoly* q)
 }
 
 // p - q = r
-void bigpoly_sub(bigpoly* r, bigpoly* p, bigpoly* q)
+void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   u64 min = MIN(p->deg, q->deg);
   u64 max = MAX(p->deg, q->deg);
@@ -128,7 +128,7 @@ void bigpoly_sub(bigpoly* r, bigpoly* p, bigpoly* q)
     bn_sub(&r->coeff[i], &p->coeff[i], &q->coeff[i]);
   }
 
-  bigpoly* longer = (p->deg > q->deg) ? p : q;
+  const bigpoly* longer = (p->deg > q->deg) ? p : q;
   for (u64 i = min + 1; i <= max; i++) {
     bn_copy(&r->coeff[i], &longer->coeff[i]);
     r->coeff[i].is_neg = true;
@@ -138,7 +138,7 @@ void bigpoly_sub(bigpoly* r, bigpoly* p, bigpoly* q)
   bigpoly_trim(r);
 }
 // multiplies two polynomials
-void bigpoly_mul_school(bigpoly* r, bigpoly* p, bigpoly* q)
+void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   u64 r_deg = p->deg + q->deg;
 
@@ -171,6 +171,11 @@ void bigpoly_mul_school(bigpoly* r, bigpoly* p, bigpoly* q)
   }
 
   bigpoly_free(&temp);
+}
+
+void bigpoly_mul(bigpoly* r, const bigpoly* p, const bigpoly* q)
+{
+  bigpoly_mul_school(r, p, q);
 }
 
 void bigpoly_test()
