@@ -52,7 +52,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
 void rns_mul(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx);
 
 u64 matrix_u64_det(matrix_u64* A);
-void bigmatrix_det_rns(bignum* det, const bigmatrix* A); 
+void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx); 
 
 u64 bigrns_estimate_primes(const bignum* a);
 

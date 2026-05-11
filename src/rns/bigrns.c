@@ -1,5 +1,6 @@
 #include "../../include/bigrns.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,7 +16,7 @@ u64 mod_add(u64 a, u64 b, u64 p)
 u64 mod_sub(u64 a, u64 b, u64 p)
 {
   if (a < b) {
-    return a + p - b;
+    return (p - b) + a;
   }
   return a - b;
 }
@@ -42,7 +43,7 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
 u64 mod_inverse(u64 n, u64 p) { return mod_pow(n, p - 2, p); }
 
 // estimate how my primes are needed
-u64 bigrns_estimate_primes(const bignum* a)
+u64 rns_estimate_primes(const bignum* a)
 {
   u64 k = bn_bit_length(a);
   u64 res = (k + 1) / 62;
@@ -53,6 +54,7 @@ u64 bigrns_estimate_primes(const bignum* a)
 void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
 {
   ctx->primes = malloc(sizeof(u64) * count);
+  ctx->crt_weights = malloc(sizeof(bignum) * count);
   memcpy(ctx->primes, primes, sizeof(u64) * count);
   ctx->count = count;
 
@@ -65,6 +67,9 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
   for (u64 i = 0; i < count; i++) {
     bn_set_u64(&tmp, primes[i]);
     bn_mul(&ctx->prod, &ctx->prod, &tmp);
+
+    printf("Iteration %llu (Prime %llu) - Current Bits: %llu\n", i, primes[i],
+           bn_bit_length(&ctx->prod));
   }
 
   // calculate crt weights
@@ -88,7 +93,35 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
     bn_free_multi(&M_div_tmp, &inv_bn, NULL);
   }
 
+  printf("Max size");
+  bn_println(&ctx->prod);
+
   bn_free_multi(&tmp, NULL);
+}
+
+void rns_context_free(ctx_rns* ctx)
+{
+  if (!ctx) return;
+
+  // 1. Free the individual bignum weights
+  if (ctx->crt_weights) {
+    for (u64 i = 0; i < ctx->count; i++) {
+      bn_free(&ctx->crt_weights[i]);
+    }
+    free(ctx->crt_weights);
+    ctx->crt_weights = NULL;
+  }
+
+  // 2. Free the big product
+  bn_free(&ctx->prod);
+
+  // 3. Free the primes array
+  if (ctx->primes) {
+    free(ctx->primes);
+    ctx->primes = NULL;
+  }
+
+  ctx->count = 0;
 }
 
 void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
@@ -106,7 +139,7 @@ void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
 void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
 {
   for (u64 i = 0; i < r->size; i++) {
-    r->residues[i] = mod_mul(a->residues[i], b->residues[i], ctx->primes[i]);
+    r->residues[i] = mod_add(a->residues[i], b->residues[i], ctx->primes[i]);
   }
 }
 
@@ -129,42 +162,114 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   bn_free_multi(&sum, &tmp, NULL);
 }
 
-// Estimates primes for a simple product or single number
-u64 estimate_for_value(const bignum* max_val)
-{
-  u64 bits = bn_bit_length(max_val);
-  // Add 1 bit for safety/sign
-  return (bits + 1 + 61) / 62;
-}
-
 // Estimates primes for a matrix determinant (The most robust way)
-u64 estimate_for_determinant(u64 n, const bignum* max_element)
+u64 rns_estimate_determinant(bigmatrix* A)
 {
-  double log_v = (double)bn_bit_length(max_element);
-  double log_n = bn_log_2((double)n);
+  bignum res;
+  bn_init(&res);
 
-  // Hadamard's: (n/2 * log2(n)) + (n * log2(V))
-  double total_bits = ((double)n / 2.0 * log_n) + ((double)n * log_v);
+  // hadamard bound
+  bigmatrix_hadamard(&res, A);
 
-  // If result can be negative, we need 1 extra bit for the range
-  total_bits += 1.0;
+  // double to get to range [-M, M]
+  bn_lshift1(&res);
 
-  return (u64)(total_bits / 62.0) + 1;
+  return rns_estimate_primes(&res);
 }
 
-void rns_context_init_for_matrix(ctx_rns* ctx, const bigmatrix* A)
+void bigmatrix_reduce(matrix_u64* R, const bigmatrix* A, u64 m)
 {
-  bignum max_val;
-  bn_init(&max_val);
-  bigmatrix_get_max_element(&max_val, A);  // Helper to find largest entry
+  R->data = malloc(sizeof(u64) * A->c_size * A->r_size);
+  R->c_size = A->c_size;
+  R->r_size = A->r_size;
+  R->modulus = m;
 
-  u64 num_primes = estimate_for_determinant(A->rows, &max_val);
+  for (u64 i = 0; i < A->r_size; i++) {
+    for (u64 j = 0; j < A->c_size; j++) {
+      R->data[i * R->c_size + j] = bn_mod_u64(GET(A, i, j), m);
+    }
+  }
+}
 
-  // Generate or fetch 'num_primes' distinct 62-bit primes
-  u64* prime_list = generate_primes(num_primes);
+u64 matrix_u64_det(matrix_u64* M)
+{
+  if (M->r_size != M->c_size) {
+    printf("Not square\n");
+  }
+  u64 p = M->modulus;
+  u64 det = 1;
+  u64 n = M->r_size;
 
-  rns_context_init(ctx, prime_list, num_primes);
+  for (u64 i = 0; i < n; i++) {
+    // find pivot
+    u64 pivot = i;
+    while (pivot < n && M->data[pivot * n + i] == 0) {
+      pivot++;
+    }
 
-  free(prime_list);
-  bn_free(&max_val);
+    if (pivot == n) {
+      return 0;
+    }
+
+    // swap rows
+    if (pivot != i) {
+      for (u64 j = i; j < n; j++) {
+        u64 tmp = M->data[i * n + j];
+        M->data[i * n + j] = M->data[pivot * n + j];
+        M->data[pivot * n + j] = tmp;
+      }
+      // swapping multiplies det by -1 or p-1 mod p
+      det = mod_sub(0, det, p);
+    }
+
+    // multiply det by pivot
+    u64 pivot_val = M->data[i * n + i];
+    det = mod_mul(det, pivot_val, p);
+
+    // eliminate below pivot
+    u64 inv = mod_inverse(pivot_val, p);
+    for (u64 j = i + 1; j < n; j++) {
+      u64 factor = mod_mul(M->data[j * n + i], inv, p);
+      for (u64 k = i; k < n; k++) {
+        u64 sub = mod_mul(factor, M->data[i * n + k], p);
+        M->data[j * n + k] = mod_sub(M->data[j * n + k], sub, p);
+      }
+    }
+  }
+  return det;
+}
+
+void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
+{
+  // create array of n matrices mod p_i
+
+  matrix_u64* reducedMatrices = malloc(sizeof(matrix_u64) * ctx->count);
+
+  rns_num d;
+  d.size = ctx->count;
+  d.residues = malloc(sizeof(u64) * ctx->count);
+  for (u64 i = 0; i < ctx->count; i++) {
+    bigmatrix_reduce(&reducedMatrices[i], A, ctx->primes[i]);
+
+    d.residues[i] = matrix_u64_det(&reducedMatrices[i]);
+
+    free(reducedMatrices[i].data);
+  }
+
+  rns_to_bignum(det, &d, ctx);
+
+  // if d > M / 2 det is negative
+
+  bignum M_half;
+  bn_init(&M_half);
+  bn_copy(&M_half, &ctx->prod);
+  bn_rshift1(&M_half);
+
+  if (bn_cmp(det, &M_half) > 0) {
+    bn_sub(det, det, &ctx->prod);
+  }
+
+  bn_free(&M_half);
+  free(d.residues);
+  free(reducedMatrices);
 }

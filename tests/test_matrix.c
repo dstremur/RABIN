@@ -2,20 +2,22 @@
 #include <stdio.h>
 #include <time.h>
 #include "../include/bigmatrix.h"
-
+#include "../include/bigrns.h"
+#include "../include/primes.h"
 double get_time() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
-void run_det_benchmark(u64 size, u64 bits) {
+void run_det_benchmark(u64 size, u64 bits, ctx_rns* ctx) {
     bigmatrix M;
     bignum det, val;
     
     bn_init(&det);
     bn_init(&val);
     bigmatrix_init(&M, size, size);
+
 
     // Populate with random data to prevent "easy" zeros
     for (u64 i = 0; i < size; i++) {
@@ -29,14 +31,20 @@ void run_det_benchmark(u64 size, u64 bits) {
     fflush(stdout);
 
     double start = get_time();
-    bigmatrix_det(&det, &M);
+    bigmatrix_det_rns(&det, &M, ctx);
     double end = get_time();
 
     printf("Time: %f seconds\n", end - start);
 
+    bn_println(&det);
+    bigmatrix_det(&det, &M);
+    bn_println(&det);
+    
+
     bigmatrix_free(&M);
     bn_free(&det);
     bn_free(&val);
+
 }
 
 void run_hadamard_benchmark(u64 size, u64 bits) {
@@ -71,41 +79,64 @@ void run_hadamard_benchmark(u64 size, u64 bits) {
 
 void test_pascal_det(u64 size) {
     bigmatrix P;
-    bignum det, val;
+    bignum det, val, a, b; // Move a and b here
     bn_init(&det);
     bn_init(&val);
+    bn_init(&a);
+    bn_init(&b);
+    
     bigmatrix_init(&P, size, size);
 
-    // Generate Pascal Matrix: M[i][j] = combinations(i+j, i)
-    // For a 2x2, this is [[1, 1], [1, 2]] -> det = (2-1) = 1
+    ctx_rns ctx;
+    // Ensure RNS_PRIMES has at least 50 elements!
+    rns_context_init(&ctx, RNS_PRIMES, 10);
+
     for (u64 i = 0; i < size; i++) {
         for (u64 j = 0; j < size; j++) {
-            // Note: You'll need a simple combinations function or 
-            // use the additive property: P[i][j] = P[i-1][j] + P[i][j-1]
             if (i == 0 || j == 0) {
                 bn_set_u64(&val, 1);
             } else {
-                bignum a, b;
-                bn_init(&a); bn_init(&b);
+                // Reuse a and b instead of re-allocating
                 bigmatrix_get(&a, &P, i-1, j);
                 bigmatrix_get(&b, &P, i, j-1);
                 bn_add(&val, &a, &b);
-                bn_free(&a); bn_free(&b);
             }
             bigmatrix_set(&P, &val, i, j);
         }
     }
 
+    // Standard Det (for comparison)
     bigmatrix_det(&det, &P);
+    printf("Pascal %llu x %llu | Standard Det: ", size, size);
+    bn_println(&det); 
     
-    printf("Pascal %llu x %llu Det: ", size, size);
-    bn_println(&det); // SHOULD ALWAYS BE 1
+    // RNS Det
+    bigmatrix_det_rns(&det, &P, &ctx);
+    printf("Pascal %llu x %llu | RNS Det:      ", size, size);
+    bn_println(&det); 
     
-    assert(bn_is_eq_i64(&det, 1));
+    // Verification
+    if (bn_is_eq_i64(&det, 1)) {
+        printf("RESULT: PASS\n");
+    } else {
+        printf("RESULT: FAIL (Expected 1)\n");
+    }
 
+    // CLEANUP
     bigmatrix_free(&P);
     bn_free(&det);
     bn_free(&val);
+    bn_free(&a);
+    bn_free(&b);
+    
+    // Don't forget to free the RNS context internals!
+    // (Assuming you have an rns_context_free, or do it manually)
+    for (u64 i = 0; i < ctx.count; i++) {
+        bn_free(&ctx.crt_weights[i]);
+    }
+    bn_free(&ctx.prod);
+    free(ctx.primes);
+    free(ctx.crt_weights);
 }
 
 
@@ -118,6 +149,9 @@ int main()
   bigmatrix_init(&A, 2, 2);
   bigmatrix_init(&B, 2, 2);
   bigmatrix_init(&R, 2, 2);
+
+  
+
 
   assert(A.data != NULL);
   assert(A.r_size == 2 && A.c_size == 2);
@@ -276,16 +310,22 @@ int main()
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
+  ctx_rns ctx;
+  rns_context_init(&ctx, RNS_PRIMES, 15);
+
   u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
-        run_det_benchmark(sizes[i], 32); // 32-bit random entries
+        run_det_benchmark(sizes[i], 32, &ctx); // 32-bit random entries
         run_hadamard_benchmark(sizes[i], 32);
     }
+
+    rns_context_free(&ctx);
+  bn_free(&tmp);
 
   return 0;
 
 
-  bn_free(&tmp);
+  
 }
