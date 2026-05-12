@@ -39,6 +39,28 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
   return res;
 }
 
+u64 mod_inverse_euclid(u64 a, u64 p)
+{
+  i64 t = 0, newt = 1;
+  i64 r = p, newr = a;
+
+  while (newr != 0) {
+    u64 q = r / newr;
+
+    i64 tmp = newt;
+    newt = t - q * newt;
+    t = tmp;
+
+    tmp = newr;
+    newr = r - q * newr;
+    r = tmp;
+  }
+
+  if (t < 0) t += p;
+
+  return t;
+}
+
 // p needs to be prime
 u64 mod_inverse(u64 n, u64 p) { return mod_pow(n, p - 2, p); }
 
@@ -84,7 +106,7 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
 
     // find inverse
     u64 m_mod_p = bn_mod_u64(&M_div_tmp, primes[i]);
-    u64 inv = mod_inverse(m_mod_p, primes[i]);
+    u64 inv = mod_inverse_euclid(m_mod_p, primes[i]);
 
     bn_set_u64(&inv_bn, inv);
 
@@ -227,7 +249,7 @@ u64 matrix_u64_det(matrix_u64* M)
     det = mod_mul(det, pivot_val, p);
 
     // eliminate below pivot
-    u64 inv = mod_inverse(pivot_val, p);
+    u64 inv = mod_inverse_euclid(pivot_val, p);
     for (u64 j = i + 1; j < n; j++) {
       u64 factor = mod_mul(M->data[j * n + i], inv, p);
       for (u64 k = i; k < n; k++) {

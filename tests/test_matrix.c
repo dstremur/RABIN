@@ -10,13 +10,15 @@ double get_time() {
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
-void run_det_benchmark(u64 size, u64 bits, ctx_rns* ctx) {
+void run_det_benchmark(u64 size, u64 bits) {
     bigmatrix M;
     bignum det, val;
     
     bn_init(&det);
     bn_init(&val);
     bigmatrix_init(&M, size, size);
+
+	ctx_rns ctx;
 
 
     // Populate with random data to prevent "easy" zeros
@@ -27,11 +29,15 @@ void run_det_benchmark(u64 size, u64 bits, ctx_rns* ctx) {
         }
     }
 
+
     printf("Benchmarking %llu x %llu (%llu-bit entries)... ", size, size, bits);
     fflush(stdout);
+	
+	u64 k = rns_estimate_determinant(&M);
+	rns_context_init(&ctx, RNS_PRIMES, 99);
 
     double start = get_time();
-    bigmatrix_det_rns(&det, &M, ctx);
+    bigmatrix_det_rns(&det, &M, &ctx);
     double end = get_time();
 
     printf("Time: %f seconds\n", end - start);
@@ -317,7 +323,7 @@ int main()
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
-        run_det_benchmark(sizes[i], 32, &ctx); // 32-bit random entries
+        run_det_benchmark(sizes[i], 32); // 32-bit random entries
         run_hadamard_benchmark(sizes[i], 32);
     }
 

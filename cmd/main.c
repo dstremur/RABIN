@@ -62,6 +62,9 @@ int main()
   bn_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
+  bn_mod(&c, &a, &b);
+  printf("MOD: ");
+  bn_println(&c);
   printf("RSHIFT: ");
   bn_rshift(&c, &a, 64);
   bn_println(&c);

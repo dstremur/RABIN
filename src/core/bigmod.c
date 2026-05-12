@@ -6,9 +6,9 @@
 
 #include "../../include/bignum.h"
 
-void bn_mod(bignum* r, const bignum* a, const bignum* b)
+void bn_mod1(bignum* r, const bignum* a, const bignum* b)
 {
-  if (bn_cmp(a, b) < 0) {
+  if (bn_cmp_abs(a, b) < 0) {
     bn_copy(r, a);
     return;
   }
@@ -16,7 +16,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   if (r == a || r == b) {
     bignum tmp;
     bn_init(&tmp);
-    bn_mod(&tmp, a, b);
+    bn_mod1(&tmp, a, b);
     bn_copy(r, &tmp);
     bn_free(&tmp);
     return;
@@ -44,7 +44,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-void bn_mod22(bignum* r, const bignum* a, const bignum* b)
+void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
 
@@ -59,6 +59,32 @@ void bn_mod22(bignum* r, const bignum* a, const bignum* b)
 
   if (bn_cmp(a, b) < 0) {
     bn_copy(r, a);
+
+    if (r->is_neg) {
+      r->is_neg = false;
+      bn_add_abs(r, r, b);
+    }
+    return;
+  }
+
+  if (b->size == 1) {
+    u64 rem = bn_mod_u64(a, b->limbs[0]);
+
+    bn_set_u64(r, rem);
+
+    // euclidian division
+    if (a->is_neg && rem != 0) {
+      bignum tmp;
+      bn_init(&tmp);
+
+      bn_copy(&tmp, b);
+      tmp.is_neg = 0;
+
+      bn_sub_abs(r, &tmp, r);
+
+      bn_free(&tmp);
+    }
+
     return;
   }
 
@@ -93,21 +119,15 @@ void bn_mod22(bignum* r, const bignum* a, const bignum* b)
     u64 uj_n1 = u.limbs[j + n - 1];
     u64 uj_n2 = u.limbs[j + n - 2];
 
-    // check if quotient fits in 64 bit
+    // estimate q_hat
     if (uj_n == vn1) {
       q_hat = ~0ULL;
-      r_hat = uj_n1 + vn1;
-
-      // refine q_hat
-      while ((__uint128_t)q_hat * vn2 > (((__uint128_t)r_hat << 64) + uj_n2)) {
-        q_hat--;
-        r_hat += vn1;
-        if (r_hat < vn1) break;
-      }
+      r_hat = uj_n1;
     } else {
-      __uint128_t temp = ((__uint128_t)uj_n << 64) + uj_n1;
-      q_hat = (u64)(temp / vn1);
-      r_hat = (u64)(temp % vn1);
+      __uint128_t numerator = ((__uint128_t)uj_n << 64) | uj_n1;
+
+      q_hat = (u64)(numerator / vn1);
+      r_hat = (u64)(numerator % vn1);
     }
 
     // refine q_hat
@@ -133,24 +153,28 @@ void bn_mod22(bignum* r, const bignum* a, const bignum* b)
     }
 
     // Final borrow check against the "extra" limb
-    unsigned char final_borrow =
-        _subborrow_u64(borrow_sub, u.limbs[j + n], borrow_multiply,
-                       (unsigned long long*)&u.limbs[j + n]);
+    borrow_sub = _subborrow_u64(borrow_sub, u.limbs[j + n], borrow_multiply,
+                                (unsigned long long*)&u.limbs[j + n]);
 
     // 7. Add Back (if q_hat was 1 too large)
-    if (final_borrow) {
+    if (borrow_sub) {
       unsigned char carry = 0;
       for (u64 i = 0; i < n; i++) {
         carry = _addcarry_u64(carry, u.limbs[j + i], v.limbs[i],
                               (unsigned long long*)&u.limbs[j + i]);
       }
-      u.limbs[j + n] += carry;
+      _addcarry_u64(carry, u.limbs[j + n], 0,
+                    (unsigned long long*)&u.limbs[j + n]);
     }
   }
 
   u.size = n;
   bn_rshift(r, &u, s);
-  r->is_neg = a->is_neg;
+  r->is_neg = 0;
+
+  if (a->is_neg && !bn_is_zero(r)) {
+    bn_sub_abs(r, b, r);
+  }
 
   bn_trim(r);
   bn_free(&u);
