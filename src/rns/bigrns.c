@@ -161,7 +161,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
-void rns_to_bignum1(bignum* a, const rns_num* r, ctx_rns* ctx)
+void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
   bignum sum, tmp;
   bn_init_multi(&sum, &tmp, NULL);
@@ -178,39 +178,6 @@ void rns_to_bignum1(bignum* a, const rns_num* r, ctx_rns* ctx)
   bn_mod(a, a, &ctx->prod);
 
   bn_free_multi(&sum, &tmp, NULL);
-}
-
-void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
-{
-  u64 n = r->size;
-  u64* mixed_radix = malloc(sizeof(u64) * n);
-
-  for (u64 i = 0; i < n; i++) {
-    u64 temp = r->residues[i];
-    for (u64 j = 0; j < i; j++) {
-      u64 inv = mod_inverse_euclid(ctx->primes[j], ctx->primes[i]);
-      u64 diff = mod_sub(temp, mixed_radix[j], ctx->primes[i]);
-      temp = mod_mul(diff, inv, ctx->primes[i]);
-    }
-    mixed_radix[i] = temp;
-  }
-
-  bn_set_u64(a, 0);
-  bignum term, p_prod, p_val;
-  bn_init_multi(&term, &p_prod, &p_val, NULL);
-  bn_set_u64(&p_prod, 1);
-
-  for (u64 i = 0; i < n; i++) {
-    bn_set_u64(&term, mixed_radix[i]);
-    bn_mul(&term, &term, &p_prod);
-    bn_add(a, a, &term);
-
-    bn_set_u64(&p_val, ctx->primes[i]);
-    bn_mul(&p_prod, &p_prod, &p_val);
-  }
-
-  bn_free_multi(&term, &p_prod, &p_val, NULL);
-  free(mixed_radix);
 }
 
 // Estimates primes for a matrix determinant (The most robust way)

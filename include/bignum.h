@@ -12,7 +12,7 @@ Hensel lifting
 
 berlenkamp algo
 
-LLL 
+LLL
 
 Discrete log problem
 
@@ -37,34 +37,33 @@ typedef struct {
   uint64_t n_inv;  /* -n^{-1} mod 2^64                  */
   bignum r_square; /* R^2 mod N   (R = 2^{64 * n.limbs})*/
   bignum one_mont; /* R   mod N   (representation of 1) */
-  bignum tmp;	// scratchpad
+  bignum tmp;      // scratchpad
 } bn_mont_ctx;
 
 typedef struct {
-	u64 n; // transform size (power of 2)
-	bignum q; // modulus
-	bn_mont_ctx ctx;
-	bignum* psi_pow;
-	bignum* inv_psi_pow;
-	bignum n_inv; 
+  u64 n;     // transform size (power of 2)
+  bignum q;  // modulus
+  bn_mont_ctx ctx;
+  bignum* psi_pow;
+  bignum* inv_psi_pow;
+  bignum n_inv;
 } bn_ntt;
 
 typedef struct {
-	u64* limbs;
-	u64 size;
+  u64* limbs;
+  u64 size;
 } bn52;
 
-void nntest(); 
+void nntest();
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
-#define MIN(a, b) ((a) < (b) ? (a) : (b)); 
+#define MIN(a, b) ((a) < (b) ? (a) : (b));
 
 #define MAX_LIMBS 512
 
-
-extern bignum BN_ONE; 
+extern bignum BN_ONE;
 extern bignum BN_TWO;
-extern bignum BN_ZERO; 
+extern bignum BN_ZERO;
 
 void bn_init_constants();
 
@@ -85,7 +84,7 @@ void bn_println(const bignum* n);
 void bn_free(bignum* r);
 void bn_free_multi(bignum* r, ...);
 void bn_trim(bignum* r);
-void bn_swap(bignum* a, bignum* b); 
+void bn_swap(bignum* a, bignum* b);
 int bn_get_bit(const bignum* a, int i);
 bool bn_is_eq_i64(const bignum* n, i64 a);
 void bn_copy(bignum* dest, const bignum* src);
@@ -100,7 +99,7 @@ int bn_cmp_abs(const bignum* a, const bignum* b);
 int bn_bit_length(const bignum* a);
 
 bool bn_gen_prime(bignum* p, int bits);
-void bn_gen_proth_primes(u64 count, u64 k, u64 c); 
+void bn_gen_proth_primes(u64 count, u64 k, u64 c);
 void gen_rns_primes(u64 count);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
@@ -122,7 +121,7 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b);
 void bn_div(bignum* q, const bignum* a, const bignum* b);
 void bn_newton_div(bignum* q, const bignum* a, const bignum* d);
 void bn_div_knuth(bignum* q, const bignum* a, const bignum* b);
-void bn_div_exact(bignum* r, const bignum* a, const bignum* b); 
+void bn_div_exact(bignum* r, const bignum* a, const bignum* b);
 // bigmod.c
 void bn_mod(bignum* r, const bignum* a, const bignum* n);
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
@@ -132,9 +131,12 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 // bigexp.c
 void bn_pow(bignum* r, const bignum* a, const bignum* b);
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
-void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d, bn_mont_ctx* ctx);
-void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b, const bignum* m);
-void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b, const bignum* m, bn_mont_ctx* ctx);
+void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
+                 bn_mont_ctx* ctx);
+void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
+                     const bignum* m);
+void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
+                     const bignum* m, bn_mont_ctx* ctx);
 
 // bigshift.c
 void bn_lshift1(bignum* r);
@@ -149,13 +151,13 @@ void bn_lshift(bignum* r, const bignum* a, int shift);
 bool bn_rabin(const bignum* n, const bignum* a);
 bool bn_rabin_mont(const bignum* n, const bignum* a);
 
-// bigrand.c 
+// bigrand.c
 bool bn_gen_random(bignum* r, u64 bits);
-bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd); 
+bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd);
 void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high);
 
-// bigpseudo.c 
-bool bn_gen_strps(bignum* p, u64 k); 
+// bigpseudo.c
+bool bn_gen_strps(bignum* p, u64 k);
 
 // bigmath.c
 i64 bn_jacobi(const bignum* a, const bignum* m);
@@ -163,23 +165,25 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
 void bn_gcd(bignum* d, const bignum* a, const bignum* b);
 
 // biglucas.c
-void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n);
-void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, const bignum* n,
-                  const bignum* m);
-void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q, bignum* qn, const bignum* n, const bignum* m);
+void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q,
+              const bignum* n);
+void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
+                  const bignum* n, const bignum* m);
+void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
+                        bignum* qn, const bignum* n, const bignum* m);
 
 // bigfactor.ctx
 bool bn_pollard_rho(bignum* f, const bignum* n);
-bool bn_pollard_p_minus_one(bignum* f, bignum* n); 
+bool bn_pollard_p_minus_one(bignum* f, bignum* n);
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 
-// bigsqrt.c 
-void bn_isqrt_heron(bignum* r, bignum* a); 
-void bn_isqrt(bignum* r, bignum* a); 
+// bigsqrt.c
+void bn_isqrt_heron(bignum* r, bignum* a);
+void bn_isqrt(bignum* r, bignum* a);
 
-void bn_ln(bignum* r, bignum* a); 
-void bn_log_2(bignum* r, bignum* a); 
+void bn_ln(bignum* r, bignum* a);
+void bn_log_2(bignum* r, bignum* a);
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
 
