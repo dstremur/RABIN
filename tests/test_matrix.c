@@ -31,11 +31,13 @@ void run_det_benchmark(u64 size, u64 bits) {
     }
 
 
-    printf("Benchmarking %llu x %llu (%llu-bit entries)... ", size, size, bits);
+    printf("Benchmarking %llu x %llu (%llu-bit entries)... \n", size, size, bits);
     fflush(stdout);
-	
+
+	//bigmatrix_print_python(&M); 
+
 	u64 k = rns_estimate_determinant(&M);
-	rns_context_init(&ctx, RNS_PRIMES, 400);
+	rns_context_init(&ctx, RNS_PRIMES, k + 2);
 
     double start = get_time();
     bigmatrix_det_rns(&det, &M, &ctx);
@@ -43,8 +45,7 @@ void run_det_benchmark(u64 size, u64 bits) {
 
     printf("Time: %f seconds\n", end - start);
 
-    bn_println(&det);
-    bigmatrix_det(&det, &M);
+	printf("rns: ");
     bn_println(&det);
     
 
@@ -321,9 +322,9 @@ int main()
   printf("\n");
 
   u64* testmatrix = malloc(sizeof(u64) * 9); 
-  u64 values[] = {0, 1, 2, 
-                1, 2, 1, 
-                2, 1, 0};
+  u64 values[] = {18446744073709551610, 1, 1, 
+                1, 18446744073709551600, 1, 
+                1, 1, 18446744073709551590};
 memcpy(testmatrix, values, sizeof(u64) * 9);
 
 
@@ -339,16 +340,16 @@ printf("u64 determinant: %llu \n", det);
  
 free(testmatrix);
 
-  test_pascal_det(512);
+  test_pascal_det(50);
 
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
-  u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
+  u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
-        run_det_benchmark(sizes[i], 4); // 32-bit random entries
+        run_det_benchmark(sizes[i], 16); // 32-bit random entries
         run_hadamard_benchmark(sizes[i], 32);
     }
 

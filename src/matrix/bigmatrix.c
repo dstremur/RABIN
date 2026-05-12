@@ -28,6 +28,21 @@ void bigmatrix_free(bigmatrix* A)
   A->data = NULL;
 }
 
+void bigmatrix_print_python(const bigmatrix* A)
+{
+  printf("[");  // Start outer list
+  for (u64 i = 0; i < A->r_size; i++) {
+    printf("[");  // Start row
+    for (u64 j = 0; j < A->c_size; j++) {
+      bn_print(GET(A, i, j));
+      if (j < A->c_size - 1) printf(", ");
+    }
+    printf("]");  // End row
+    if (i < A->r_size - 1) printf(",\n ");
+  }
+  printf("]\n");  // End outer list
+}
+
 void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
 {
   // check if sizes match
@@ -260,11 +275,11 @@ void bigmatrix_det(bignum* d, const bigmatrix* A)
       pivot = GET(&T, k, k);
     }
 
-#pragma omp parallel
+    // #pragma omp parallel
     {
       bignum temp1, temp2, temp3;
       bn_init_multi(&temp1, &temp2, &temp3, NULL);
-#pragma omp for collapse(2) schedule(static)
+      // #pragma omp for collapse(2) schedule(static)
       for (u64 i = k + 1; i < n; i++) {
         bignum* t = GET(&T, i, k);
         for (u64 j = k + 1; j < n; j++) {
@@ -274,7 +289,7 @@ void bigmatrix_det(bignum* d, const bigmatrix* A)
           bn_mul(&temp2, t, GET(&T, k, j));
           bn_sub(&temp3, &temp1, &temp2);
 
-          bn_div_exact(GET(&T, i, j), &temp3, &prev);
+          bn_div(GET(&T, i, j), &temp3, &prev);
         }
       }
 

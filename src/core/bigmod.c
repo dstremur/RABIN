@@ -170,10 +170,11 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
 
   u.size = n;
   bn_rshift(r, &u, s);
-  r->is_neg = 0;
+  r->is_neg = false;
 
   if (a->is_neg && !bn_is_zero(r)) {
     bn_sub_abs(r, b, r);
+    r->is_neg = false;
   }
 
   bn_trim(r);
@@ -202,8 +203,8 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d)
   }
 
   u64 res = (u64)rem;
-  if (a->is_neg == true) {
-    if (res == 0) return 0;
+
+  if (a->is_neg && res != 0) {
     return d - res;
   }
 

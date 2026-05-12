@@ -41,24 +41,26 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
 
 u64 mod_inverse_euclid(u64 a, u64 p)
 {
-  i64 t = 0, newt = 1;
-  i64 r = p, newr = a;
+  if (a == 0) return 0;  // Should not happen with primes
+
+  __int128 t = 0, newt = 1;
+  __int128 r = p, newr = a;
 
   while (newr != 0) {
-    u64 q = r / newr;
+    __int128 q = r / newr;
 
-    i64 tmp = newt;
+    __int128 tmp_t = newt;
     newt = t - q * newt;
-    t = tmp;
+    t = tmp_t;
 
-    tmp = newr;
+    __int128 tmp_r = newr;
     newr = r - q * newr;
-    r = tmp;
+    r = tmp_r;
   }
 
   if (t < 0) t += p;
 
-  return t;
+  return (u64)t;
 }
 
 // p needs to be prime
@@ -68,7 +70,7 @@ u64 mod_inverse(u64 n, u64 p) { return mod_pow(n, p - 2, p); }
 u64 rns_estimate_primes(const bignum* a)
 {
   u64 k = bn_bit_length(a);
-  u64 res = (k + 1) / 62;
+  u64 res = (k + 62) / 62;
 
   return res;
 }
@@ -183,12 +185,8 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   u64 n = r->size;
   u64* mixed_radix = malloc(sizeof(u64) * n);
 
-  // 1. Convert residues to Mixed-Radix coefficients
-  // X = a0 + a1(p0) + a2(p0p1) + ...
   for (u64 i = 0; i < n; i++) {
     u64 temp = r->residues[i];
-    u64 p_prod = 1;
-
     for (u64 j = 0; j < i; j++) {
       u64 inv = mod_inverse_euclid(ctx->primes[j], ctx->primes[i]);
       u64 diff = mod_sub(temp, mixed_radix[j], ctx->primes[i]);
@@ -197,10 +195,9 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
     mixed_radix[i] = temp;
   }
 
-  // 2. Build the bignum from the coefficients
   bn_set_u64(a, 0);
-  bignum term, p_prod;
-  bn_init_multi(&term, &p_prod, NULL);
+  bignum term, p_prod, p_val;
+  bn_init_multi(&term, &p_prod, &p_val, NULL);
   bn_set_u64(&p_prod, 1);
 
   for (u64 i = 0; i < n; i++) {
@@ -208,15 +205,11 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
     bn_mul(&term, &term, &p_prod);
     bn_add(a, a, &term);
 
-    // Update p_prod: p_prod = p_prod * primes[i]
-    bignum p_val;
-    bn_init(&p_val);
     bn_set_u64(&p_val, ctx->primes[i]);
     bn_mul(&p_prod, &p_prod, &p_val);
-    bn_free(&p_val);
   }
 
-  bn_free_multi(&term, &p_prod, NULL);
+  bn_free_multi(&term, &p_prod, &p_val, NULL);
   free(mixed_radix);
 }
 
@@ -348,20 +341,23 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
   // create array of n matrices mod p_i
 
   u64 n = A->r_size;
-
-  // matrix_u64* reducedMatrices = malloc(sizeof(matrix_u64) * ctx->count);
-
   u64* residues = malloc(sizeof(u64) * ctx->count);
-  u64* reduced_data = malloc(sizeof(u64) * n * n);
 
+#pragma omp parallel for schedule(static)
   for (u64 i = 0; i < ctx->count; i++) {
     u64 p = ctx->primes[i];
+
+    u64* reduced_data = malloc(sizeof(u64) * n * n);
+
+#pragma omp simd
     for (u64 r = 0; r < n; r++) {
+#pragma omp simd
       for (u64 c = 0; c < n; c++) {
         reduced_data[r * n + c] = bn_mod_u64(GET(A, r, c), p);
       }
     }
     residues[i] = matrix_u64_det_optimized(reduced_data, n, p);
+    free(reduced_data);
   }
 
   rns_num r;
@@ -384,5 +380,4 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 
   bn_free(&M_half);
   free(residues);
-  free(reduced_data);
 }

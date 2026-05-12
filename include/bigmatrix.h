@@ -31,7 +31,7 @@ void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row);
 void bigmatrix_hadamard(bignum* r, const bigmatrix* A);
 void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* a);
 void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* a);
-
+void bigmatrix_print_python(const bigmatrix* A);
 
 
 #endif
