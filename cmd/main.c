@@ -23,7 +23,7 @@ int main()
   bn_init_constants();
   nntest();
 
-  bn_gen_proth_primes(100, 50, 2);
+  gen_rns_primes(500);
   bignum a, b, c;
   bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];

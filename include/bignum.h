@@ -101,6 +101,7 @@ int bn_bit_length(const bignum* a);
 
 bool bn_gen_prime(bignum* p, int bits);
 void bn_gen_proth_primes(u64 count, u64 k, u64 c); 
+void gen_rns_primes(u64 count);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 // bigadd.c
 void bn_add(bignum* r, const bignum* a, const bignum* b);

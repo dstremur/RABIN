@@ -89,9 +89,6 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
   for (u64 i = 0; i < count; i++) {
     bn_set_u64(&tmp, primes[i]);
     bn_mul(&ctx->prod, &ctx->prod, &tmp);
-
-    printf("Iteration %llu (Prime %llu) - Current Bits: %llu\n", i, primes[i],
-           bn_bit_length(&ctx->prod));
   }
 
   // calculate crt weights
@@ -114,9 +111,6 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
 
     bn_free_multi(&M_div_tmp, &inv_bn, NULL);
   }
-
-  printf("Max size");
-  bn_println(&ctx->prod);
 
   bn_free_multi(&tmp, NULL);
 }
@@ -165,7 +159,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
-void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
+void rns_to_bignum1(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
   bignum sum, tmp;
   bn_init_multi(&sum, &tmp, NULL);
@@ -182,6 +176,48 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   bn_mod(a, a, &ctx->prod);
 
   bn_free_multi(&sum, &tmp, NULL);
+}
+
+void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
+{
+  u64 n = r->size;
+  u64* mixed_radix = malloc(sizeof(u64) * n);
+
+  // 1. Convert residues to Mixed-Radix coefficients
+  // X = a0 + a1(p0) + a2(p0p1) + ...
+  for (u64 i = 0; i < n; i++) {
+    u64 temp = r->residues[i];
+    u64 p_prod = 1;
+
+    for (u64 j = 0; j < i; j++) {
+      u64 inv = mod_inverse_euclid(ctx->primes[j], ctx->primes[i]);
+      u64 diff = mod_sub(temp, mixed_radix[j], ctx->primes[i]);
+      temp = mod_mul(diff, inv, ctx->primes[i]);
+    }
+    mixed_radix[i] = temp;
+  }
+
+  // 2. Build the bignum from the coefficients
+  bn_set_u64(a, 0);
+  bignum term, p_prod;
+  bn_init_multi(&term, &p_prod, NULL);
+  bn_set_u64(&p_prod, 1);
+
+  for (u64 i = 0; i < n; i++) {
+    bn_set_u64(&term, mixed_radix[i]);
+    bn_mul(&term, &term, &p_prod);
+    bn_add(a, a, &term);
+
+    // Update p_prod: p_prod = p_prod * primes[i]
+    bignum p_val;
+    bn_init(&p_val);
+    bn_set_u64(&p_val, ctx->primes[i]);
+    bn_mul(&p_prod, &p_prod, &p_val);
+    bn_free(&p_val);
+  }
+
+  bn_free_multi(&term, &p_prod, NULL);
+  free(mixed_radix);
 }
 
 // Estimates primes for a matrix determinant (The most robust way)
@@ -222,42 +258,88 @@ u64 matrix_u64_det(matrix_u64* M)
   u64 det = 1;
   u64 n = M->r_size;
 
+  u64* mat = malloc(sizeof(u64) * n * n);
+  memcpy(mat, M->data, sizeof(u64) * n * n);
+
   for (u64 i = 0; i < n; i++) {
     // find pivot
     u64 pivot = i;
-    while (pivot < n && M->data[pivot * n + i] == 0) {
+    while (pivot < n && mat[pivot * n + i] == 0) {
       pivot++;
     }
 
     if (pivot == n) {
+      free(mat);
       return 0;
     }
 
     // swap rows
     if (pivot != i) {
       for (u64 j = i; j < n; j++) {
-        u64 tmp = M->data[i * n + j];
-        M->data[i * n + j] = M->data[pivot * n + j];
-        M->data[pivot * n + j] = tmp;
+        u64 tmp = mat[i * n + j];
+        mat[i * n + j] = mat[pivot * n + j];
+        mat[pivot * n + j] = tmp;
       }
       // swapping multiplies det by -1 or p-1 mod p
       det = mod_sub(0, det, p);
     }
 
     // multiply det by pivot
-    u64 pivot_val = M->data[i * n + i];
+    u64 pivot_val = mat[i * n + i];
     det = mod_mul(det, pivot_val, p);
 
     // eliminate below pivot
     u64 inv = mod_inverse_euclid(pivot_val, p);
     for (u64 j = i + 1; j < n; j++) {
-      u64 factor = mod_mul(M->data[j * n + i], inv, p);
+      u64 factor = mod_mul(mat[j * n + i], inv, p);
       for (u64 k = i; k < n; k++) {
-        u64 sub = mod_mul(factor, M->data[i * n + k], p);
-        M->data[j * n + k] = mod_sub(M->data[j * n + k], sub, p);
+        u64 sub = mod_mul(factor, mat[i * n + k], p);
+        mat[j * n + k] = mod_sub(mat[j * n + k], sub, p);
       }
     }
   }
+  free(mat);
+  return det;
+}
+
+u64 matrix_u64_det_optimized(u64* data, u64 n, u64 p)
+{
+  u64 det = 1;
+  // Work on a copy to avoid destroying the original reduced matrix
+  u64* mat = malloc(sizeof(u64) * n * n);
+  memcpy(mat, data, sizeof(u64) * n * n);
+
+  for (u64 i = 0; i < n; i++) {
+    u64 pivot = i;
+    while (pivot < n && mat[pivot * n + i] == 0) pivot++;
+
+    if (pivot == n) {
+      free(mat);
+      return 0;
+    }
+
+    if (pivot != i) {
+      for (u64 j = i; j < n; j++) {
+        u64 tmp = mat[i * n + j];
+        mat[i * n + j] = mat[pivot * n + j];
+        mat[pivot * n + j] = tmp;
+      }
+      det = mod_sub(0, det, p);
+    }
+
+    u64 pivot_val = mat[i * n + i];
+    det = mod_mul(det, pivot_val, p);
+
+    u64 inv = mod_inverse_euclid(pivot_val, p);
+    for (u64 j = i + 1; j < n; j++) {
+      u64 factor = mod_mul(mat[j * n + i], inv, p);
+      for (u64 k = i + 1; k < n; k++) {  // Start k from i+1
+        u64 sub = mod_mul(factor, mat[i * n + k], p);
+        mat[j * n + k] = mod_sub(mat[j * n + k], sub, p);
+      }
+    }
+  }
+  free(mat);
   return det;
 }
 
@@ -265,25 +347,34 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 {
   // create array of n matrices mod p_i
 
-  matrix_u64* reducedMatrices = malloc(sizeof(matrix_u64) * ctx->count);
+  u64 n = A->r_size;
 
-  rns_num d;
-  d.size = ctx->count;
-  d.residues = malloc(sizeof(u64) * ctx->count);
+  // matrix_u64* reducedMatrices = malloc(sizeof(matrix_u64) * ctx->count);
+
+  u64* residues = malloc(sizeof(u64) * ctx->count);
+  u64* reduced_data = malloc(sizeof(u64) * n * n);
+
   for (u64 i = 0; i < ctx->count; i++) {
-    bigmatrix_reduce(&reducedMatrices[i], A, ctx->primes[i]);
-
-    d.residues[i] = matrix_u64_det(&reducedMatrices[i]);
-
-    free(reducedMatrices[i].data);
+    u64 p = ctx->primes[i];
+    for (u64 r = 0; r < n; r++) {
+      for (u64 c = 0; c < n; c++) {
+        reduced_data[r * n + c] = bn_mod_u64(GET(A, r, c), p);
+      }
+    }
+    residues[i] = matrix_u64_det_optimized(reduced_data, n, p);
   }
 
-  rns_to_bignum(det, &d, ctx);
+  rns_num r;
+  r.residues = residues;
+  r.size = ctx->count;
+
+  // reconstruct x in [0, M - 1]
+  rns_to_bignum(det, &r, ctx);
 
   // if d > M / 2 det is negative
 
   bignum M_half;
-  bn_init(&M_half);
+  bn_init_multi(&M_half, NULL);
   bn_copy(&M_half, &ctx->prod);
   bn_rshift1(&M_half);
 
@@ -292,6 +383,6 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
   }
 
   bn_free(&M_half);
-  free(d.residues);
-  free(reducedMatrices);
+  free(residues);
+  free(reduced_data);
 }

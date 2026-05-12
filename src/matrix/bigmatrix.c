@@ -1,5 +1,7 @@
 #include "../../include/bigmatrix.h"
 
+#define omp_get_thread_num() 0
+
 #include <stdio.h>
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
 {

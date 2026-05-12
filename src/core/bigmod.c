@@ -201,7 +201,13 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d)
     rem = cur % d;
   }
 
-  return (uint64_t)rem;
+  u64 res = (u64)rem;
+  if (a->is_neg == true) {
+    if (res == 0) return 0;
+    return d - res;
+  }
+
+  return res;
 }
 
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)

@@ -445,3 +445,27 @@ void bn_gen_proth_primes(u64 count, u64 k, u64 c)
   printf("};\n");
   bn_free_multi(&p_bn, &c_bn, &two_k, NULL);
 }
+
+void gen_rns_primes(u64 count)
+{
+  u64 found = 0;
+
+  u64 cand = 0xFFFFFFFFFFFFFFBULL;
+
+  bignum tmp;
+  bn_init(&tmp);
+
+  bn_set_u64(&tmp, cand);
+
+  printf("static const u64 RNS_PRIMES[] = {\n");
+  while (found < count) {
+    if (bn_bpsw(&tmp)) {
+      bn_print(&tmp);
+      printf(", \n");
+      found++;
+    }
+    bn_sub(&tmp, &tmp, &BN_TWO);
+  }
+
+  printf("}; \n");
+}

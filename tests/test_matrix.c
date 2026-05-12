@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include "../include/bigmatrix.h"
 #include "../include/bigrns.h"
@@ -34,7 +35,7 @@ void run_det_benchmark(u64 size, u64 bits) {
     fflush(stdout);
 	
 	u64 k = rns_estimate_determinant(&M);
-	rns_context_init(&ctx, RNS_PRIMES, 99);
+	rns_context_init(&ctx, RNS_PRIMES, 400);
 
     double start = get_time();
     bigmatrix_det_rns(&det, &M, &ctx);
@@ -269,6 +270,17 @@ int main()
   bigmatrix_det(&tmp, &D);
   bn_println(&tmp);
 
+  ctx_rns ctx;
+  rns_context_init(&ctx, RNS_PRIMES, 10);
+
+
+
+  bigmatrix_det_rns(&tmp, &D, &ctx);
+
+  bn_println(&tmp);
+
+  rns_context_free(&ctx);
+
   bigmatrix_free(&D);
 
 
@@ -308,26 +320,38 @@ int main()
   bigvector_print(&res); 
   printf("\n");
 
-  
-  
+  u64* testmatrix = malloc(sizeof(u64) * 9); 
+  u64 values[] = {0, 1, 2, 
+                1, 2, 1, 
+                2, 1, 0};
+memcpy(testmatrix, values, sizeof(u64) * 9);
+
+
+  matrix_u64 A_test; 
+  A_test.data = testmatrix;
+  A_test.c_size = 3;
+  A_test.r_size = 3;
+  A_test.modulus = 100000007;
+
+
+u64 det = matrix_u64_det(&A_test);
+printf("u64 determinant: %llu \n", det);  
+ 
+free(testmatrix);
 
   test_pascal_det(512);
 
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
 
-  ctx_rns ctx;
-  rns_context_init(&ctx, RNS_PRIMES, 15);
-
   u64 sizes[] = {2, 4, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
     int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
     for (int i = 0; i < num_tests; i++) {
-        run_det_benchmark(sizes[i], 32); // 32-bit random entries
+        run_det_benchmark(sizes[i], 4); // 32-bit random entries
         run_hadamard_benchmark(sizes[i], 32);
     }
 
-    rns_context_free(&ctx);
   bn_free(&tmp);
 
   return 0;
