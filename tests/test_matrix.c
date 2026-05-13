@@ -5,6 +5,7 @@
 #include "../include/bigmatrix.h"
 #include "../include/bigrns.h"
 #include "../include/primes.h"
+#include "../include/u64.h"
 double get_time() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
