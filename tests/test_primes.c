@@ -13,7 +13,6 @@ int main()
   bignum p;
   bn_init(&p);
 
-
   printf("Benchmarking: Generating %d primes at %d-bits...\n", num_to_generate,
          bits);
   printf("--------------------------------------------------\n");

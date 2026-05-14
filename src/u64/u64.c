@@ -1,43 +1,44 @@
+#include "../include/u64.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "../include/u64.h"
 #include "../../include/bigrns.h"
 
-
-void barrett_init(barrett_ctx* ctx, u64 p)
+void mont_init(mont_ctx* ctx, u64 p)
 {
-
   ctx->p = p;
 
-  // max = 2^128 - 1
-  unsigned __int128 max = ~((unsigned __int128)0);
+  ctx->p_inv = mod_inverse_u64(p);
 
-  ctx->mu = max / p;
+  // Calculate 2^128 mod p
+  unsigned __int128 r2 = ((unsigned __int128)1 << 64) % p;
+  r2 = (r2 * r2) % p;
+  ctx->r2_mod_p = (u64)r2;
 }
 
-u64 barrett_reduce(unsigned __int128 a, const barrett_ctx* ctx) {
-  // 1. Estimate quotient: q = (a * mu) >> 128
-  unsigned __int128 q = mul128_high(a, ctx->mu);
+static inline u64 mod_mul_mont(u64 a, u64 b, const mont_ctx* ctx)
+{
+  unsigned __int128 T = (unsigned __int128)a * b;
+  u64 m = (u64)T * ctx->p_inv;
+  unsigned __int128 t = T + (unsigned __int128)m * ctx->p;
 
-  // 2. Calculate remainder: r = a - q * p
-  // We can safely cast to u64 here because we know r < 2 * p, 
-  // which fits easily within 64 bits. Modulo 2^64 arithmetic handles this perfectly.
-  u64 r = (u64)a - (u64)(q * ctx->p);
-
-  // 3. Correction step
-  // Barrett quotient approximation can be slightly too small (usually by 0 or 1)
-  while (r >= ctx->p) {
-    r -= ctx->p;
-  }
-
-  return r;
+  u64 res = (u64)(t >> 64);
+  if (res >= ctx->p) res -= ctx->p;
+  return res;
 }
 
-u64 mod_mul_barrett(u64 a, u64 b, const barrett_ctx* ctx) {
-  unsigned __int128 res = (unsigned __int128)a * b;
-  return barrett_reduce(res, ctx);
+// Convert standard number -> Montgomery form
+static inline u64 to_mont(u64 x, const mont_ctx* ctx)
+{
+  return mod_mul_mont(x, ctx->r2_mod_p, ctx);
+}
+
+// Convert Montgomery form -> standard number
+static inline u64 from_mont(u64 x, const mont_ctx* ctx)
+{
+  return mod_mul_mont(x, 1, ctx);
 }
 
 u64 mod_add(u64 a, u64 b, u64 p)
@@ -75,6 +76,7 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
   return res;
 }
 
+// p needs to be prime
 u64 mod_inverse_euclid(u64 a, u64 p)
 {
   if (a == 0) return 0;  // Should not happen with primes
@@ -107,6 +109,7 @@ u64 matrix_u64_det(matrix_u64* M)
   if (M->r_size != M->c_size) {
     printf("Not square\n");
   }
+
   u64 p = M->modulus;
   u64 det = 1;
   u64 n = M->r_size;
@@ -155,44 +158,53 @@ u64 matrix_u64_det(matrix_u64* M)
   return det;
 }
 
-u64 matrix_u64_det_optimized(u64* data, u64 n, const barrett_ctx* ctx)
+// works in place, need to pass copy
+u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
 {
-  u64 det = 1;
+  u64 det = to_mont(1, ctx);
   u64 p = ctx->p;
-  // Work on a copy to avoid destroying the original reduced matrix
-  u64* mat = malloc(sizeof(u64) * n * n);
-  memcpy(mat, data, sizeof(u64) * n * n);
+
+  // convert matrix to montgomery form
+  for (u64 i = 0; i < n * n; i++) {
+    mat[i] = to_mont(mat[i], ctx);
+  }
 
   for (u64 i = 0; i < n; i++) {
+    // find pivot
     u64 pivot = i;
     while (pivot < n && mat[pivot * n + i] == 0) pivot++;
 
     if (pivot == n) {
-      free(mat);
       return 0;
     }
 
     if (pivot != i) {
+      u64* row_i = mat + i * n;
+      u64* row_p = mat + pivot * n;
       for (u64 j = i; j < n; j++) {
-        u64 tmp = mat[i * n + j];
-        mat[i * n + j] = mat[pivot * n + j];
-        mat[pivot * n + j] = tmp;
+        u64 tmp = row_i[j];
+        row_i[j] = row_p[j];
+        row_p[j] = tmp;
       }
       det = mod_sub(0, det, p);
     }
 
     u64 pivot_val = mat[i * n + i];
-    det = mod_mul_barrett(det, pivot_val, ctx);
+    det = mod_mul_mont(det, pivot_val, ctx);
 
-    u64 inv = mod_inverse_euclid(pivot_val, p);
+    u64 pivot_real = from_mont(pivot_val, ctx);
+    u64 inv_real = mod_inverse_euclid(pivot_real, p);
+    u64 inv = to_mont(inv_real, ctx);
+
+    u64* row_i = mat + i * n;
     for (u64 j = i + 1; j < n; j++) {
-      u64 factor = mod_mul_barrett(mat[j * n + i], inv, ctx);
-      for (u64 k = i + 1; k < n; k++) {  // Start k from i+1
-        u64 sub = mod_mul_barrett(factor, mat[i * n + k], ctx);
-        mat[j * n + k] = mod_sub(mat[j * n + k], sub, p);
+      u64 factor = mod_mul_mont(mat[j * n + i], inv, ctx);
+      u64* row_j = mat + j * n;
+      for (u64 k = i + 1; k < n; k++) {
+        row_j[k] = mod_sub(row_j[k], mod_mul_mont(factor, row_i[k], ctx), p);
       }
     }
   }
-  free(mat);
-  return det;
+
+  return from_mont(det, ctx);
 }

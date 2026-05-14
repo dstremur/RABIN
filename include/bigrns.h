@@ -3,15 +3,16 @@
 
 #include "bigmatrix.h"
 #include "bignum.h"
+#include "u64.h"
 
 typedef struct {
   u64* primes;
   u64 count;
   bignum* crt_weights;
+  u64* garner_weights;
   bignum prod;
+  mont_ctx* m_ctxs;
 } ctx_rns;
-
-
 
 /*
  3. Practical Guideline: The "High-Water Mark"
@@ -34,8 +35,6 @@ precompute barret reduction or montgomery
 
 */
 
-
-
 typedef struct {
   u64* residues;
   u64 size;
@@ -51,7 +50,6 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b,
              const ctx_rns* ctx);
 void rns_mul(rns_num* r, const rns_num* a, const rns_num* b,
              const ctx_rns* ctx);
-
 
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx);
 u64 rns_estimate_determinant(bigmatrix* A);

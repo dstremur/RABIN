@@ -8,11 +8,10 @@
 int main()
 {
   int num_to_generate = 1;
-  int bits =400;
+  int bits = 400;
 
   bignum p;
   bn_init(&p);
-
 
   printf("Benchmarking: Generating %d primes at %d-bits...\n", num_to_generate,
          bits);
@@ -24,16 +23,16 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-		bn_provable_prime(&p, bits); 
-      clock_gettime(CLOCK_MONOTONIC, &end);
+    bn_provable_prime(&p, bits);
+    clock_gettime(CLOCK_MONOTONIC, &end);
 
-      double elapsed =
-          (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-      total_time += elapsed;
+    double elapsed =
+        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    total_time += elapsed;
 
-	  bn_println(&p);
-      printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
-    } 
+    bn_println(&p);
+    printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
+  }
 
   printf("--------------------------------------------------\n");
   printf("Total Time:   %.4f seconds\n", total_time);
@@ -43,5 +42,3 @@ int main()
   bn_free(&p);
   return 0;
 }
-
-

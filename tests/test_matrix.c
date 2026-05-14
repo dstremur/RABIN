@@ -2,152 +2,159 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
 #include "../include/bigmatrix.h"
 #include "../include/bigrns.h"
 #include "../include/primes.h"
 #include "../include/u64.h"
-double get_time() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec * 1e-9;
+double get_time()
+{
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
-void run_det_benchmark(u64 size, u64 bits) {
-    bigmatrix M;
-    bignum det, val;
-    
-    bn_init(&det);
-    bn_init(&val);
-    bigmatrix_init(&M, size, size);
+void run_det_benchmark(u64 size, u64 bits)
+{
+  bigmatrix M;
+  bignum det, val;
 
-	ctx_rns ctx;
+  bn_init(&det);
+  bn_init(&val);
+  bigmatrix_init(&M, size, size);
 
+  ctx_rns ctx;
 
-    // Populate with random data to prevent "easy" zeros
-    for (u64 i = 0; i < size; i++) {
-        for (u64 j = 0; j < size; j++) {
-            bn_gen_random(&val, bits);
-            bigmatrix_set(&M, &val, i, j);
-        }
+  // Populate with random data to prevent "easy" zeros
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&M, &val, i, j);
     }
+  }
 
+  printf("Benchmarking %llu x %llu (%llu-bit entries)... \n", size, size, bits);
+  fflush(stdout);
 
-    printf("Benchmarking %llu x %llu (%llu-bit entries)... \n", size, size, bits);
-    fflush(stdout);
+  // bigmatrix_print_python(&M);
 
-	//bigmatrix_print_python(&M); 
+  u64 k = rns_estimate_determinant(&M);
+  printf("k: %llu \n", k);
 
-	u64 k = rns_estimate_determinant(&M);
-	rns_context_init(&ctx, RNS_PRIMES, k + 2);
+  if ((k + 1) > 500) {
+    rns_context_init(&ctx, RNS_PRIMES2, k + 1);
+  } else {
+    rns_context_init(&ctx, RNS_PRIMES, k + 1);
+  }
 
-    double start = get_time();
-    bigmatrix_det_rns(&det, &M, &ctx);
-    double end = get_time();
+  double start = get_time();
+  bigmatrix_det_rns(&det, &M, &ctx);
+  double end = get_time();
 
-    printf("Time: %f seconds\n", end - start);
+  printf("Time: %f seconds\n", end - start);
 
-	printf("rns: ");
-    bn_println(&det);
-    
+  printf("rns: ");
+  bn_println(&det);
 
-    bigmatrix_free(&M);
-    bn_free(&det);
-    bn_free(&val);
-
+  bigmatrix_free(&M);
+  bn_free(&det);
+  bn_free(&val);
 }
 
-void run_hadamard_benchmark(u64 size, u64 bits) {
-    bigmatrix M;
-    bignum det, val;
-    
-    bn_init(&det);
-    bn_init(&val);
-    bigmatrix_init(&M, size, size);
+void run_hadamard_benchmark(u64 size, u64 bits)
+{
+  bigmatrix M;
+  bignum det, val;
 
-    // Populate with random data to prevent "easy" zeros
-    for (u64 i = 0; i < size; i++) {
-        for (u64 j = 0; j < size; j++) {
-            bn_gen_random(&val, bits);
-            bigmatrix_set(&M, &val, i, j);
-        }
+  bn_init(&det);
+  bn_init(&val);
+  bigmatrix_init(&M, size, size);
+
+  // Populate with random data to prevent "easy" zeros
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&M, &val, i, j);
     }
+  }
 
-    printf("Benchmarking %llu x %llu (%llu-bit entries) hadamard bound... ", size, size, bits);
-    fflush(stdout);
+  printf("Benchmarking %llu x %llu (%llu-bit entries) hadamard bound... ", size,
+         size, bits);
+  fflush(stdout);
 
-    double start = get_time();
-    bigmatrix_hadamard(&det, &M);
-    double end = get_time();
+  double start = get_time();
+  bigmatrix_hadamard(&det, &M);
+  double end = get_time();
 
-    printf("Time: %f seconds\n", end - start);
+  printf("Time: %f seconds\n", end - start);
 
-    bigmatrix_free(&M);
-    bn_free(&det);
-    bn_free(&val);
+  bigmatrix_free(&M);
+  bn_free(&det);
+  bn_free(&val);
 }
 
-void test_pascal_det(u64 size) {
-    bigmatrix P;
-    bignum det, val, a, b; // Move a and b here
-    bn_init(&det);
-    bn_init(&val);
-    bn_init(&a);
-    bn_init(&b);
-    
-    bigmatrix_init(&P, size, size);
+void test_pascal_det(u64 size)
+{
+  bigmatrix P;
+  bignum det, val, a, b;  // Move a and b here
+  bn_init(&det);
+  bn_init(&val);
+  bn_init(&a);
+  bn_init(&b);
 
-    ctx_rns ctx;
-    // Ensure RNS_PRIMES has at least 50 elements!
-    rns_context_init(&ctx, RNS_PRIMES, 10);
+  bigmatrix_init(&P, size, size);
 
-    for (u64 i = 0; i < size; i++) {
-        for (u64 j = 0; j < size; j++) {
-            if (i == 0 || j == 0) {
-                bn_set_u64(&val, 1);
-            } else {
-                // Reuse a and b instead of re-allocating
-                bigmatrix_get(&a, &P, i-1, j);
-                bigmatrix_get(&b, &P, i, j-1);
-                bn_add(&val, &a, &b);
-            }
-            bigmatrix_set(&P, &val, i, j);
-        }
+  ctx_rns ctx;
+  // Ensure RNS_PRIMES has at least 50 elements!
+  rns_context_init(&ctx, RNS_PRIMES, 10);
+
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      if (i == 0 || j == 0) {
+        bn_set_u64(&val, 1);
+      } else {
+        // Reuse a and b instead of re-allocating
+        bigmatrix_get(&a, &P, i - 1, j);
+        bigmatrix_get(&b, &P, i, j - 1);
+        bn_add(&val, &a, &b);
+      }
+      bigmatrix_set(&P, &val, i, j);
     }
+  }
 
-    // Standard Det (for comparison)
-    bigmatrix_det(&det, &P);
-    printf("Pascal %llu x %llu | Standard Det: ", size, size);
-    bn_println(&det); 
-    
-    // RNS Det
-    bigmatrix_det_rns(&det, &P, &ctx);
-    printf("Pascal %llu x %llu | RNS Det:      ", size, size);
-    bn_println(&det); 
-    
-    // Verification
-    if (bn_is_eq_i64(&det, 1)) {
-        printf("RESULT: PASS\n");
-    } else {
-        printf("RESULT: FAIL (Expected 1)\n");
-    }
+  // Standard Det (for comparison)
+  bigmatrix_det(&det, &P);
+  printf("Pascal %llu x %llu | Standard Det: ", size, size);
+  bn_println(&det);
 
-    // CLEANUP
-    bigmatrix_free(&P);
-    bn_free(&det);
-    bn_free(&val);
-    bn_free(&a);
-    bn_free(&b);
-    
-    // Don't forget to free the RNS context internals!
-    // (Assuming you have an rns_context_free, or do it manually)
-    for (u64 i = 0; i < ctx.count; i++) {
-        bn_free(&ctx.crt_weights[i]);
-    }
-    bn_free(&ctx.prod);
-    free(ctx.primes);
-    free(ctx.crt_weights);
+  // RNS Det
+  bigmatrix_det_rns(&det, &P, &ctx);
+  printf("Pascal %llu x %llu | RNS Det:      ", size, size);
+  bn_println(&det);
+
+  // Verification
+  if (bn_is_eq_i64(&det, 1)) {
+    printf("RESULT: PASS\n");
+  } else {
+    printf("RESULT: FAIL (Expected 1)\n");
+  }
+
+  // CLEANUP
+  bigmatrix_free(&P);
+  bn_free(&det);
+  bn_free(&val);
+  bn_free(&a);
+  bn_free(&b);
+
+  // Don't forget to free the RNS context internals!
+  // (Assuming you have an rns_context_free, or do it manually)
+  for (u64 i = 0; i < ctx.count; i++) {
+    bn_free(&ctx.crt_weights[i]);
+  }
+  bn_free(&ctx.prod);
+  free(ctx.primes);
+  free(ctx.crt_weights);
 }
-
 
 int main()
 {
@@ -158,9 +165,6 @@ int main()
   bigmatrix_init(&A, 2, 2);
   bigmatrix_init(&B, 2, 2);
   bigmatrix_init(&R, 2, 2);
-
-  
-
 
   assert(A.data != NULL);
   assert(A.r_size == 2 && A.c_size == 2);
@@ -233,15 +237,14 @@ int main()
   bigmatrix_get(&check, &RectR, 0, 0);
   assert(bn_is_eq_i64(&check, 3));
   printf("[PASS] Multiplication (Rectangular)\n");
- 
-  bigmatrix_print(&R); 
 
-  bigmatrix_det(&val, &A); 
-  bn_println(&val); 
+  bigmatrix_print(&R);
+
+  bigmatrix_det(&val, &A);
+  bn_println(&val);
 
   bigmatrix_hadamard(&val, &A);
   bn_println(&val);
-
 
   // 8. Cleanup
   bn_free(&val);
@@ -253,18 +256,16 @@ int main()
   bigmatrix_free(&RectB);
   bigmatrix_free(&RectR);
 
-
   bigmatrix D;
   bigmatrix_init(&D, 4, 4);
   bignum tmp;
   bn_init(&tmp);
 
-
   // set matrix D
-  for (u64 i = 0; i < 4; i++){
-    for (u64 j = 0; j < 4; j++){
-        bn_set_u64(&tmp, (i + j) % 4);
-        bigmatrix_set(&D, &tmp, i, j);
+  for (u64 i = 0; i < 4; i++) {
+    for (u64 j = 0; j < 4; j++) {
+      bn_set_u64(&tmp, (i + j) % 4);
+      bigmatrix_set(&D, &tmp, i, j);
     }
   }
 
@@ -275,8 +276,6 @@ int main()
   ctx_rns ctx;
   rns_context_init(&ctx, RNS_PRIMES, 10);
 
-
-
   bigmatrix_det_rns(&tmp, &D, &ctx);
 
   bn_println(&tmp);
@@ -285,25 +284,23 @@ int main()
 
   bigmatrix_free(&D);
 
-
-  bigmatrix E; 
-  bigmatrix_init(&E, 3, 4); 
+  bigmatrix E;
+  bigmatrix_init(&E, 3, 4);
   bigvector v, res;
-  bigvector_init(&v, 4); 
+  bigvector_init(&v, 4);
   bigvector_init(&res, 3);
 
-  
-  bigmatrix_set(&E, &tmp, 0,0);
+  bigmatrix_set(&E, &tmp, 0, 0);
   bn_add_u64(&tmp, &tmp, 1);
-  bigmatrix_set(&E, &tmp, 1,0);
+  bigmatrix_set(&E, &tmp, 1, 0);
   bn_add_u64(&tmp, &tmp, 1);
-  bigmatrix_set(&E, &tmp, 1,1);
+  bigmatrix_set(&E, &tmp, 1, 1);
   bn_add_u64(&tmp, &tmp, 1);
-  bigmatrix_set(&E, &tmp, 2,0);
+  bigmatrix_set(&E, &tmp, 2, 0);
   bn_add_u64(&tmp, &tmp, 1);
-  bigmatrix_set(&E, &tmp, 2,1);
+  bigmatrix_set(&E, &tmp, 2, 1);
   bn_add_u64(&tmp, &tmp, 1);
-  bigmatrix_set(&E, &tmp, 2,2);
+  bigmatrix_set(&E, &tmp, 2, 2);
 
   bigmatrix_print(&E);
 
@@ -316,30 +313,27 @@ int main()
   bigvector_print(&v);
   printf("\n");
 
-  bigmatrix_mv(&res, &E, &v); 
+  bigmatrix_mv(&res, &E, &v);
 
   printf("Matrix vector: ");
-  bigvector_print(&res); 
+  bigvector_print(&res);
   printf("\n");
 
-  u64* testmatrix = malloc(sizeof(u64) * 9); 
-  u64 values[] = {18446744073709551610, 1, 1, 
-                1, 18446744073709551600, 1, 
-                1, 1, 18446744073709551590};
-memcpy(testmatrix, values, sizeof(u64) * 9);
+  u64* testmatrix = malloc(sizeof(u64) * 9);
+  u64 values[] = {18446744073709551610, 1, 1, 1, 18446744073709551600, 1, 1, 1,
+                  18446744073709551590};
+  memcpy(testmatrix, values, sizeof(u64) * 9);
 
-
-  matrix_u64 A_test; 
+  matrix_u64 A_test;
   A_test.data = testmatrix;
   A_test.c_size = 3;
   A_test.r_size = 3;
   A_test.modulus = 100000007;
 
+  u64 det = matrix_u64_det(&A_test);
+  printf("u64 determinant: %llu \n", det);
 
-u64 det = matrix_u64_det(&A_test);
-printf("u64 determinant: %llu \n", det);  
- 
-free(testmatrix);
+  free(testmatrix);
 
   test_pascal_det(50);
 
@@ -347,17 +341,14 @@ free(testmatrix);
   printf("--- All Tests Passed! ---\n");
 
   u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
-    int num_tests = sizeof(sizes) / sizeof(sizes[0]);
+  int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
-    for (int i = 0; i < num_tests; i++) {
-        run_det_benchmark(sizes[i], 16); // 32-bit random entries
-        run_hadamard_benchmark(sizes[i], 32);
-    }
+  for (int i = 0; i < num_tests; i++) {
+    run_det_benchmark(sizes[i], 32);  // 32-bit random entries
+    run_hadamard_benchmark(sizes[i], 32);
+  }
 
   bn_free(&tmp);
 
   return 0;
-
-
-  
 }

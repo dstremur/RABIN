@@ -1,11 +1,11 @@
 #include "../../include/bigrns.h"
-#include "../../include/u64.h"
 
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-
+#include "../../include/u64.h"
 
 // estimate how my primes are needed
 u64 rns_estimate_primes(const bignum* a)
@@ -55,7 +55,28 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
     bn_free_multi(&M_div_tmp, &inv_bn, NULL);
   }
 
-  bn_free_multi(&tmp, NULL);
+  ctx->m_ctxs = malloc(sizeof(mont_ctx) * count);
+  for (u64 i = 0; i < count; i++) {
+    mont_init(&ctx->m_ctxs[i], primes[i]);
+  }
+
+  // calculate garner weights
+  ctx->garner_weights = malloc(sizeof(u64) * count);
+  ctx->garner_weights[0] = 1;
+
+  bignum prev;
+  bn_init_multi(&prev, NULL);
+  bn_set_u64(&prev, 1);
+
+  for (u64 i = 1; i < count; i++) {
+    u64 m_prev_mod = bn_mod_u64(&prev, primes[i]);
+    ctx->garner_weights[i] = mod_inverse_euclid(m_prev_mod, primes[i]);
+
+    bn_set_u64(&tmp, primes[i - 1]);
+    bn_mul(&prev, &prev, &tmp);
+  }
+
+  bn_free_multi(&tmp, &prev, NULL);
 }
 
 void rns_context_free(ctx_rns* ctx)
@@ -80,6 +101,12 @@ void rns_context_free(ctx_rns* ctx)
     ctx->primes = NULL;
   }
 
+  // free the montgomery contexts
+  if (ctx->m_ctxs) {
+    free(ctx->m_ctxs);
+    ctx->m_ctxs = NULL;
+  }
+
   ctx->count = 0;
 }
 
@@ -100,6 +127,17 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   for (u64 i = 0; i < r->size; i++) {
     r->residues[i] = mod_add(a->residues[i], b->residues[i], ctx->primes[i]);
   }
+}
+
+static inline u64 mod_mul_mont(u64 a, u64 b, const mont_ctx* ctx)
+{
+  unsigned __int128 T = (unsigned __int128)a * b;
+  u64 m = (u64)T * ctx->p_inv;
+  unsigned __int128 t = T + (unsigned __int128)m * ctx->p;
+
+  u64 res = (u64)(t >> 64);
+  if (res >= ctx->p) res -= ctx->p;
+  return res;
 }
 
 void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
@@ -150,35 +188,36 @@ void bigmatrix_reduce(matrix_u64* R, const bigmatrix* A, u64 m)
   }
 }
 
-
-
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 {
   // create array of n matrices mod p_i
-
   u64 n = A->r_size;
   u64* residues = malloc(sizeof(u64) * ctx->count);
+  u64* all_residues = malloc(sizeof(u64) * ctx->count * n * n);
 
-#pragma omp parallel for schedule(static)
-  for (u64 i = 0; i < ctx->count; i++) {
-    u64 p = ctx->primes[i];
-
-    barrett_ctx b_ctx;
-    barrett_init(&b_ctx, p);
-
-
-    u64* reduced_data = malloc(sizeof(u64) * n * n);
-
-#pragma omp simd
-    for (u64 r = 0; r < n; r++) {
-#pragma omp simd
-      for (u64 c = 0; c < n; c++) {
-        reduced_data[r * n + c] = bn_mod_u64(GET(A, r, c), p);
+#pragma omp parallel for collapse(2) schedule(static)
+  for (u64 r = 0; r < n; r++) {
+    for (u64 c = 0; c < n; c++) {
+      const bignum* elem = GET(A, r, c);
+      for (u64 k = 0; k < ctx->count; k++) {
+        all_residues[k * n * n + r * n + c] = bn_mod_u64(elem, ctx->primes[k]);
       }
     }
-    residues[i] = matrix_u64_det_optimized(reduced_data, n, &b_ctx);
+  }
+
+#pragma omp parallel
+  {
+    u64* reduced_data = malloc(sizeof(u64) * n * n);
+
+#pragma omp for schedule(static)
+    for (u64 i = 0; i < ctx->count; i++) {
+      memcpy(reduced_data, &all_residues[i * n * n], sizeof(u64) * n * n);
+      residues[i] = matrix_u64_det_optimized(reduced_data, n, &ctx->m_ctxs[i]);
+    }
     free(reduced_data);
   }
+
+  free(all_residues);
 
   rns_num r;
   r.residues = residues;
@@ -188,7 +227,6 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
   rns_to_bignum(det, &r, ctx);
 
   // if d > M / 2 det is negative
-
   bignum M_half;
   bn_init_multi(&M_half, NULL);
   bn_copy(&M_half, &ctx->prod);
