@@ -337,9 +337,9 @@ int main()
   u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
   int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < num_tests; i++) {
     run_det_benchmark(sizes[i], 32);  // 32-bit random entries
-    run_hadamard_benchmark(sizes[i], 32);
+    run_hadamard_benchmark(sizes[i], 64);
   }
 
   bn_free(&tmp);
