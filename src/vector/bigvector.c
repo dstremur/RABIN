@@ -54,7 +54,6 @@ void bigvector_norm(bignum* r, const bigvector* a)
 {
   bignum temp;
   bn_init(&temp);
-  bn_init(r);
 
   bigvector_dot(&temp, a, a);
   bn_isqrt(r, &temp);
@@ -67,7 +66,6 @@ void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
   if (a->size != b->size) return;
   bignum temp;
   bn_init(&temp);
-  bn_init(r);
 
   for (u64 i = 0; i < a->size; i++) {
     bn_mul(&temp, &a->data[i], &b->data[i]);

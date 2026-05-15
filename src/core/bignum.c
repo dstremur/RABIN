@@ -335,10 +335,9 @@ void bn_copy(bignum* r, const bignum* a)
     return;
   }
 
-  r->size = a->size;
-  r->is_neg = a->is_neg;
-
   bn_alloc(r, a->size);
+  r->is_neg = a->is_neg;
+  r->size = a->size;
   memcpy(r->limbs, a->limbs, r->size * sizeof(u64));
 }
 

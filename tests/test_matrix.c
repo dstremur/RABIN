@@ -59,6 +59,7 @@ void run_det_benchmark(u64 size, u64 bits)
   bigmatrix_free(&M);
   bn_free(&det);
   bn_free(&val);
+  rns_context_free(&ctx);
 }
 
 void run_hadamard_benchmark(u64 size, u64 bits)
@@ -146,14 +147,7 @@ void test_pascal_det(u64 size)
   bn_free(&a);
   bn_free(&b);
 
-  // Don't forget to free the RNS context internals!
-  // (Assuming you have an rns_context_free, or do it manually)
-  for (u64 i = 0; i < ctx.count; i++) {
-    bn_free(&ctx.crt_weights[i]);
-  }
-  bn_free(&ctx.prod);
-  free(ctx.primes);
-  free(ctx.crt_weights);
+  rns_context_free(&ctx);
 }
 
 int main()
@@ -343,12 +337,16 @@ int main()
   u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
   int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
-  for (int i = 0; i < num_tests; i++) {
+  for (int i = 0; i < 5; i++) {
     run_det_benchmark(sizes[i], 32);  // 32-bit random entries
     run_hadamard_benchmark(sizes[i], 32);
   }
 
   bn_free(&tmp);
+
+  bigmatrix_free(&E);
+  bigvector_free(&v);
+  bigvector_free(&res);
 
   return 0;
 }

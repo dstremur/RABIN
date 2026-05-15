@@ -1,8 +1,9 @@
 #include "../../include/bigmatrix.h"
 
-#define omp_get_thread_num() 0
-
 #include <stdio.h>
+
+#include "../../include/bigrns.h"
+#include "../../include/primes.h"
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
 {
   M->c_size = c;
@@ -233,6 +234,20 @@ void bigmatrix_det(bignum* d, const bigmatrix* A)
   bigmatrix T;
   bigmatrix_init(&T, A->c_size, A->r_size);
   bigmatrix_copy(&T, A);
+
+  u64 k = rns_estimate_determinant(&T);
+
+  ctx_rns ctx;
+  rns_context_init(&ctx, RNS_PRIMES, k);
+
+  bigmatrix_det_rns(d, &T, &ctx);
+
+  rns_context_free(&ctx);
+  bigmatrix_free(&T);
+
+  return;
+
+  // broken
 
   bignum prev;
   bn_init(&prev);

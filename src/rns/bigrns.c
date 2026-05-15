@@ -107,6 +107,12 @@ void rns_context_free(ctx_rns* ctx)
     ctx->m_ctxs = NULL;
   }
 
+  // free garner weights
+  if (ctx->garner_weights) {
+    free(ctx->garner_weights);
+    ctx->garner_weights = NULL;
+  }
+
   ctx->count = 0;
 }
 
@@ -129,17 +135,6 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
-static inline u64 mod_mul_mont(u64 a, u64 b, const mont_ctx* ctx)
-{
-  unsigned __int128 T = (unsigned __int128)a * b;
-  u64 m = (u64)T * ctx->p_inv;
-  unsigned __int128 t = T + (unsigned __int128)m * ctx->p;
-
-  u64 res = (u64)(t >> 64);
-  if (res >= ctx->p) res -= ctx->p;
-  return res;
-}
-
 void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
   bignum sum, tmp;
@@ -159,7 +154,7 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   bn_free_multi(&sum, &tmp, NULL);
 }
 
-// Estimates primes for a matrix determinant (The most robust way)
+// Estimates primes for a matrix determinant
 u64 rns_estimate_determinant(bigmatrix* A)
 {
   bignum res;
@@ -171,7 +166,11 @@ u64 rns_estimate_determinant(bigmatrix* A)
   // double to get to range [-M, M]
   bn_lshift1(&res);
 
-  return rns_estimate_primes(&res);
+  u64 k = rns_estimate_primes(&res);
+
+  bn_free(&res);
+
+  return k;
 }
 
 void bigmatrix_reduce(matrix_u64* R, const bigmatrix* A, u64 m)

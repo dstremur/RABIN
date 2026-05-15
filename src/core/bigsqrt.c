@@ -26,12 +26,12 @@ void bn_isqrt_heron(bignum* r, bignum* a)
 
     bn_rshift1(&xnext);
     if (bn_cmp(&xnext, &xn) >= 0) {
-      bn_copy(r, &xn);
       break;
     }
 
-    bn_copy(&xn, &xnext);
+    bn_swap(&xn, &xnext);
   }
+  bn_copy(r, &xn);
 
   bn_free_multi(&xn, &xnext, &tmp, NULL);
 }
