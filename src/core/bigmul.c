@@ -105,6 +105,75 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
   bn_add_inner(r + m, r + m, 2 * n - m, z1, 2 * max_len);
 }
 
+void limbs_sqr_karatsuba(u64* r, const u64* a, const u64 a_len, u64* scratch)
+{
+  if (a_len < KARATSUBA_LIMIT) {
+    // Fine as a base case, though a dedicated sqr_school would be faster.
+    limbs_mul_school(r, a, a_len, a, a_len);
+    return;
+  }
+
+  u64 m = a_len / 2;
+  u64 high_len = a_len - m;
+
+  const u64* a0 = a;
+  const u64* a1 = a + m;
+
+  // scratch = [s_a][z1][next_scratch]
+  // s_a = a0 + a1
+  // z1  = (a0 + a1)^2
+  u64* s_a = scratch;              // size: high_len + 1
+  u64* z1 = s_a + (high_len + 1);  // size: 2*high_len + 2
+  u64* next_scratch = z1 + (2 * high_len + 2);
+
+  // output layout
+  u64* z0 = r;
+  u64* z2 = r + 2 * m;
+
+  memset(r, 0, 2 * a_len * sizeof(u64));
+
+  // z0 = a0^2
+  limbs_sqr_karatsuba(z0, a0, m, next_scratch);
+
+  // z2 = a1^2
+  limbs_sqr_karatsuba(z2, a1, high_len, next_scratch);
+
+  // s_a = a0 + a1
+  u64 sa_len = limbs_add_raw(s_a, a0, m, a1, high_len);
+
+  // z1 = (a0 + a1)^2
+  limbs_sqr_karatsuba(z1, s_a, sa_len, next_scratch);
+
+  // z1 = z1 - z0 - z2
+  bn_sub_inner(z1, z1, 2 * sa_len, z0, 2 * m);
+  bn_sub_inner(z1, z1, 2 * sa_len, z2, 2 * high_len);
+
+  // add middle term shifted by m limbs
+  bn_add_inner(r + m, r + m, 2 * a_len - m, z1, 2 * sa_len);
+}
+
+void bn_sqr(bignum* r, const bignum* a)
+{
+  if (a->size == 0) {
+    r->size = 0;
+    if (r->capacity > 0) r->limbs[0] = 0;
+    return;
+  }
+
+  bn_alloc(r, 2 * a->size);
+
+  u64 scratch_size = 8 * a->size + 8;  // conservative heuristic
+  u64* scratch = malloc(scratch_size * sizeof(u64));
+
+  limbs_sqr_karatsuba(r->limbs, a->limbs, a->size, scratch);
+
+  free(scratch);
+
+  r->size = 2 * a->size;
+  r->is_neg = false;
+  bn_trim(r);
+}
+
 void bn_mul(bignum* r, const bignum* a, const bignum* b)
 {
   if (a->size == 0 || b->size == 0) {
@@ -119,6 +188,11 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
     bn_mul(&tmp, a, b);
     bn_copy(r, &tmp);
     bn_free(&tmp);
+    return;
+  }
+
+  if (a == b) {
+    bn_sqr(r, a);
     return;
   }
 
@@ -165,94 +239,6 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 
     bn_mul_add_inner(&r->limbs[i], b->limbs, a->limbs[i], b->size);
   }
-
-  bn_trim(r);
-}
-
-void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
-{
-  if (r == a || r == b) {
-    bignum tmp;
-    bn_init(&tmp);
-    bn_mul_karatsuba(&tmp, a, b);
-    bn_copy(r, &tmp);
-    bn_free(&tmp);
-    return;
-  }
-
-  if (a->size < KARATSUBA_LIMIT || b->size < KARATSUBA_LIMIT) {
-    bn_mul(r, a, b);
-    return;
-  }
-
-  u64 max = MAX(a->size, b->size);
-
-  u64 m = max / 2;
-
-  bignum a0, a1, b0, b1;
-
-  bn_init_multi(&a0, &a1, &b0, &b1, NULL);
-
-  if (a->size > m) {
-    bn_alloc(&a0, m);
-    memcpy(a0.limbs, a->limbs, m * sizeof(u64));
-    a0.size = m;
-    bn_trim(&a0);
-
-    bn_alloc(&a1, a->size - m);
-    memcpy(a1.limbs, a->limbs + m, (a->size - m) * sizeof(u64));
-    a1.size = a->size - m;
-    bn_trim(&a1);
-  } else {
-    bn_copy(&a0, a);
-  }
-
-  a0.is_neg = 0;
-  a1.is_neg = 0;
-
-  if (b->size > m) {
-    bn_alloc(&b0, m);
-    memcpy(b0.limbs, b->limbs, m * sizeof(u64));
-    b0.size = m;
-    bn_trim(&b0);
-
-    bn_alloc(&b1, b->size - m);
-    memcpy(b1.limbs, b->limbs + m, (b->size - m) * sizeof(u64));
-    b1.size = b->size - m;
-    bn_trim(&b1);
-  } else {
-    bn_copy(&b0, b);
-  }
-
-  b0.is_neg = 0;
-  b1.is_neg = 0;
-
-  bignum z0, z1, z2, s_a, s_b, tmp;
-
-  bn_init_multi(&z0, &z1, &z2, &s_a, &s_b, &tmp, NULL);
-
-  bn_mul(&z0, &a0, &b0);
-
-  bn_mul(&z2, &a1, &b1);
-
-  bn_add_abs(&s_a, &a0, &a1);
-  bn_add_abs(&s_b, &b0, &b1);
-  bn_mul(&z1, &s_a, &s_b);
-
-  bn_sub_abs(&tmp, &z1, &z0);
-  bn_sub_abs(&z1, &tmp, &z2);
-
-  u64 max_len = a->size + b->size;
-  bn_alloc(r, max_len);
-  memset(r->limbs, 0, max_len * sizeof(u64));
-  r->size = max_len;
-  r->is_neg = a->is_neg ^ b->is_neg;
-
-  bn_add_at_offset(r, &z0, 0);
-  bn_add_at_offset(r, &z1, m);
-  bn_add_at_offset(r, &z2, 2 * m);
-
-  bn_free_multi(&a0, &a1, &b0, &b1, &z0, &z1, &z2, &s_a, &s_b, &tmp, NULL);
 
   bn_trim(r);
 }

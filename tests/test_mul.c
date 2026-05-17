@@ -42,8 +42,8 @@ int main()
 {
   // Test from small to large to find the crossover point
   int sizes[] = {16,   32,   64,   128,   256,   512,   1024,
-                 2048, 4096, 8192, 16000, 32000, 64000, 100000};
-  for (int i = 0; i < 14; i++) {
+                 2048, 4096, 8192, 16000, 32000, 64000, 100000, 200000, 256000, 300000, 400000};
+  for (int i = 0; i < 16; i++) {
     benchmark_mul(sizes[i]);
   }
   return 0;
