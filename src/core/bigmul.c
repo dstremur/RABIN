@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "../../include/bignum.h"
-
+#include "../../include/u64.h"
 #define KARATSUBA_LIMIT 64
 
 void bn_mul(bignum* r, const bignum* a, const bignum* b)
@@ -83,10 +83,7 @@ void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
 
   bignum a0, a1, b0, b1;
 
-  bn_init(&a0);
-  bn_init(&a1);
-  bn_init(&b0);
-  bn_init(&b1);
+  bn_init_multi(&a0, &a1, &b0, &b1, NULL);
 
   if (a->size > m) {
     bn_alloc(&a0, m);
@@ -124,12 +121,7 @@ void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
 
   bignum z0, z1, z2, s_a, s_b, tmp;
 
-  bn_init(&z0);
-  bn_init(&z1);
-  bn_init(&z2);
-  bn_init(&s_a);
-  bn_init(&s_b);
-  bn_init(&tmp);
+  bn_init_multi(&z0, &z1, &z2, &s_a, &s_b, &tmp, NULL);
 
   bn_mul(&z0, &a0, &b0);
 
@@ -152,16 +144,8 @@ void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b)
   bn_add_at_offset(r, &z1, m);
   bn_add_at_offset(r, &z2, 2 * m);
 
-  bn_free(&a0);
-  bn_free(&a1);
-  bn_free(&b0);
-  bn_free(&b1);
-  bn_free(&z0);
-  bn_free(&z1);
-  bn_free(&z2);
-  bn_free(&s_a);
-  bn_free(&s_b);
-  bn_free(&tmp);
+  bn_free_multi(&a0, &a1, &b0, &b1, &z0, &z1, &z2, &s_a, &s_b, &tmp, NULL);
 
   bn_trim(r);
 }
+

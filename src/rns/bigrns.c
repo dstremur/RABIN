@@ -137,6 +137,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
 
 void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
+  printf("start \n");
   bignum sum, tmp;
   bn_init_multi(&sum, &tmp, NULL);
 
@@ -152,6 +153,8 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   bn_mod(a, a, &ctx->prod);
 
   bn_free_multi(&sum, &tmp, NULL);
+
+  printf("end \n");
 }
 
 // Estimates primes for a matrix determinant
@@ -192,31 +195,23 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
   // create array of n matrices mod p_i
   u64 n = A->r_size;
   u64* residues = malloc(sizeof(u64) * ctx->count);
-  u64* all_residues = malloc(sizeof(u64) * ctx->count * n * n);
-
-#pragma omp parallel for collapse(2) schedule(static)
-  for (u64 r = 0; r < n; r++) {
-    for (u64 c = 0; c < n; c++) {
-      const bignum* elem = GET(A, r, c);
-      for (u64 k = 0; k < ctx->count; k++) {
-        all_residues[k * n * n + r * n + c] = bn_mod_u64(elem, ctx->primes[k]);
-      }
-    }
-  }
 
 #pragma omp parallel
   {
-    u64* reduced_data = malloc(sizeof(u64) * n * n);
+    u64* reduced_data = aligned_alloc(64, sizeof(u64) * n * n);
 
-#pragma omp for schedule(static)
-    for (u64 i = 0; i < ctx->count; i++) {
-      memcpy(reduced_data, &all_residues[i * n * n], sizeof(u64) * n * n);
-      residues[i] = matrix_u64_det_optimized(reduced_data, n, &ctx->m_ctxs[i]);
+#pragma omp for schedule(dynamic)
+    for (u64 k = 0; k < ctx->count; k++) {
+      u64 p = ctx->primes[k];
+      for (u64 i = 0; i < n; i++) {
+        for (u64 j = 0; j < n; j++) {
+          reduced_data[i * n + j] = bn_mod_u64(GET(A, i, j), p);
+        }
+      }
+      residues[k] = matrix_u64_det_optimized(reduced_data, n, &ctx->m_ctxs[k]);
     }
     free(reduced_data);
   }
-
-  free(all_residues);
 
   rns_num r;
   r.residues = residues;

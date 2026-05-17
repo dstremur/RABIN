@@ -21,9 +21,8 @@ typedef struct {
 int main()
 {
   bn_init_constants();
-  nntest();
 
-  gen_rns_primes(500);
+  //gen_rns_primes(500);
   bignum a, b, c;
   bn_init_multi(&a, &b, &c, NULL);
   char buf1[1024];
@@ -150,7 +149,7 @@ int main()
 
   // avxtest();
 
-  // fftest();
+  // 
   //
   bigpoly_test();
   //

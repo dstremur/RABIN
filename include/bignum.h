@@ -40,21 +40,19 @@ typedef struct {
   bignum tmp;      // scratchpad
 } bn_mont_ctx;
 
-typedef struct {
-  u64 n;     // transform size (power of 2)
-  bignum q;  // modulus
-  bn_mont_ctx ctx;
-  bignum* psi_pow;
-  bignum* inv_psi_pow;
-  bignum n_inv;
-} bn_ntt;
 
 typedef struct {
   u64* limbs;
   u64 size;
 } bn52;
 
-void nntest();
+typedef struct {
+  u64 p;
+  u64 p_inv;
+  u64 r2_mod_p;  // 2^128 mod p
+} mont_ctx;
+
+
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 #define MIN(a, b) ((a) < (b) ? (a) : (b));
@@ -65,11 +63,9 @@ extern bignum BN_ONE;
 extern bignum BN_TWO;
 extern bignum BN_ZERO;
 
+
 void bn_init_constants();
-
 void bn_free_constants();
-
-void fftest();
 void bn_provable_prime(bignum* p, u64 k);
 bool bn_provable_prime_inner(bignum* p, u64 k);
 // bignum.c

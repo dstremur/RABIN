@@ -12,11 +12,7 @@ typedef struct {
   u64 modulus;  // The prime for this specific slice
 } matrix_u64;
 
-typedef struct {
-  u64 p;
-  u64 p_inv;
-  u64 r2_mod_p;  // 2^128 mod p
-} mont_ctx;
+
 
 u64 mod_add(u64 a, u64 b, u64 p);
 u64 mod_sub(u64 a, u64 b, u64 p);

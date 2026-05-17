@@ -105,7 +105,6 @@ u64 matrix_u64_det(matrix_u64* M)
       free(mat);
       return 0;
     }
-
     // swap rows
     if (pivot != i) {
       for (u64 j = i; j < n; j++) {
@@ -133,6 +132,15 @@ u64 matrix_u64_det(matrix_u64* M)
   }
   free(mat);
   return det;
+}
+
+u64 mont_inverse(u64 a_mont, const mont_ctx* ctx)
+{
+  u64 a = from_mont(a_mont, ctx);
+
+  u64 inv = mod_inverse_euclid(a, ctx->p);
+
+  return to_mont(inv, ctx);
 }
 
 // works in place, need to pass copy
@@ -174,8 +182,10 @@ u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
     u64 inv = to_mont(inv_real, ctx);
 
     u64* row_i = mat + i * n;
+
     for (u64 j = i + 1; j < n; j++) {
       u64 factor = mod_mul_mont(mat[j * n + i], inv, ctx);
+      if (factor == 0) continue;
       u64* row_j = mat + j * n;
       for (u64 k = i + 1; k < n; k++) {
         row_j[k] = mod_sub(row_j[k], mod_mul_mont(factor, row_i[k], ctx), p);
