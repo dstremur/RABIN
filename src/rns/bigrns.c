@@ -198,7 +198,9 @@ void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 
 #pragma omp parallel
   {
-    u64* reduced_data = aligned_alloc(64, sizeof(u64) * n * n);
+    u64 raw_size = sizeof(u64) * n * n;
+    u64 aligned_size = (raw_size + 63) & ~63;
+    u64* reduced_data = aligned_alloc(64, aligned_size);
 
 #pragma omp for schedule(dynamic)
     for (u64 k = 0; k < ctx->count; k++) {
