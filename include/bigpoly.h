@@ -14,4 +14,6 @@ void bigpoly_trim(bigpoly* p);
 void bigpoly_mul(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q);
+
+void bigpoly_conv_cyclic(bigpoly* r, bigpoly* a, bigpoly* b, bignum* q);
 void bigpoly_test();
