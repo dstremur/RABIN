@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #include "../include/bignum.h"
-#include "../include/bigpoly.h"
+#include "../include/bigntt.h"
 #include "../include/bigmatrix.h" 
 #include "ctype.h"
 #include "string.h"
@@ -23,8 +23,8 @@ int main()
   bn_init_constants();
 
   //gen_rns_primes(500);
-  bignum a, b, c;
-  bn_init_multi(&a, &b, &c, NULL);
+  bignum a, b, c, psi, omega;
+  bn_init_multi(&a, &b, &c, &psi, &omega, NULL);
   char buf1[1024];
   char buf2[1024];
 
@@ -73,6 +73,17 @@ int main()
   printf("Pow: ");
   bn_pow(&c, &a, &b);
   bn_println(&c);
+
+  printf("NTT prime: ");
+  bigntt_find_prime(&c, 32, 300);
+  bn_println(&c);
+  printf("omega & psi: ");
+  if (!bigntt_compute_roots(&omega, &psi, 32, &c)){
+	  printf("fail \n");
+	  return 1;
+  }
+  bn_println(&omega);
+  bn_println(&psi);
 
   if (bn_pollard_rho(&c, &a)) {
     printf("Factor found: ");
@@ -157,7 +168,7 @@ int main()
   bigpoly_init(&p);
 
   bn_free(&my_prime);
-  bn_free_multi(&a, &b, &c, &n, &d, &r, NULL);
+  bn_free_multi(&a, &b, &c, &n, &d, &r, &omega, &psi, NULL);
   bn_free_constants();
   return 0;
 }

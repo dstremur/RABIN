@@ -25,7 +25,7 @@ bool ntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega, con
 
 bool bigntt_find_prime(bignum* q, u64 n, u64 bits);
 bool bigntt_find_generator(bignum* g, const bignum* q); 
-bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q, const bignum* g);
+bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q);
 
 void ntt_ctx_free(ntt_ctx* ctx); 
 
