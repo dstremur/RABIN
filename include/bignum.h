@@ -52,6 +52,13 @@ typedef struct {
   u64 r2_mod_p;  // 2^128 mod p
 } mont_ctx;
 
+typedef struct {
+  bignum* data;
+  u64 size;
+  u64 capacity;
+  bool dynamic;
+} bigvector;
+
 
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
@@ -171,6 +178,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
 // bigfactor.ctx
 bool bn_pollard_rho(bignum* f, const bignum* n);
 bool bn_pollard_p_minus_one(bignum* f, bignum* n);
+void bn_factorize(bigvector* v, bignum* n);
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 

@@ -18,6 +18,46 @@ typedef struct {
   const char* description;
 } test_case;
 
+void bigntt_ctx_print_debug(const ntt_ctx *ctx)
+{
+    if (!ctx) {
+        printf("Context is NULL\n");
+        return;
+    }
+
+    printf("=========================================\n");
+    printf("         NTT CONTEXT DEBUG LOG           \n");
+    printf("=========================================\n");
+    printf("Transform Length (n) : %llu\n", ctx->n);
+    printf("Modulus (q)          : "); bn_println(&ctx->q);
+    printf("N Inverse (n_inv)    : "); bn_println(&ctx->n_inv);
+    
+    printf("\n--- OMEGA POWERS (w^i mod q) ---\n");
+    printf("omega[0]       (Expected: 1)   : "); bn_println(&ctx->omega_powers[0]);
+    printf("omega[1]       (Base Root)     : "); bn_println(&ctx->omega_powers[1]);
+    printf("omega[n/2]     (Expected: q-1) : "); bn_println(&ctx->omega_powers[ctx->n / 2]);
+    printf("omega[n-1]                     : "); bn_println(&ctx->omega_powers[ctx->n - 1]);
+
+    printf("\n--- OMEGA INVERSE POWERS (w^-i mod q) ---\n");
+    printf("omega_inv[0]   (Expected: 1)   : "); bn_println(&ctx->omega_inv_powers[0]);
+    printf("omega_inv[1]   (Base Inv Root) : "); bn_println(&ctx->omega_inv_powers[1]);
+    printf("omega_inv[n/2] (Expected: q-1) : "); bn_println(&ctx->omega_inv_powers[ctx->n / 2]);
+
+    if (ctx->psi_powers != NULL) {
+        printf("\n--- PSI POWERS (psi^i mod q) ---\n");
+        printf("psi[0]         (Expected: 1)   : "); bn_println(&ctx->psi_powers[0]);
+        printf("psi[1]         (Base Psi Root) : "); bn_println(&ctx->psi_powers[1]);
+        printf("psi[n/2]       (Square rt of -1): "); bn_println(&ctx->psi_powers[ctx->n / 2]);
+    }
+
+    printf("\n--- BIT REVERSAL INDICES (First 8 Samples) ---\n");
+    u64 max_samples = (ctx->n < 8) ? ctx->n : 8;
+    for (u64 i = 0; i < max_samples; i++) {
+        printf("  Index [%2llu] ---> Bit-Reversed Index [%2llu]\n", i, ctx->bit_rev_indices[i]);
+    }
+    printf("=========================================\n");
+}
+
 int main()
 {
   bn_init_constants();
@@ -74,16 +114,29 @@ int main()
   bn_pow(&c, &a, &b);
   bn_println(&c);
 
-  printf("NTT prime: ");
-  bigntt_find_prime(&c, 32, 300);
-  bn_println(&c);
-  printf("omega & psi: ");
-  if (!bigntt_compute_roots(&omega, &psi, 32, &c)){
-	  printf("fail \n");
-	  return 1;
-  }
-  bn_println(&omega);
-  bn_println(&psi);
+  bigvector v;
+  bigvector_init_dynamic(&v);
+
+  bn_factorize(&v, &a);
+
+  bigvector_println(&v);
+  bigvector_free(&v);
+
+
+  bignum n1;
+  bn_init(&n1);
+
+  bn_init_val(&n1, "18446744069414584321");
+  bn_init_val(&omega, "1803076106186727246");
+  bn_init_val(&psi, "11353340290879379826");
+  ntt_ctx ctx;
+
+  bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
+  bigntt_ctx_print_debug(&ctx);
+
+  bn_free(&n1);
+
+  bigntt_ctx_free(&ctx);
 
   if (bn_pollard_rho(&c, &a)) {
     printf("Factor found: ");

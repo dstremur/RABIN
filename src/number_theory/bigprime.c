@@ -159,6 +159,8 @@ cleanup:
 // Assumes sufficient trial division was done previously
 bool bn_bpsw(const bignum* n)
 {
+if (bn_is_even(n)) return false;
+
   // 1. run miller rabin base 2
   bignum two;
   bn_init(&two);

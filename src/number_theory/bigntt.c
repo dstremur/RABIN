@@ -1,5 +1,7 @@
 #include "../../include/bigntt.h"
 
+#include <stdio.h>
+
 #include "../../include/u64.h"
 
 static inline bool is_pow_2(u64 n) { return n && !(n & (n - 1)); }
@@ -22,6 +24,248 @@ static u64 reverse_bits(u64 x, u64 bits)
   }
 
   return r;
+}
+
+bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m)
+{
+  // If a is 0 or modulus is <= 1, no inverse exists
+  if (bn_is_zero(a) || bn_is_zero(m) || bn_cmp(m, &BN_ONE) == 0) {
+    return false;
+  }
+
+  bignum u, v, x1, x2;
+  bn_init(&u);
+  bn_init(&v);
+  bn_init(&x1);
+  bn_init(&x2);
+
+  bn_copy(&u, a);
+  bn_copy(&v, m);
+  bn_set_u64(&x1, 1);
+  bn_set_u64(&x2, 0);
+
+  while (!bn_is_zero(&u) && !bn_is_zero(&v)) {
+    // Eliminate powers of 2 in u
+    while (bn_is_even(&u)) {
+      bn_rshift1(&u);  // u = u / 2
+      if (bn_is_even(&x1)) {
+        bn_rshift1(&x1);
+      } else {
+        bn_add(&x1, &x1, m);
+        bn_rshift1(&x1);  // x1 = (x1 + m) / 2
+      }
+    }
+
+    // Eliminate powers of 2 in v
+    while (bn_is_even(&v)) {
+      bn_rshift1(&v);  // v = v / 2
+      if (bn_is_even(&x2)) {
+        bn_rshift1(&x2);
+      } else {
+        bn_add(&x2, &x2, m);
+        bn_rshift1(&x2);  // x2 = (x2 + m) / 2
+      }
+    }
+
+    // Step-down subtraction
+    if (bn_cmp(&u, &v) >= 0) {
+      bn_sub(&u, &u, &v);
+      // Simulating signed subtraction under unsigned bignum bounds
+      if (bn_cmp(&x1, &x2) < 0) {
+        bn_add(&x1, &x1, m);
+      }
+      bn_sub(&x1, &x1, &x2);
+    } else {
+      bn_sub(&v, &v, &u);
+      if (bn_cmp(&x2, &x1) < 0) {
+        bn_add(&x2, &x2, m);
+      }
+      bn_sub(&x2, &x2, &x1);
+    }
+  }
+
+  bool success = false;
+  // If gcd is 1, the matching variable holds the modular inverse
+  if (bn_cmp(&u, &BN_ONE) == 0) {
+    bn_copy(res, &x1);
+    success = true;
+  } else if (bn_cmp(&v, &BN_ONE) == 0) {
+    bn_copy(res, &x2);
+    success = true;
+  }
+
+  bn_free(&u);
+  bn_free(&v);
+  bn_free(&x1);
+  bn_free(&x2);
+
+  return success;
+}
+
+
+// find a generator g of Fp 
+void bn_find_gen_fp(bignum* g, bignum* p)
+{
+
+
+}
+
+bool bigntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega,
+                     const bignum* psi)
+{
+  if (!ctx || !q || !omega) return false;
+
+  if (!is_pow_2(n)) {
+    printf("transform size must be power of 2\n");
+    return false;
+  }
+
+  ctx->n = n;
+  bn_init(&ctx->q);
+  bn_copy(&ctx->q, q);
+
+  ctx->omega_powers = NULL;
+  ctx->omega_inv_powers = NULL;
+  ctx->psi_powers = NULL;
+  ctx->psi_inv_powers = NULL;
+  ctx->bit_rev_indices = NULL;
+  bn_init(&ctx->n_inv);
+
+  ctx->omega_powers = malloc(sizeof(bignum) * n);
+  ctx->omega_inv_powers = malloc(sizeof(bignum) * n);
+  ctx->bit_rev_indices = malloc(sizeof(u64) * n);
+
+  if (!ctx->omega_powers || !ctx->omega_inv_powers || !ctx->bit_rev_indices) {
+    goto fail;
+  }
+
+  for (u64 i = 0; i < n; i++) {
+    bn_init(&ctx->omega_powers[i]);
+    bn_init(&ctx->omega_inv_powers[i]);
+  }
+
+  // precompute w^i mod q
+  bn_set_u64(&ctx->omega_powers[0], 1);
+
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1], omega);
+    bn_mod(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->q);
+  }
+
+  bignum omega_inv;
+  bn_init(&omega_inv);
+  if (!bn_mod_inverse(&omega_inv, omega, &ctx->q)) {
+    bn_free(&omega_inv);
+    goto fail;
+  }
+
+  bn_set_u64(&ctx->omega_inv_powers[0], 1);
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i - 1],
+           &omega_inv);
+    bn_mod(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i], &ctx->q);
+  }
+
+  bn_free(&omega_inv);
+
+  if (psi != NULL) {
+    ctx->psi_powers = malloc(sizeof(bignum) * n);
+    ctx->psi_inv_powers = malloc(sizeof(bignum) * n);
+    if (!ctx->psi_powers || !ctx->psi_inv_powers) {
+      goto fail;
+    }
+
+    for (u64 i = 0; i < n; i++) {
+      bn_init(&ctx->psi_powers[i]);
+      bn_init(&ctx->psi_inv_powers[i]);
+    }
+
+    // compute psi^i mod q
+    bn_set_u64(&ctx->psi_powers[0], 1);
+    for (u64 i = 1; i < n; i++) {
+      bn_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], psi);
+      bn_mod(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->q);
+    }
+
+    bignum psi_inv;
+    bn_init(&psi_inv);
+    if (!bn_mod_inverse(&psi_inv, psi, &ctx->q)) {
+      bn_free(&psi_inv);
+      goto fail;
+    }
+
+    bn_set_u64(&ctx->psi_inv_powers[0], 1);
+    for (u64 i = 1; i < n; i++) {
+      bn_mul(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i - 1], &psi_inv);
+      bn_mod(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i], &psi_inv);
+    }
+
+    bn_free(&psi_inv);
+  }
+
+  // 6. Compute n_inv = n^-1 mod q
+  bignum bn_n;
+  bn_init(&bn_n);
+  bn_set_u64(&bn_n, n);
+  if (!bn_mod_inverse(&ctx->n_inv, &bn_n, &ctx->q)) {
+    bn_free(&bn_n);
+    goto fail;
+  }
+  bn_free(&bn_n);
+
+  // 7. Precompute Bit-Reversal Permutation Indices
+  u64 bits = 0;
+  while (((u64)1 << bits) < n) {
+    bits++;
+  }
+
+  for (u64 i = 0; i < n; i++) {
+    u64 rev = 0;
+    u64 temp = i;
+    for (u64 j = 0; j < bits; j++) {
+      rev = (rev << 1) | (temp & 1);
+      temp >>= 1;
+    }
+    ctx->bit_rev_indices[i] = rev;
+  }
+
+  return true;
+
+fail:
+  bigntt_ctx_free(ctx);
+  return false;
+}
+
+void bigntt_ctx_free(ntt_ctx* ctx)
+{
+  if (!ctx) return;
+
+  if (ctx->omega_powers) {
+    for (u64 i = 0; i < ctx->n; i++) bn_free(&ctx->omega_powers[i]);
+    free(ctx->omega_powers);
+    ctx->omega_powers = NULL;
+  }
+  if (ctx->omega_inv_powers) {
+    for (u64 i = 0; i < ctx->n; i++) bn_free(&ctx->omega_inv_powers[i]);
+    free(ctx->omega_inv_powers);
+    ctx->omega_inv_powers = NULL;
+  }
+  if (ctx->psi_powers) {
+    for (u64 i = 0; i < ctx->n; i++) bn_free(&ctx->psi_powers[i]);
+    free(ctx->psi_powers);
+    ctx->psi_powers = NULL;
+  }
+  if (ctx->psi_inv_powers) {
+    for (u64 i = 0; i < ctx->n; i++) bn_free(&ctx->psi_inv_powers[i]);
+    free(ctx->psi_inv_powers);
+    ctx->psi_inv_powers = NULL;
+  }
+
+  free(ctx->bit_rev_indices);
+  ctx->bit_rev_indices = NULL;
+
+  bn_free(&ctx->q);
+  bn_free(&ctx->n_inv);
 }
 
 bool bigntt_find_prime(bignum* q, u64 n, u64 bits)
@@ -61,82 +305,4 @@ bool bigntt_find_prime(bignum* q, u64 n, u64 bits)
 
   bn_free(&cand);
   return false;
-}
-
-bool bigntt_find_generator(bignum* g, const bignum* q)
-{
-  bignum q_min_1, exp, tmp;
-  bn_init_multi(&q_min_1, &exp, &tmp, NULL);
-
-  bn_sub(&q_min_1, q, &BN_ONE);
-
-  bool found = false;
-
-  // Loop through potential generator bases
-  for (u64 a = 2; a < 10000; a++) {
-    bn_set_u64(g, a);
-
-    // Test 1: g^((q-1)/2) != 1 mod q (The most basic check, handles the factor
-    // 2)
-    bn_divmod_u64(&exp, &q_min_1, 2);
-    bn_mod_exp(&tmp, g, &exp, q);
-    if (bn_cmp(&tmp, &BN_ONE) == 0) {
-      continue;  // Not a generator
-    }
-
-    // Test 2: If q-1 has other obvious small prime factors, you'd check them
-    // here. However, for the purpose of finding a 2n-th root of unity, if a
-    // base passes the check for the 2-power component, it will yield the
-    // correct primitive roots in bigntt_compute_roots.
-
-    found = true;
-    break;
-  }
-
-  bn_free_multi(&q_min_1, &exp, &tmp, NULL);
-  return found;
-}
-
-bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q)
-{
-  if (!is_pow_2(n)) {
-    return false;
-  }
-
-  bignum q_min_1, k, exp, g;
-  bn_init_multi(&q_min_1, &k, &exp, &g, NULL);
-
-  bn_sub(&q_min_1, q, &BN_ONE);
-  bool res = false;
-
-  // Ensure 2n evenly divides q-1
-  // (Fixing the logic check: if remainder is NOT 0, it's an error)
-  if (bn_mod_u64(&q_min_1, 2 * n) != 0) {
-    goto cleanup;
-  }
-
-  // k = (q-1) / 2n
-  if (!bn_divmod_u64(&k, &q_min_1, 2 * n)) {
-    goto cleanup;
-  }
-
-  // Step 1: Find a generator g mod q
-  if (!bigntt_find_generator(&g, q)) {
-    goto cleanup;
-  }
-
-  // Step 2: psi = g^k mod q  (where k = (q-1)/2n)
-  // By definition of a generator, this guarantees psi is a primitive 2n-th
-  // root.
-  bn_mod_exp(psi, &g, &k, q);
-
-  // Step 3: omega = psi^2 mod q (primitive n-th root)
-  bn_set_u64(&exp, 2);
-  bn_mod_exp(omega, psi, &exp, q);
-
-  res = true;
-
-cleanup:
-  bn_free_multi(&q_min_1, &k, &exp, &g, NULL);
-  return res;
 }

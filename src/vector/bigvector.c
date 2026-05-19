@@ -1,18 +1,21 @@
-
 #include "../../include/bigvector.h"
-
 #include <stdio.h>
 
-#include "../../include/bignum.h"
 void bigvector_init(bigvector* a, u64 d)
 {
   a->size = d;
-
+  a->capacity = d;
   a->data = malloc(d * sizeof(bignum));
 
   for (u64 i = 0; i < d; i++) {
     bn_init(&a->data[i]);
   }
+}
+
+void bigvector_init_dynamic(bigvector*a)
+{
+	bigvector_init(a, 0);
+	a->dynamic = true;
 }
 
 void bigvector_free(bigvector* a)
@@ -23,6 +26,43 @@ void bigvector_free(bigvector* a)
 
   free(a->data);
   a->size = 0;
+  a->capacity = 0;
+  a->dynamic = false;
+}
+
+
+
+void bigvector_append(bigvector *v, bignum *a)
+{
+	if (!v->dynamic){
+		perror("no appending on a static vector\n");
+		return;
+	}
+
+	if (v->size >= v->capacity) {
+		u64 new_cap = (v->capacity == 0) ? 4 : v->capacity * 2;
+		bignum* new_data = realloc(v->data, new_cap * sizeof(bignum));
+		
+		if (!new_data){
+			perror("memory allocation failed\n");
+			return;
+		}
+
+		v->data = new_data;
+
+		for (u64 i = v->capacity; i < new_cap; i++){
+			bn_init(&v->data[i]);
+		}
+
+		v->capacity = new_cap;
+
+	}
+
+	bn_copy(&v->data[v->size], a);
+	v->size++;
+
+	return;
+
 }
 
 void bigvector_set(bigvector* a, bignum* v, u64 i)
@@ -52,6 +92,9 @@ void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b)
 
 void bigvector_norm(bignum* r, const bigvector* a)
 {
+  if (a->dynamic){
+	  perror("Not possible for dynamic arrays\n");
+  }
   bignum temp;
   bn_init(&temp);
 
@@ -63,6 +106,9 @@ void bigvector_norm(bignum* r, const bigvector* a)
 
 void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
 {
+  if (a->dynamic){
+	  perror("Not possible for dynamic arrays\n");
+  }
   if (a->size != b->size) return;
   bignum temp;
   bn_init(&temp);
@@ -79,12 +125,12 @@ void bigvector_print(bigvector* a)
 {
   printf("[");
 
-  for (u64 i = 0; i < a->size - 1; i++) {
+  for (u64 i = 0; i < a->size; i++) {
     bn_print(&a->data[i]);
-    printf(", ");
-  }
 
-  bn_print(&a->data[a->size - 1]);
+	if (i + 1 < a->size)
+    	printf(", ");
+  }
 
   printf("]");
 }

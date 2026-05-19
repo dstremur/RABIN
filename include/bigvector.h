@@ -1,12 +1,13 @@
 
 #include "bignum.h"
 
-typedef struct {
-  bignum* data;
-  u64 size;
-} bigvector;
 
 void bigvector_init(bigvector* a, u64 d);
+void bigvector_init_dynamic(bigvector* a);
+
+// only for dynamic vectors
+void bigvector_append(bigvector* v, bignum* a);
+void bigvector_remove(bigvector* v, u64 index);
 
 void bigvector_set(bigvector* a, bignum* v, u64 i);
 void bigvector_free(bigvector* a);

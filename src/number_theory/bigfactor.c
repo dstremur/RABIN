@@ -1,6 +1,9 @@
 #include "../../include/bignum.h"
 #include "../../include/primes.h"
+#include "../../include/bigvector.h" 
 #include "stdio.h"
+
+// use randomized pollard rho
 bool bn_pollard_rho(bignum* f, const bignum* n)
 {
   if (bn_is_even(n)) {
@@ -8,22 +11,25 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
     return true;
   }
 
-  bignum a, b, d, tmp;
-  bn_init_multi(&a, &b, &d, &tmp, NULL);
-  bn_set_u64(&a, 2);
-  bn_set_u64(&b, 2);
+  bignum a, b, c, d, tmp;
+  bn_init_multi(&a, &b, &c, &d, &tmp, NULL);
+  bn_gen_random_range(&a, &BN_TWO, n);
+  bn_copy(&b, &a);
+
+  bn_gen_random_range(&c, &BN_ONE, n);
+
 
   for (u64 i = 0; i < 100000; i++) {
     bn_mul(&a, &a, &a);
-    bn_add_u64(&a, &a, 1);
+    bn_add(&a, &a, &c);
     bn_mod(&a, &a, n);
 
     bn_mul(&b, &b, &b);
-    bn_add_u64(&b, &b, 1);
+    bn_add(&b, &b, &c);
     bn_mod(&b, &b, n);
 
     bn_mul(&b, &b, &b);
-    bn_add_u64(&b, &b, 1);
+    bn_add(&b, &b, &c);
     bn_mod(&b, &b, n);
 
     if (bn_cmp(&a, &b) >= 0) {
@@ -37,18 +43,18 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
     bn_set_u64(&tmp, 1);
     if (bn_cmp(&tmp, &d) == -1 && bn_cmp(&d, n) == -1) {
       bn_copy(f, &d);
-      bn_free_multi(&a, &b, &d, &tmp, NULL);
+      bn_free_multi(&a, &b, &c, &d, &tmp, NULL);
       return true;
     }
 
     if (bn_cmp(&d, n) == 0) {
       printf("Fail\n");
-      bn_free_multi(&a, &b, &d, &tmp, NULL);
+      bn_free_multi(&a, &b, &c, &d, &tmp, NULL);
       return false;
     }
   }
 
-  bn_free_multi(&a, &b, &d, &tmp, NULL);
+  bn_free_multi(&a, &b, &c, &d, &tmp, NULL);
 
   return false;
 }
@@ -60,6 +66,52 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
 
  3. B = 100000, 10 rounds
 */
+void bn_factorize(bigvector* v, bignum* n)
+{	
+	if (bn_cmp(n, &BN_ONE) == 0 || bn_is_zero(n)) return;
+
+	if (bn_cmp(n, &BN_TWO) == 0) {
+		printf("factor 2\n");
+		bigvector_append(v, &BN_TWO);
+		return;
+	}
+
+	if (!bn_is_even(n) && bn_bpsw(n)){
+		bn_println(n);
+		bigvector_append(v, n);
+		return; 
+	}
+
+	bignum f, n1;
+	bn_init_multi(&f, &n1, NULL);
+
+	bn_pollard_rho(&f, n);
+
+	if (bn_is_zero(&f) ||
+    bn_cmp(&f, &BN_ONE) == 0 ||
+    bn_cmp(&f, n) == 0)
+{
+    fprintf(stderr, "pollard rho failed\n");
+		
+	bn_pollard_p_minus_one(&f, n);
+}
+
+	printf("f: ");
+	bn_println(&f);
+	bn_div(&n1, n, &f);
+
+	bn_factorize(v, &f);
+	bn_factorize(v, &n1);
+	
+	bn_free_multi(&f, &n1, NULL); 
+
+	
+
+}
+
+
+// completely factorize n using recursive applications of pollard_rho, and stores in array factors
+
 bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
 {
   bignum M, a, tmp, n_min1, q, ln_q, ln_n, l;
@@ -99,7 +151,7 @@ bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
     }
 
     // nmin1 = a - 1
-    bn_sub(&n_min1, &a, &M);
+    bn_sub(&n_min1, &a, &BN_ONE);
 
     bn_gcd(&tmp, &n_min1, n);
 
