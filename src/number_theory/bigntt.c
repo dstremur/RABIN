@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "../../include/bigvector.h"
 #include "../../include/u64.h"
 
 static inline bool is_pow_2(u64 n) { return n && !(n & (n - 1)); }
@@ -102,12 +103,82 @@ bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m)
   return success;
 }
 
-
-// find a generator g of Fp 
+// find a generator g of Fp
 void bn_find_gen_fp(bignum* g, bignum* p)
 {
+  bigvector factors;
+  bigvector_init_dynamic(&factors);
 
+  bignum a, b, exp, n_min_1;
+  bn_init_multi(&a, &b, &exp, &n_min_1);
+  bn_sub(&n_min_1, p, &BN_ONE);
 
+  bn_factorize(&factors, &n_min_1);
+
+start:
+  bn_gen_random_range(&a, &BN_TWO, &n_min_1);
+
+  for (u64 i = 0; i < factors.size; i++) {
+    bn_div(&exp, &n_min_1, &factors.data[i]);
+    bn_mod_exp(&b, &a, &exp, p);
+    if (bn_is_eq_i64(&b, 1)) {
+      goto start;
+    }
+  }
+
+  bn_copy(g, &a);
+
+  bn_free_multi(&a, &b, &exp, &n_min_1);
+  bigvector_free(&factors);
+}
+
+// Find a generator g for a Proth prime p = c * 2^k + 1
+void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
+{
+  bigvector factors;
+  bigvector_init_dynamic(&factors);
+
+  // 1. Add '2' to the prime factors list, since 2 always divides (p-1)
+  bignum bn_two;
+  bn_init(&bn_two);
+  bn_set_i64(&bn_two, 2);
+  bigvector_append(&factors, &bn_two);
+
+  // 2. Factorize only 'c' and append those factors
+  // If c is small (e.g., 1 or 3), this happens instantly.
+  bigvector c_factors;
+  bigvector_init_dynamic(&c_factors);
+  bn_factorize(&c_factors, c);
+
+  // 3. Setup the generator loop
+  bignum a, b, exp, n_min_1;
+  bn_init_multi(&a, &b, &exp, &n_min_1);
+  bn_sub(&n_min_1, p, &BN_ONE);
+
+  int is_generator = 0;
+  while (!is_generator) {
+    bn_gen_random_range(&a, &bn_two, &n_min_1);
+    is_generator = 1;
+
+    for (u64 i = 0; i < factors.size; i++) {
+      bn_div(&exp, &n_min_1, &factors.data[i]);
+
+      // Remember the critical fix from earlier: Use MODULAR exponentiation
+      bn_mod_exp(&b, &a, &exp, p);
+
+      if (bn_is_eq_i64(&b, 1)) {
+        is_generator = 0;
+        break;
+      }
+    }
+  }
+
+  bn_copy(g, &a);
+
+  // Cleanup
+  bn_free_multi(&a, &b, &exp, &n_min_1, &bn_two);
+  bigvector_free(&factors);
+  bigvector_free(&c_factors);
 }
 
 bool bigntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega,
@@ -277,7 +348,6 @@ bool bigntt_find_prime(bignum* q, u64 n, u64 bits)
 
   // q needs to be of the form
   // q = k * (2n) + 1
-
   u64 stride = 2 * n;
 
   bignum cand;

@@ -1,4 +1,5 @@
 #include "../../include/bigvector.h"
+
 #include <stdio.h>
 
 void bigvector_init(bigvector* a, u64 d)
@@ -12,10 +13,10 @@ void bigvector_init(bigvector* a, u64 d)
   }
 }
 
-void bigvector_init_dynamic(bigvector*a)
+void bigvector_init_dynamic(bigvector* a)
 {
-	bigvector_init(a, 0);
-	a->dynamic = true;
+  bigvector_init(a, 0);
+  a->dynamic = true;
 }
 
 void bigvector_free(bigvector* a)
@@ -30,39 +31,35 @@ void bigvector_free(bigvector* a)
   a->dynamic = false;
 }
 
-
-
-void bigvector_append(bigvector *v, bignum *a)
+void bigvector_append(bigvector* v, bignum* a)
 {
-	if (!v->dynamic){
-		perror("no appending on a static vector\n");
-		return;
-	}
+  if (!v->dynamic) {
+    perror("no appending on a static vector\n");
+    return;
+  }
 
-	if (v->size >= v->capacity) {
-		u64 new_cap = (v->capacity == 0) ? 4 : v->capacity * 2;
-		bignum* new_data = realloc(v->data, new_cap * sizeof(bignum));
-		
-		if (!new_data){
-			perror("memory allocation failed\n");
-			return;
-		}
+  if (v->size >= v->capacity) {
+    u64 new_cap = (v->capacity == 0) ? 4 : v->capacity * 2;
+    bignum* new_data = realloc(v->data, new_cap * sizeof(bignum));
 
-		v->data = new_data;
+    if (!new_data) {
+      perror("memory allocation failed\n");
+      return;
+    }
 
-		for (u64 i = v->capacity; i < new_cap; i++){
-			bn_init(&v->data[i]);
-		}
+    v->data = new_data;
 
-		v->capacity = new_cap;
+    for (u64 i = v->capacity; i < new_cap; i++) {
+      bn_init(&v->data[i]);
+    }
 
-	}
+    v->capacity = new_cap;
+  }
 
-	bn_copy(&v->data[v->size], a);
-	v->size++;
+  bn_copy(&v->data[v->size], a);
+  v->size++;
 
-	return;
-
+  return;
 }
 
 void bigvector_set(bigvector* a, bignum* v, u64 i)
@@ -92,8 +89,8 @@ void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b)
 
 void bigvector_norm(bignum* r, const bigvector* a)
 {
-  if (a->dynamic){
-	  perror("Not possible for dynamic arrays\n");
+  if (a->dynamic) {
+    perror("Not possible for dynamic arrays\n");
   }
   bignum temp;
   bn_init(&temp);
@@ -106,8 +103,8 @@ void bigvector_norm(bignum* r, const bigvector* a)
 
 void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
 {
-  if (a->dynamic){
-	  perror("Not possible for dynamic arrays\n");
+  if (a->dynamic) {
+    perror("Not possible for dynamic arrays\n");
   }
   if (a->size != b->size) return;
   bignum temp;
@@ -128,8 +125,7 @@ void bigvector_print(bigvector* a)
   for (u64 i = 0; i < a->size; i++) {
     bn_print(&a->data[i]);
 
-	if (i + 1 < a->size)
-    	printf(", ");
+    if (i + 1 < a->size) printf(", ");
   }
 
   printf("]");

@@ -179,6 +179,7 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
 bool bn_pollard_rho(bignum* f, const bignum* n);
 bool bn_pollard_p_minus_one(bignum* f, bignum* n);
 void bn_factorize(bigvector* v, bignum* n);
+bool trialdiv(bignum* n, u64 g);
 // bigprime.c
 bool bn_bpsw(const bignum* n);
 
@@ -203,6 +204,8 @@ void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
+
+void bn_find_gen_fp(bignum* g, bignum* p);
 
 void avxtest();
 

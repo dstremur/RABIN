@@ -159,7 +159,7 @@ cleanup:
 // Assumes sufficient trial division was done previously
 bool bn_bpsw(const bignum* n)
 {
-if (bn_is_even(n)) return false;
+  if (bn_is_even(n)) return false;
 
   // 1. run miller rabin base 2
   bignum two;
@@ -181,7 +181,7 @@ if (bn_is_even(n)) return false;
   // finds a D using Selfridges method A*
   while (1) {
     // check if n is perfect square after 5 rounds
-    if (rounds == 5 && bn_is_perfect_square(n)) {
+    if (rounds == 15 && bn_is_perfect_square(n)) {
       bn_free(&two);
       bn_free(&D);
       bn_free(&magnitude);
@@ -222,12 +222,6 @@ if (bn_is_even(n)) return false;
     bn_copy(&Q, &magnitude);
     bn_sub(&Q, &Q, &P);
     bn_divmod_u64(&Q, &Q, 4);
-    bn_sub(&Q, n, &Q);
-  }
-
-  if (bn_is_eq_i64(&D, 5)) {
-    bn_set_u64(&P, 5);
-    bn_set_u64(&Q, 5);
   }
 
   bool res = bn_stronglucas(n, &P, &Q);
@@ -238,20 +232,6 @@ if (bn_is_even(n)) return false;
   bn_free(&magnitude);
   bn_free(&two);
   return res;
-}
-
-bool trialdiv(bignum* n, u64 g)
-{
-  u64 i = 0;
-
-  while (i < 100000 && primes[i] < g) {
-    if (bn_mod_u64(n, primes[i]) == 0) {
-      return false;
-    }
-    i++;
-  }
-
-  return true;
 }
 
 // simple version for r = 1

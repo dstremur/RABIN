@@ -114,6 +114,11 @@ int main()
   bn_pow(&c, &a, &b);
   bn_println(&c);
 
+  bn_find_gen_fp(&c, &a);
+
+  printf("Generator of F_a: ");
+  bn_println(&c);
+
   bigvector v;
   bigvector_init_dynamic(&v);
 
@@ -205,11 +210,11 @@ int main()
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
 
-  printf("Generating 512-bit provable prime...\n");
-  bn_provable_prime(&my_prime, 512);
+//  printf("Generating 512-bit provable prime...\n");
+ //// bn_provable_prime(&my_prime, 512);
 
-  printf("Result: ");
-  bn_println(&my_prime);
+ // printf("Result: ");
+ // bn_println(&my_prime);
 
   // avxtest();
 

@@ -1,10 +1,39 @@
 #include "../../include/bignum.h"
+#include "../../include/bigvector.h"
 #include "../../include/primes.h"
-#include "../../include/bigvector.h" 
 #include "stdio.h"
 
+bool trialdiv(bignum* n, u64 g)
+{
+  u64 i = 0;
+
+  while (i < 50000 && primes[i] < g) {
+    if (bn_mod_u64(n, primes[i]) == 0) {
+      return false;
+    }
+    i++;
+  }
+
+  return true;
+}
+
+bool trialdiv_factor(bignum* f, bignum* n, u64 g)
+{
+  u64 i = 0;
+
+  while (i < 50000 && primes[i] < g) {
+    if (bn_mod_u64(n, primes[i]) == 0) {
+      bn_set_u64(f, primes[i]);
+      return false;
+    }
+    i++;
+  }
+
+  return true;
+}
+
 // use randomized pollard rho
-bool bn_pollard_rho(bignum* f, const bignum* n)
+bool bn_pollard_rho_inner(bignum* f, const bignum* n)
 {
   if (bn_is_even(n)) {
     bn_set_u64(f, 2);
@@ -13,11 +42,10 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
 
   bignum a, b, c, d, tmp;
   bn_init_multi(&a, &b, &c, &d, &tmp, NULL);
-  bn_gen_random_range(&a, &BN_TWO, n);
-  bn_copy(&b, &a);
 
-  bn_gen_random_range(&c, &BN_ONE, n);
-
+  bn_set_u64(&a, 2);
+  bn_set_u64(&b, 2);
+  bn_gen_random_range(&c, &BN_TWO, n);
 
   for (u64 i = 0; i < 100000; i++) {
     bn_mul(&a, &a, &a);
@@ -48,86 +76,159 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
     }
 
     if (bn_cmp(&d, n) == 0) {
-      printf("Fail\n");
       bn_free_multi(&a, &b, &c, &d, &tmp, NULL);
       return false;
     }
   }
-
   bn_free_multi(&a, &b, &c, &d, &tmp, NULL);
 
   return false;
 }
 
-/*
- 1. B = 1000, 3 rounds
-
- 2. B = 10000, 6 rounds
-
- 3. B = 100000, 10 rounds
-*/
-void bn_factorize(bigvector* v, bignum* n)
-{	
-	if (bn_cmp(n, &BN_ONE) == 0 || bn_is_zero(n)) return;
-
-	if (bn_cmp(n, &BN_TWO) == 0) {
-		printf("factor 2\n");
-		bigvector_append(v, &BN_TWO);
-		return;
-	}
-
-	if (!bn_is_even(n) && bn_bpsw(n)){
-		bn_println(n);
-		bigvector_append(v, n);
-		return; 
-	}
-
-	bignum f, n1;
-	bn_init_multi(&f, &n1, NULL);
-
-	bn_pollard_rho(&f, n);
-
-	if (bn_is_zero(&f) ||
-    bn_cmp(&f, &BN_ONE) == 0 ||
-    bn_cmp(&f, n) == 0)
+bool bn_pollard_rho(bignum* f, const bignum* n)
 {
-    fprintf(stderr, "pollard rho failed\n");
-		
-	bn_pollard_p_minus_one(&f, n);
+  if (bn_is_even(n)) {
+    bn_set_u64(f, 2);
+    return true;
+  }
+
+  // try several times
+  for (u64 i = 0; i < 64; i++) {
+    if (bn_pollard_rho_inner(f, n)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
-	printf("f: ");
-	bn_println(&f);
-	bn_div(&n1, n, &f);
+static void bigvector_append_distinct(bigvector* v, const bignum* f)
+{
+  // 1. Compare values deeply using bn_cmp (never compare raw struct memory
+  // blocks)
+  if (v->size > 0) {
+    if (bn_cmp(&v->data[v->size - 1], f) == 0) {
+      return;  // Element matches the last factor found, exit out to stay
+               // distinct
+    }
+  }
 
-	bn_factorize(v, &f);
-	bn_factorize(v, &n1);
-	
-	bn_free_multi(&f, &n1, NULL); 
-
-	
-
+  // 2. Safely hand off to your append function, which executes its own safe
+  // bn_copy
+  bigvector_append(v, (bignum*)f);
 }
 
+// completely factorize n using recursive applications of pollard_rho, and
+// stores in array factors
+void bn_factorize(bigvector* v, bignum* n)
+{
+  if (bn_cmp(n, &BN_ONE) == 0 || bn_is_zero(n)) {
+    return;
+  }
 
-// completely factorize n using recursive applications of pollard_rho, and stores in array factors
+  if (bn_is_eq_i64(n, 2) || bn_is_eq_i64(n, 3)) {
+    bigvector_append_distinct(v, n);
+    return;
+  }
+
+  if (bn_bpsw(n)) {
+    bigvector_append_distinct(v, n);
+    return;
+  }
+
+  bignum tmp, f, n1, rem;
+  bn_init_multi(&tmp, &f, &n1, &rem, NULL);
+  bn_copy(&tmp, n);
+
+  // even case
+  if (bn_is_even(&tmp)) {
+    bn_set_u64(&f, 2);
+    bigvector_append_distinct(v, &f);
+
+    while (bn_is_even(&tmp)) {
+      bn_div(&tmp, &tmp, &f);
+    }
+
+    bn_factorize(v, &tmp);
+    goto cleanup;
+  }
+
+  // first trialdiv
+  if (!trialdiv_factor(&f, &tmp, 10000)) {
+    bigvector_append_distinct(v, &f);
+
+    bn_div(&tmp, &tmp, &f);
+    bn_mod(&rem, &tmp, &f);
+    while (bn_is_zero(&rem)) {
+      bn_div(&tmp, &tmp, &f);
+      bn_mod(&rem, &tmp, &f);
+    }
+
+    bn_factorize(v, &tmp);
+    goto cleanup;
+  }
+
+  bool res = false;
+
+  // pollard rho
+  for (u64 i = 0; i < 16 && !res; i++) {
+    if (bn_pollard_rho(&f, &tmp)) {
+      res = true;
+    }
+  }
+
+  // p - 1
+  if (!res) {
+    printf("trying p-1 \n");
+    if (bn_pollard_p_minus_one(&f, &tmp)) {
+      res = true;
+    }
+  }
+
+  if (!res) {
+    printf("failed to split composite branch completely!\n");
+    goto cleanup;
+  }
+
+  bn_println(&f);
+
+  if (trialdiv(&f, 10000) && (&f)) {
+    bigvector_append_distinct(v, &f);
+
+    bn_div(&tmp, &tmp, &f);
+    bn_mod(&rem, &tmp, &f);
+    while (bn_is_zero(&rem)) {
+      bn_div(&tmp, &tmp, &f);
+      bn_mod(&rem, &tmp, &f);
+    }
+
+    bn_factorize(v, &tmp);
+  } else {
+    bn_div(&n1, &tmp, &f);
+    bn_factorize(v, &f);
+    bn_factorize(v, &n1);
+  }
+
+cleanup:
+  bn_free_multi(&tmp, &f, &n1, &rem, NULL);
+}
 
 bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
 {
-  bignum M, a, tmp, n_min1, q, ln_q, ln_n, l;
-  bn_init_multi(&M, &a, &tmp, &n_min1, &q, &ln_q, &ln_n, &l, NULL);
+  bignum M, a, tmp, n_min1, a_min_1, q, ln_q, ln_n, l;
+  bn_init_multi(&M, &a, &tmp, &n_min1, &a_min_1, &q, &ln_q, &ln_n, &l, NULL);
 
   bool res = false;
   bn_sub(&n_min1, n, &BN_ONE);
 
   for (u64 attempt = 0; attempt < iterations; attempt++) {
     // set a to random number in 2 <= a <= a - 1
-    bn_gen_random_range(&a, &tmp, &n_min1);
+    bn_gen_random_range(&a, &BN_TWO, &n_min1);
 
     bn_gcd(&tmp, &a, n);
 
     // if gcd(a,n) >= 2 found a factor
-    if (bn_cmp(&tmp, &BN_ONE) > 0) {
+    if (bn_cmp(&tmp, &BN_ONE) > 0 && bn_cmp(&tmp, n) < 0) {
       bn_copy(f, &tmp);
       res = true;
       goto cleanup;
@@ -151,9 +252,9 @@ bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
     }
 
     // nmin1 = a - 1
-    bn_sub(&n_min1, &a, &BN_ONE);
+    bn_sub(&a_min_1, &a, &BN_ONE);
 
-    bn_gcd(&tmp, &n_min1, n);
+    bn_gcd(&tmp, &a_min_1, n);
 
     if (bn_cmp(&tmp, &BN_ONE) > 0 && bn_cmp(&tmp, n) < 0) {
       bn_copy(f, &tmp);
@@ -163,9 +264,17 @@ bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
   }
 
 cleanup:
-  bn_free_multi(&M, &a, &tmp, &n_min1, &q, &ln_q, &ln_n, &l, NULL);
+  bn_free_multi(&M, &a, &tmp, &n_min1, &a_min_1, &q, &ln_q, &ln_n, &l, NULL);
   return res;
 }
+
+/*
+ 1. B = 1000, 3 rounds
+
+ 2. B = 10000, 6 rounds
+
+ 3. B = 100000, 10 rounds
+*/
 
 bool bn_pollard_p_minus_one(bignum* f, bignum* n)
 {
@@ -177,5 +286,5 @@ bool bn_pollard_p_minus_one(bignum* f, bignum* n)
     return true;
   }
 
-  return bn_pollard_p_minus_one_stage_1(f, n, 100000, 100);
+  return bn_pollard_p_minus_one_stage_1(f, n, 50000, 100);
 }
