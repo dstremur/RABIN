@@ -61,6 +61,8 @@ typedef struct {
 
 
 
+
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 #define MIN(a, b) ((a) < (b) ? (a) : (b));
 
@@ -206,6 +208,8 @@ void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
 
 void bn_find_gen_fp(bignum* g, bignum* p);
+void bn_find_gen_proth(bignum* g, bignum* p, bignum* c);
+void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k, u64 c);
 
 void avxtest();
 

@@ -5,7 +5,8 @@
 #include "bigpoly.h"
 
 typedef struct {
-    u64 n;                  // length must be power of 2
+    u64 k;
+    u64 n;                  // n = 2^k
     bignum q;               // prime modulus
     bignum n_inv;           // n^-1 mod q 
     
@@ -20,7 +21,7 @@ typedef struct {
     // Bit-reversal permutation array to avoid recomputing indices
     u64* bit_rev_indices;   
 } ntt_ctx;
-
+bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c);
 bool bigntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega, const bignum* psi);
 
 bool bigntt_find_prime(bignum* q, u64 n, u64 bits);

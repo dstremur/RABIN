@@ -190,7 +190,7 @@ void bn_factorize(bigvector* v, bignum* n)
     goto cleanup;
   }
 
-  bn_println(&f);
+  // bn_println(&f);
 
   if (trialdiv(&f, 10000) && (&f)) {
     bigvector_append_distinct(v, &f);

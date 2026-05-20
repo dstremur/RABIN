@@ -103,23 +103,18 @@ bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m)
   return success;
 }
 
-// find a generator g of Fp
-void bn_find_gen_fp(bignum* g, bignum* p)
+// finds a generator g of Fp given the factorization of p - 1
+void bn_find_gen(bignum* g, bignum* p, bigvector* factors)
 {
-  bigvector factors;
-  bigvector_init_dynamic(&factors);
-
   bignum a, b, exp, n_min_1;
-  bn_init_multi(&a, &b, &exp, &n_min_1);
+  bn_init_multi(&a, &b, &exp, &n_min_1, NULL);
   bn_sub(&n_min_1, p, &BN_ONE);
-
-  bn_factorize(&factors, &n_min_1);
 
 start:
   bn_gen_random_range(&a, &BN_TWO, &n_min_1);
 
-  for (u64 i = 0; i < factors.size; i++) {
-    bn_div(&exp, &n_min_1, &factors.data[i]);
+  for (u64 i = 0; i < factors->size; i++) {
+    bn_div(&exp, &n_min_1, &factors->data[i]);
     bn_mod_exp(&b, &a, &exp, p);
     if (bn_is_eq_i64(&b, 1)) {
       goto start;
@@ -128,8 +123,25 @@ start:
 
   bn_copy(g, &a);
 
-  bn_free_multi(&a, &b, &exp, &n_min_1);
+  bn_free_multi(&a, &b, &exp, &n_min_1, NULL);
+}
+
+// find a generator g of Fp
+void bn_find_gen_fp(bignum* g, bignum* p)
+{
+  bigvector factors;
+  bigvector_init_dynamic(&factors);
+
+  bignum n_min_1;
+  bn_init_multi(&n_min_1, NULL);
+  bn_sub(&n_min_1, p, &BN_ONE);
+
+  bn_factorize(&factors, &n_min_1);
+
+  bn_find_gen(g, p, &factors);
+
   bigvector_free(&factors);
+  bn_free_multi(&n_min_1, NULL);
 }
 
 // Find a generator g for a Proth prime p = c * 2^k + 1
@@ -138,47 +150,196 @@ void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
   bigvector factors;
   bigvector_init_dynamic(&factors);
 
-  // 1. Add '2' to the prime factors list, since 2 always divides (p-1)
-  bignum bn_two;
-  bn_init(&bn_two);
-  bn_set_i64(&bn_two, 2);
-  bigvector_append(&factors, &bn_two);
+  // 2 is always a prime factor
+  bigvector_append(&factors, &BN_TWO);
 
-  // 2. Factorize only 'c' and append those factors
-  // If c is small (e.g., 1 or 3), this happens instantly.
-  bigvector c_factors;
-  bigvector_init_dynamic(&c_factors);
-  bn_factorize(&c_factors, c);
+  // factorize c
+  bn_factorize(&factors, c);
 
-  // 3. Setup the generator loop
-  bignum a, b, exp, n_min_1;
-  bn_init_multi(&a, &b, &exp, &n_min_1);
-  bn_sub(&n_min_1, p, &BN_ONE);
+  printf("p - 1 factors ");
+  bigvector_println(&factors);
 
-  int is_generator = 0;
-  while (!is_generator) {
-    bn_gen_random_range(&a, &bn_two, &n_min_1);
-    is_generator = 1;
+  // find a generator
+  bn_find_gen(g, p, &factors);
 
-    for (u64 i = 0; i < factors.size; i++) {
-      bn_div(&exp, &n_min_1, &factors.data[i]);
+  bigvector_free(&factors);
+}
 
-      // Remember the critical fix from earlier: Use MODULAR exponentiation
-      bn_mod_exp(&b, &a, &exp, p);
+void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
+                      u64 c)
+{
+  bignum p_bn, c_bn, two_k;
+  bn_init_multi(&p_bn, &c_bn, &two_k, NULL);
 
-      if (bn_is_eq_i64(&b, 1)) {
-        is_generator = 0;
-        break;
-      }
+  // calc 2^k
+  bn_lshift(&two_k, &BN_ONE, k);
+
+  // make c odd
+  u64 curr_c = (c & 1) ? c : c + 1;
+
+  while (1) {
+    // p = curr_c * 2^k
+    bn_set_u64(&c_bn, curr_c);
+    bn_mul(&p_bn, &two_k, &c_bn);
+
+    // p = p + 1
+    bn_add(&p_bn, &p_bn, &BN_ONE);
+
+    if (bn_bpsw(&p_bn)) {
+      break;
     }
+
+    curr_c += 2;
   }
 
-  bn_copy(g, &a);
+  // copy prime
+  bn_copy(p, &p_bn);
 
-  // Cleanup
-  bn_free_multi(&a, &b, &exp, &n_min_1, &bn_two);
+  // factorize p - 1 = c * 2^k
+  bigvector factors;
+  bigvector_init_dynamic(&factors);
+
+  // 2 always divides p - 1
+  bigvector_append(&factors, &BN_TWO);
+
+  // factorize c
+  bn_factorize(&factors, &c_bn);
+
+  bigvector_println(&factors);
+
+  // now find a generator
+  bn_find_gen(g, &p_bn, &factors);
+
+  // psi = g^c mod p
+  bn_mod_exp(psi, g, &c_bn, p);
+
+  // omega = psi^2 mod p
+  bn_mul(&two_k, psi, psi);
+  bn_mod(omega, &two_k, p);
+
+  bn_free_multi(&p_bn, &c_bn, &two_k, NULL);
   bigvector_free(&factors);
-  bigvector_free(&c_factors);
+}
+
+bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
+{
+  bignum p, g, omega, psi, tmp;
+  bn_init_multi(&p, &g, &omega, &psi, &tmp, NULL);
+
+  bn_gen_proth_ntt(&g, &p, &omega, &psi, k + 1, c);
+
+  u64 n = (1ULL << k);
+  ctx->k = k;
+  ctx->n = n;
+  bn_copy(&ctx->q, &p);
+
+  ctx->omega_powers = NULL;
+  ctx->omega_inv_powers = NULL;
+  ctx->psi_powers = NULL;
+  ctx->psi_inv_powers = NULL;
+  ctx->bit_rev_indices = NULL;
+  bn_init(&ctx->n_inv);
+
+  ctx->omega_powers = malloc(sizeof(bignum) * n);
+  ctx->omega_inv_powers = malloc(sizeof(bignum) * n);
+  ctx->bit_rev_indices = malloc(sizeof(u64) * n);
+
+  for (u64 i = 0; i < n; i++) {
+    bn_init(&ctx->omega_powers[i]);
+    bn_init(&ctx->omega_inv_powers[i]);
+  }
+
+  // precompute w^i mod q
+  bn_set_u64(&ctx->omega_powers[0], 1);
+
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1], &omega);
+    bn_mod(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->q);
+  }
+
+  bignum omega_inv;
+  bn_init(&omega_inv);
+  if (!bn_mod_inverse(&omega_inv, &omega, &ctx->q)) {
+    bn_free(&omega_inv);
+    goto fail;
+  }
+
+  bn_set_u64(&ctx->omega_inv_powers[0], 1);
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i - 1],
+           &omega_inv);
+    bn_mod(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i], &ctx->q);
+  }
+
+  bn_free(&omega_inv);
+
+  ctx->psi_powers = malloc(sizeof(bignum) * n);
+  ctx->psi_inv_powers = malloc(sizeof(bignum) * n);
+  if (!ctx->psi_powers || !ctx->psi_inv_powers) {
+    goto fail;
+  }
+
+  for (u64 i = 0; i < n; i++) {
+    bn_init(&ctx->psi_powers[i]);
+    bn_init(&ctx->psi_inv_powers[i]);
+  }
+
+  // compute psi^i mod q
+  bn_set_u64(&ctx->psi_powers[0], 1);
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], &psi);
+    bn_mod(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->q);
+  }
+
+  bignum psi_inv;
+  bn_init(&psi_inv);
+  if (!bn_mod_inverse(&psi_inv, &psi, &ctx->q)) {
+    bn_free(&psi_inv);
+    goto fail;
+  }
+
+  bn_set_u64(&ctx->psi_inv_powers[0], 1);
+  for (u64 i = 1; i < n; i++) {
+    bn_mul(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i - 1], &psi_inv);
+    bn_mod(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i], &ctx->q);
+  }
+
+  bn_free(&psi_inv);
+
+  // 6. Compute n_inv = n^-1 mod q
+  bignum bn_n;
+  bn_init(&bn_n);
+  bn_set_u64(&bn_n, n);
+  if (!bn_mod_inverse(&ctx->n_inv, &bn_n, &ctx->q)) {
+    bn_free(&bn_n);
+    goto fail;
+  }
+  bn_free(&bn_n);
+
+  // 7. Precompute Bit-Reversal Permutation Indices
+  u64 bits = 0;
+  while (((u64)1 << bits) < n) {
+    bits++;
+  }
+
+  for (u64 i = 0; i < n; i++) {
+    u64 rev = 0;
+    u64 temp = i;
+    for (u64 j = 0; j < bits; j++) {
+      rev = (rev << 1) | (temp & 1);
+      temp >>= 1;
+    }
+    ctx->bit_rev_indices[i] = rev;
+  }
+
+  bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
+
+  return true;
+
+fail:
+  bigntt_ctx_free(ctx);
+  bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
+  return false;
 }
 
 bool bigntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega,

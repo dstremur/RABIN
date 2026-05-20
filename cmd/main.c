@@ -114,11 +114,13 @@ int main()
   bn_pow(&c, &a, &b);
   bn_println(&c);
 
-  bn_find_gen_fp(&c, &a);
-
-  printf("Generator of F_a: ");
+  bn_gen_proth_ntt(&c, &psi, &c, &c, 20, 10000);
+  printf("proth prime: ");
+  bn_println(&psi);
+  printf("proth generator: ");
   bn_println(&c);
 
+  printf("factorize a: ");
   bigvector v;
   bigvector_init_dynamic(&v);
 
@@ -136,7 +138,8 @@ int main()
   bn_init_val(&psi, "11353340290879379826");
   ntt_ctx ctx;
 
-  bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
+  //bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
+  bigntt_ctx_init_simple(&ctx, 25, 10001);
   bigntt_ctx_print_debug(&ctx);
 
   bn_free(&n1);
