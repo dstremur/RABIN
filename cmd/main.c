@@ -114,6 +114,8 @@ int main()
   bn_pow(&c, &a, &b);
   bn_println(&c);
 
+  bigpoly_test();
+
   bn_gen_proth_ntt(&c, &psi, &c, &c, 20, 10000);
   printf("proth prime: ");
   bn_println(&psi);
@@ -128,7 +130,6 @@ int main()
 
   bigvector_println(&v);
   bigvector_free(&v);
-
 
   bignum n1;
   bn_init(&n1);

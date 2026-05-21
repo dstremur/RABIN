@@ -33,6 +33,8 @@ void bigntt_ctx_free(ntt_ctx* ctx);
 // forward NTT using Cooley-Tukey butterflies
 // input in normal order, output in bit-reversed order
 void bigntt_forward(bigpoly* out_hat, const bigpoly* in, const ntt_ctx* ctx);
+void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
+void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 
 // inverse NTT using Gentleman-Sande (GS) butterflies
 // input in bit-reversed order, output in normal order
@@ -47,6 +49,5 @@ void bigpoly_conv_cyclic_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b, con
 void bigpoly_conv_negacyclic_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b, const ntt_ctx* ctx);
 
 // Standard fast polynomial multiplication.
-void bigpoly_mul_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b, const bignum* q);
 
 #endif 

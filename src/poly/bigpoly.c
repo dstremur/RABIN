@@ -3,6 +3,8 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+#include "../../include/bigntt.h"
+
 void bigpoly_init(bigpoly* p)
 {
   p->coeff = NULL;
@@ -33,6 +35,13 @@ void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
 
   p->deg = deg;
   bigpoly_trim(p);
+}
+
+void bigpoly_copy(bigpoly* p, bigpoly* q)
+{
+  for (u64 i = 0; i < q->deg; i++) {
+    bn_copy(&p->coeff[i], &q->coeff[i]);
+  }
 }
 
 // Frees the polynomial struct
@@ -137,6 +146,52 @@ void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
   r->deg = max;
   bigpoly_trim(r);
 }
+
+void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q)
+{
+  u64 max = MAX(p->deg, q->deg);
+
+  bigpoly_alloc(r, max);
+
+  for (u64 i = 0; i <= max; i++) {
+    bn_mul(&r->coeff[i], &p->coeff[i], &q->coeff[i]);
+  }
+
+  r->deg = max;
+}
+
+void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
+{
+  ntt_ctx ctx;
+
+  u64 required_len = p->deg + q->deg + 1;
+  u64 ntt_size = 1;
+  while (ntt_size < required_len) {
+    ntt_size <<= 1;
+  }
+
+  bigntt_ctx_init_simple(&ctx, ntt_size, 324232);
+
+  bigpoly p_hat, q_hat;
+  bigpoly_init(&p_hat);
+  bigpoly_init(&q_hat);
+
+  bigntt_cyclic_forward(&p_hat, p, &ctx);
+  bigntt_cyclic_forward(&q_hat, q, &ctx);
+
+  bigpoly_mul_digit(r, &p_hat, &q_hat);
+
+  bigntt_cyclic_inverse(r, r, &ctx);
+
+  r->deg = p->deg + q->deg;
+  bigpoly_trim(r);
+
+  bigpoly_free(&p_hat);
+  bigpoly_free(&q_hat);
+
+  bigntt_ctx_free(&ctx);
+}
+
 // multiplies two polynomials
 void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -209,6 +264,12 @@ void bigpoly_test()
   // Test Multiplication: r = p * q = 8x^3 + 22x^2 + 19x + 5
   printf("\n--- Test: Multiplication (P * Q) ---\n");
   bigpoly_mul_school(&r, &p, &q);
+  bigpoly_print(&r);
+
+  bigpoly_free(&r);
+  bigpoly_init(&r);
+
+  bigpoly_mul_ntt(&r, &p, &q);
   bigpoly_print(&r);
 
   // Cleanup

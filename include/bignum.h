@@ -132,7 +132,7 @@ void bn_mod(bignum* r, const bignum* a, const bignum* n);
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
 uint64_t mod_inverse_u64(uint64_t n);
 uint64_t bn_mod_u64(const bignum* a, uint64_t d);
-
+bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m);
 // bigexp.c
 void bn_pow(bignum* r, const bignum* a, const bignum* b);
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
