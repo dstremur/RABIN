@@ -39,7 +39,7 @@ void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
 
 void bigpoly_copy(bigpoly* p, bigpoly* q)
 {
-  for (u64 i = 0; i < q->deg; i++) {
+  for (u64 i = 0; i <= q->deg; i++) {
     bn_copy(&p->coeff[i], &q->coeff[i]);
   }
 }
@@ -166,11 +166,15 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 
   u64 required_len = p->deg + q->deg + 1;
   u64 ntt_size = 1;
+  u64 k = 0;
   while (ntt_size < required_len) {
     ntt_size <<= 1;
+	k++;
   }
 
-  bigntt_ctx_init_simple(&ctx, ntt_size, 324232);
+  
+
+  bigntt_ctx_init_simple(&ctx, 6, 1232);
 
   bigpoly p_hat, q_hat;
   bigpoly_init(&p_hat);
@@ -241,6 +245,7 @@ void bigpoly_test()
   bigpoly_init(&p);
   bigpoly_init(&q);
   bigpoly_init(&r);
+
 
   // Let p(x) = 2x^2 + 3x + 1
   i64 p_vals[] = {1, 3, 2};

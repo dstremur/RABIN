@@ -296,7 +296,7 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   // copy and reverse bits
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
-    if (i <= a->deg) {
+      if (i <= a->deg) {
       bn_copy(&res.coeff[rev], &a->coeff[i]);
     } else {
       bn_set_u64(&res.coeff[rev], 0);
@@ -332,8 +332,8 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
         bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         // res[odd] = (u - t) mod q
-        bn_add(&res.coeff[odd], &u, &ctx->q);
-        bn_sub(&res.coeff[odd], &res.coeff[odd], &t);
+		bn_sub(&res.coeff[odd], &u, &t);
+        bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
       }
     }
@@ -351,6 +351,8 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
     bn_copy(&a_hat->coeff[i], &res.coeff[i]);
   }
 
+  a_hat->deg = n - 1;
+
   bigpoly_free(&res);
 }
 
@@ -364,7 +366,7 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   // copy and reverse bits
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
-    if (i <= a->deg) {
+      if (i <= a->deg) {
       bn_copy(&res.coeff[rev], &a->coeff[i]);
     } else {
       bn_set_u64(&res.coeff[rev], 0);
@@ -400,8 +402,8 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
         bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         // res[odd] = (u - t) mod q
-        bn_add(&res.coeff[odd], &u, &ctx->q);
-        bn_sub(&res.coeff[odd], &res.coeff[odd], &t);
+		bn_sub(&res.coeff[odd], &u, &t);
+        bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
       }
     }
@@ -423,6 +425,8 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
     bn_copy(&a_hat->coeff[i], &res.coeff[i]);
   }
   // bigpoly_copy(a_hat, &res);
+
+  a_hat->deg = n - 1;
 
   bigpoly_free(&res);
 }

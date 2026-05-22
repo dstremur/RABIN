@@ -49,11 +49,14 @@ int main(void)
     bn_set_u64(&a.coeff[i], i);
   }
 
+
   printf("\n--- Step 3: Original Input Polynomial (a) ---\n");
   for (u64 i = 0; i < n; i++) {
     printf("a[%llu] = ", (unsigned long long)i);
     bn_println(&a.coeff[i]);
   }
+
+  a.deg = n - 1;
 
   // --- Step 4: Execute Forward NTT ---
   printf("\n--- Step 4: Running Forward NTT ---\n");
