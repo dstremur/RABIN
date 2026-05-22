@@ -19,7 +19,7 @@ int main(void)
   
   // k = 3 implies n = 8. c = 1.
   // This will cleanly pick the Proth Prime q = 17 (1 * 2^4 + 1)
-  u64 k = 8;
+  u64 k = 4;
   u64 c = 2738;
   u64 n = 1ULL << k;
 
