@@ -47,7 +47,7 @@ bool bn_pollard_rho_inner(bignum* f, const bignum* n)
   bn_set_u64(&b, 2);
   bn_gen_random_range(&c, &BN_TWO, n);
 
-  for (u64 i = 0; i < 100000; i++) {
+  for (u64 i = 0; i < 1000000; i++) {
     bn_mul(&a, &a, &a);
     bn_add(&a, &a, &c);
     bn_mod(&a, &a, n);
@@ -278,7 +278,7 @@ cleanup:
 
 bool bn_pollard_p_minus_one(bignum* f, bignum* n)
 {
-  if (bn_pollard_p_minus_one_stage_1(f, n, 1000, 1000)) {
+  if (bn_pollard_p_minus_one_stage_1(f, n, 10000, 1000)) {
     return true;
   }
 
@@ -286,5 +286,5 @@ bool bn_pollard_p_minus_one(bignum* f, bignum* n)
     return true;
   }
 
-  return bn_pollard_p_minus_one_stage_1(f, n, 50000, 100);
+  return bn_pollard_p_minus_one_stage_1(f, n, 70000, 100);
 }

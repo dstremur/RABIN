@@ -61,7 +61,7 @@ void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
   bn_factorize(&factors, c);
 
   printf("p - 1 factors ");
-  bigvector_println(&factors);
+  // bigvector_println(&factors);
 
   // find a generator
   bn_find_gen(g, p, &factors);
@@ -109,7 +109,7 @@ void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
   // factorize c
   bn_factorize(&factors, &c_bn);
 
-  bigvector_println(&factors);
+  // bigvector_println(&factors);
 
   // now find a generator
   bn_find_gen(g, &p_bn, &factors);
@@ -296,7 +296,7 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   // copy and reverse bits
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
-      if (i <= a->deg) {
+    if (i <= a->deg) {
       bn_copy(&res.coeff[rev], &a->coeff[i]);
     } else {
       bn_set_u64(&res.coeff[rev], 0);
@@ -332,7 +332,7 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
         bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         // res[odd] = (u - t) mod q
-		bn_sub(&res.coeff[odd], &u, &t);
+        bn_sub(&res.coeff[odd], &u, &t);
         bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
       }
@@ -366,7 +366,7 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   // copy and reverse bits
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
-      if (i <= a->deg) {
+    if (i <= a->deg) {
       bn_copy(&res.coeff[rev], &a->coeff[i]);
     } else {
       bn_set_u64(&res.coeff[rev], 0);
@@ -402,7 +402,7 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
         bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         // res[odd] = (u - t) mod q
-		bn_sub(&res.coeff[odd], &u, &t);
+        bn_sub(&res.coeff[odd], &u, &t);
         bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
       }

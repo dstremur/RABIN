@@ -1,27 +1,27 @@
 #include "../include/bigvector.h"
 
+int main()
+{
+  bn_init_constants();
 
-int main() {
-	bn_init_constants();	
+  bigvector a;
 
-	bigvector a; 
+  bigvector_init_dynamic(&a);
 
-	bigvector_init_dynamic(&a);
+  bigvector_println(&a);
 
-	bigvector_println(&a);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
+  bigvector_append(&a, &BN_ONE);
 
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
-	bigvector_append(&a, &BN_ONE);
+  bigvector_println(&a);
 
-	bigvector_println(&a);
+  bigvector_free(&a);
 
-	bigvector_free(&a);
-
-	bn_free_constants();
+  bn_free_constants();
 }

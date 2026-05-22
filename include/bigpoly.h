@@ -19,6 +19,7 @@ void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_free(bigpoly* p);
 void bigpoly_copy(bigpoly* p, bigpoly* q);
+bool bigpoly_equal(bigpoly *a, bigpoly *b);
 
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q);
 

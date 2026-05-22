@@ -1,29 +1,29 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
 #include "../include/bignum.h"
 // Adjust these include paths to match your project structure
 #include "../include/bigntt.h"
-#include "../include/bigpoly.h" 
+#include "../include/bigpoly.h"
 #include "../include/u64.h"
 
-
-// Note: Replace 'bn_println' below with whatever printing function 
+// Note: Replace 'bn_println' below with whatever printing function
 // your custom bignum library exposes (e.g., bn_print, bn_dump, etc.)
 
 int main(void)
 {
-    bn_init_constants();
+  bn_init_constants();
   ntt_ctx ctx;
-  
-  
+
   // k = 3 implies n = 8. c = 1.
   // This will cleanly pick the Proth Prime q = 17 (1 * 2^4 + 1)
   u64 k = 4;
   u64 c = 2738;
   u64 n = 1ULL << k;
 
-  printf("--- Step 1: Initializing NTT Context for n = %llu ---\n", (unsigned long long)n);
+  printf("--- Step 1: Initializing NTT Context for n = %llu ---\n",
+         (unsigned long long)n);
   if (!bigntt_ctx_init_simple(&ctx, k, c)) {
     printf("ERROR: Failed to initialize NTT context.\n");
     return 1;
@@ -31,9 +31,9 @@ int main(void)
 
   printf("Context generated successfully!\n");
   printf("Modulus q = ");
-  bn_println(&ctx.q); 
+  bn_println(&ctx.q);
   printf("Principal root omega = ");
-  bn_println(&ctx.omega_powers[1]); // omega^1
+  bn_println(&ctx.omega_powers[1]);  // omega^1
 
   // --- Step 2: Initialize Test Polynomials ---
   bigpoly a, a_hat, a_res;
@@ -48,7 +48,6 @@ int main(void)
   for (u64 i = 0; i < n; i++) {
     bn_set_u64(&a.coeff[i], i);
   }
-
 
   printf("\n--- Step 3: Original Input Polynomial (a) ---\n");
   for (u64 i = 0; i < n; i++) {
@@ -77,15 +76,13 @@ int main(void)
   for (u64 i = 0; i < n; i++) {
     printf("a_res[%llu] = ", (unsigned long long)i);
     bn_println(&a_res.coeff[i]);
-
   }
-
 
   bigpoly_free(&a);
   bigpoly_free(&a_hat);
   bigpoly_free(&a_res);
   bigntt_ctx_free(&ctx);
   bn_free_constants();
-	
+
   return 0;
 }

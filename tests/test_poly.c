@@ -1,38 +1,120 @@
-#include "../include/bignum.h" 
-#include "../include/bigpoly.h" 
+#include <stdio.h>
+#include <time.h>
 
+#include "../include/bignum.h"
+#include "../include/bigpoly.h"
+#define ITERATIONS 100
+#define POLY_SIZE 512
 
-int main() 
+void benchmark_mul(u64 n)
 {
-	u64 n = 10;
-	bigpoly a, b, r;
-	bigpoly_init(&a);
-	bigpoly_init(&b);
-	bigpoly_init(&r);
-	bigpoly_alloc(&a, n);
-	bigpoly_alloc(&b, n);
-	a.deg = b.deg = n - 1;
-	bigpoly_alloc(&r, n);
+  bigpoly a, b, r_std, r_ntt;
+  bigpoly_init(&a);
+  bigpoly_init(&b);
+  bigpoly_init(&r_std);
+  bigpoly_init(&r_ntt);
 
-	bignum* C = malloc(sizeof(bignum) * n); 
+  bigpoly_alloc(&a, n);
+  bigpoly_alloc(&b, n);
+  a.deg = b.deg = n - 1;
 
-	for (u64 i = 0; i < n; i++) {
-		bn_init(&C[i]);
-		bn_set_u64(&C[i], i); 
-	}
+  // Initialize coefficients
+  bignum* C = malloc(sizeof(bignum) * n);
+  for (u64 i = 0; i < n; i++) {
+    bn_init(&C[i]);
+    bn_set_u64(&C[i], i + 1);  // Avoid all zeros
+  }
+  bigpoly_set(&a, C, n - 1);
+  bigpoly_set(&b, C, n - 1);
 
-	bigpoly_set(&a, C, n - 1); 
-	bigpoly_set(&b, C, n - 1); 
+  printf("--- Benchmarking Polynomial Multiplication (N = %llu) ---\n", n);
 
-	bigpoly_print(&a);
-	bigpoly_print(&b);
+  // 1. Standard Multiplication Timing
+  clock_t start_std = clock();
+  for (int i = 0; i < ITERATIONS; i++) {
+    bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
+  }
+  clock_t end_std = clock();
+  double time_std = (double)(end_std - start_std) / CLOCKS_PER_SEC;
 
-	bigpoly_mul_ntt(&r, &a, &b);
-	bigpoly_print(&r);
+  // 2. NTT Multiplication Timing
+  clock_t start_ntt = clock();
+  for (int i = 0; i < ITERATIONS; i++) {
+    bigpoly_mul_ntt(&r_ntt, &a, &b);  // NTT O(N log N)
+  }
+  clock_t end_ntt = clock();
+  double time_ntt = (double)(end_ntt - start_ntt) / CLOCKS_PER_SEC;
 
-	for (u64 i = 0; i < n; i++) {
-		bn_free(&C[i]);
-	}
-	free(C);
+  if (bigpoly_equal(&r_std, &r_ntt)) {
+        printf("Verification: [PASSED] (NTT results match Standard)\n");
+    } else {
+        printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
+        // Optional: print first few coefficients to debug
+        // bigpoly_print(&r_std);
+        // bigpoly_print(&r_ntt);
+    }
 
+  // Results Output
+  printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std, ITERATIONS);
+  printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt, ITERATIONS);
+
+  if (time_ntt < time_std) {
+    printf("Result: NTT is %.2fx faster than Standard.\n", time_std / time_ntt);
+  } else {
+    printf("Result: Standard is faster at this size (NTT overhead).\n");
+  }
+
+  // Cleanup
+  for (u64 i = 0; i < n; i++) bn_free(&C[i]);
+  free(C);
+  bigpoly_free(&a);
+  bigpoly_free(&b);
+  bigpoly_free(&r_std);
+  bigpoly_free(&r_ntt);
+}
+
+
+int main()
+{
+  bn_init_constants();
+
+  u64 n = 16;
+  bigpoly a, b, r;
+  bigpoly_init(&a);
+  bigpoly_init(&b);
+  bigpoly_init(&r);
+  bigpoly_alloc(&a, n);
+  bigpoly_alloc(&b, n);
+  a.deg = b.deg = n - 1;
+
+  bignum* C = malloc(sizeof(bignum) * n);
+
+  for (u64 i = 0; i < n; i++) {
+    bn_init(&C[i]);
+    bn_set_u64(&C[i], i);
+  }
+
+  bigpoly_set(&a, C, n - 1);
+  bigpoly_set(&b, C, n - 1);
+
+  bigpoly_print(&a);
+  bigpoly_print(&b);
+
+  bigpoly_mul_ntt(&r, &a, &b);
+  bigpoly_print(&r);
+
+  for (u64 i = 0; i < n; i++) {
+    bn_free(&C[i]);
+  }
+  free(C);
+
+  benchmark_mul(15);
+  benchmark_mul(64);
+  printf("\n");
+  benchmark_mul(512);
+  benchmark_mul(1024);
+  benchmark_mul(1100);
+  benchmark_mul(1200);
+
+  bn_free_constants();
 }

@@ -17,17 +17,16 @@ void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
 {
   bigpoly_alloc(p, deg + 1);
 
-  for (u64 i = 0; i < deg; i++) {
+  for (u64 i = 0; i <= deg; i++) {
     bn_copy(&p->coeff[i], &coeff[i]);
   }
 
   p->deg = deg;
-  p->size = deg;
 }
 
 void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
 {
-  bigpoly_alloc(p, deg + 1);
+  bigpoly_alloc(p, deg);
 
   for (u64 i = 0; i <= deg; i++) {
     bn_set_i64(&p->coeff[i], coeff[i]);
@@ -44,6 +43,17 @@ void bigpoly_copy(bigpoly* p, bigpoly* q)
   }
 }
 
+bool bigpoly_equal(bigpoly* a, bigpoly* b)
+{
+  if (a->deg != b->deg) return false;
+  for (u64 i = 0; i <= a->deg; i++) {
+    if (bn_cmp(&a->coeff[i], &b->coeff[i]) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Frees the polynomial struct
 void bigpoly_free(bigpoly* p)
 {
@@ -56,7 +66,7 @@ void bigpoly_free(bigpoly* p)
   free(p->coeff);
   p->coeff = NULL;
   p->deg = 0;
-  p->deg = 0;
+  p->size = 0;
 }
 
 bool bigpoly_alloc(bigpoly* p, u64 deg)
@@ -92,8 +102,12 @@ void bigpoly_print(const bigpoly* p)
 {
   for (i64 i = p->deg; i >= 0; i--) {
     bn_print(&p->coeff[i]);
-    printf("x^%" PRId64 "\n", i);
+    printf("x^%" PRId64 "", i);
+    if (i != 0) {
+      printf("+");
+    }
   }
+  printf("\n");
 }
 
 // adds two polynomials
@@ -169,12 +183,14 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
   u64 k = 0;
   while (ntt_size < required_len) {
     ntt_size <<= 1;
-	k++;
+    k++;
   }
 
-  
+  bigpoly_alloc(r, required_len);
 
-  bigntt_ctx_init_simple(&ctx, 6, 1232);
+  if (!bigntt_ctx_init_simple(&ctx, k, 35537)) {
+    return;
+  }
 
   bigpoly p_hat, q_hat;
   bigpoly_init(&p_hat);
@@ -185,9 +201,20 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 
   bigpoly_mul_digit(r, &p_hat, &q_hat);
 
-  bigntt_cyclic_inverse(r, r, &ctx);
+  bigpoly r_ntt;
+  bigpoly_init(&r_ntt);
+  bigntt_cyclic_inverse(&r_ntt, r, &ctx);
 
-  r->deg = p->deg + q->deg;
+  bigpoly_free(r);
+  bigpoly_init(r);
+  bigpoly_alloc(r, r_ntt.deg);
+
+  for (u64 i = 0; i <= r_ntt.deg; i++) {
+    bn_copy(&r->coeff[i], &r_ntt.coeff[i]);
+  }
+  r->deg = r_ntt.deg;
+  bigpoly_free(&r_ntt);
+
   bigpoly_trim(r);
 
   bigpoly_free(&p_hat);
@@ -245,7 +272,6 @@ void bigpoly_test()
   bigpoly_init(&p);
   bigpoly_init(&q);
   bigpoly_init(&r);
-
 
   // Let p(x) = 2x^2 + 3x + 1
   i64 p_vals[] = {1, 3, 2};
