@@ -161,7 +161,8 @@ void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_trim(r);
 }
 
-void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q)
+void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q,
+                       const bignum* m)
 {
   u64 max = MAX(p->deg, q->deg);
 
@@ -169,6 +170,7 @@ void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q)
 
   for (u64 i = 0; i <= max; i++) {
     bn_mul(&r->coeff[i], &p->coeff[i], &q->coeff[i]);
+    bn_mod(&r->coeff[i], &r->coeff[i], m);
   }
 
   r->deg = max;
@@ -181,6 +183,7 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
   u64 required_len = p->deg + q->deg + 1;
   u64 ntt_size = 1;
   u64 k = 0;
+  // pad to next power of 2
   while (ntt_size < required_len) {
     ntt_size <<= 1;
     k++;
@@ -188,38 +191,40 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 
   bigpoly_alloc(r, required_len);
 
-  if (!bigntt_ctx_init_simple(&ctx, k, 35537)) {
+  if (!bigntt_ctx_init_golden(&ctx, k)) {
     return;
   }
 
-  bigpoly p_hat, q_hat;
+  bigpoly p_hat, q_hat, r_hat;
   bigpoly_init(&p_hat);
   bigpoly_init(&q_hat);
+  bigpoly_init(&r_hat);
 
   bigntt_cyclic_forward(&p_hat, p, &ctx);
   bigntt_cyclic_forward(&q_hat, q, &ctx);
 
-  bigpoly_mul_digit(r, &p_hat, &q_hat);
+  bigpoly_mul_digit(&r_hat, &p_hat, &q_hat, &ctx.q);
 
   bigpoly r_ntt;
   bigpoly_init(&r_ntt);
-  bigntt_cyclic_inverse(&r_ntt, r, &ctx);
+  bigntt_cyclic_inverse(&r_ntt, &r_hat, &ctx);
 
   bigpoly_free(r);
   bigpoly_init(r);
-  bigpoly_alloc(r, r_ntt.deg);
+  bigpoly_alloc(r, required_len);
 
-  for (u64 i = 0; i <= r_ntt.deg; i++) {
+  for (u64 i = 0; i < required_len; i++) {
     bn_copy(&r->coeff[i], &r_ntt.coeff[i]);
   }
-  r->deg = r_ntt.deg;
-  bigpoly_free(&r_ntt);
+
+  r->deg = required_len - 1;
 
   bigpoly_trim(r);
 
   bigpoly_free(&p_hat);
   bigpoly_free(&q_hat);
-
+  bigpoly_free(&r_hat);
+  bigpoly_free(&r_ntt);
   bigntt_ctx_free(&ctx);
 }
 

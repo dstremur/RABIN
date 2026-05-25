@@ -132,12 +132,73 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
 
   bn_gen_proth_ntt(&g, &p, &omega, &psi, k + 1, c);
 
+  if (!bigntt_ctx_init(ctx, &p, &g, &omega, &psi, k, c)) {
+    bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
+    return false;
+  }
+
+  bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
+  return true;
+}
+
+// use 1 * 2^61 + 1
+bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
+{
+  if (k > 54) return false;
+
+  bignum p, g, omega, psi, tmp, c_bn;
+  bn_init_multi(&p, &g, &omega, &psi, &tmp, &c_bn, NULL);
+
+  // p = 5* 2^55 + 1
+  bn_set_u64(&p, 180143985094819841);
+  bn_set_u64(&c_bn, 5);
+
+  // factorize p - 1 = 5 * 2^55
+  bigvector factors;
+  bigvector_init_dynamic(&factors);
+
+  // 2,5 always divide p - 1
+  bigvector_append(&factors, &BN_TWO);
+  bigvector_append(&factors, &c_bn);
+
+  // factorize c
+  // bn_factorize(&factors, &c_bn);
+
+  // bigvector_println(&factors);
+
+  // now find a generator
+  bn_find_gen(&g, &p, &factors);
+  // bn_println(&g);
+
+  // psi = g^(p - 1 / 2^k+1) = c * 2^(55 - (k+1)) mod p
+  bn_set_u64(&tmp, 5);
+  bn_lshift(&tmp, &tmp, 55 - (k + 1));
+  bn_mod_exp(&psi, &g, &tmp, &p);
+
+  // omega = psi^2 mod p
+  bn_mul(&tmp, &psi, &psi);
+  bn_mod(&omega, &tmp, &p);
+
+  bigvector_free(&factors);
+
+  if (!bigntt_ctx_init(ctx, &p, &g, &omega, &psi, k, 5)) {
+    bn_free_multi(&p, &g, &omega, &psi, &tmp, &c_bn, NULL);
+    return false;
+  }
+
+  bn_free_multi(&p, &g, &omega, &psi, &tmp, &c_bn, NULL);
+  return true;
+}
+
+bool bigntt_ctx_init(ntt_ctx* ctx, bignum* p, bignum* g, bignum* omega,
+                     bignum* psi, u64 k, u64 c)
+{
   u64 n = (1ULL << k);
   ctx->k = k;
   ctx->n = n;
 
   bn_init(&ctx->q);
-  bn_copy(&ctx->q, &p);
+  bn_copy(&ctx->q, p);
 
   ctx->omega_powers = NULL;
   ctx->omega_inv_powers = NULL;
@@ -163,13 +224,13 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
   bn_set_u64(&ctx->omega_powers[0], 1);
 
   for (u64 i = 1; i < n; i++) {
-    bn_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1], &omega);
+    bn_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1], omega);
     bn_mod(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->q);
   }
 
   bignum omega_inv;
   bn_init(&omega_inv);
-  if (!bn_mod_inverse(&omega_inv, &omega, &ctx->q)) {
+  if (!bn_mod_inverse(&omega_inv, omega, &ctx->q)) {
     bn_free(&omega_inv);
     goto fail;
   }
@@ -197,13 +258,13 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
   // compute psi^i mod q
   bn_set_u64(&ctx->psi_powers[0], 1);
   for (u64 i = 1; i < n; i++) {
-    bn_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], &psi);
+    bn_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], psi);
     bn_mod(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->q);
   }
 
   bignum psi_inv;
   bn_init(&psi_inv);
-  if (!bn_mod_inverse(&psi_inv, &psi, &ctx->q)) {
+  if (!bn_mod_inverse(&psi_inv, psi, &ctx->q)) {
     bn_free(&psi_inv);
     goto fail;
   }
@@ -242,13 +303,10 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
     ctx->bit_rev_indices[i] = rev;
   }
 
-  bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
-
   return true;
 
 fail:
   bigntt_ctx_free(ctx);
-  bn_free_multi(&p, &g, &omega, &psi, &tmp, NULL);
   return false;
 }
 

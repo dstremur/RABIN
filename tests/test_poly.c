@@ -3,8 +3,8 @@
 
 #include "../include/bignum.h"
 #include "../include/bigpoly.h"
-#define ITERATIONS 100
-#define POLY_SIZE 512
+#define ITERATIONS 1
+//#define POLY_SIZE 512
 
 void benchmark_mul(u64 n)
 {
@@ -115,6 +115,11 @@ int main()
   benchmark_mul(1024);
   benchmark_mul(1100);
   benchmark_mul(1200);
+  benchmark_mul(2048);
+  benchmark_mul(4096);
+  benchmark_mul(8192);
+  benchmark_mul(1 << 14);
+  benchmark_mul(1 << 15);
 
   bn_free_constants();
 }

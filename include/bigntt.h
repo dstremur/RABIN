@@ -22,8 +22,8 @@ typedef struct {
     u64* bit_rev_indices;   
 } ntt_ctx;
 bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c);
-bool bigntt_ctx_init(ntt_ctx* ctx, u64 n, const bignum* q, const bignum* omega, const bignum* psi);
-
+bool bigntt_ctx_init(ntt_ctx* ctx, bignum*p, bignum* g, bignum* omega, bignum* psi, u64 k, u64 c);
+bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k);
 bool bigntt_find_prime(bignum* q, u64 n, u64 bits);
 bool bigntt_find_generator(bignum* g, const bignum* q); 
 bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q);

@@ -21,7 +21,7 @@ bool trialdiv_factor(bignum* f, bignum* n, u64 g)
 {
   u64 i = 0;
 
-  while (i < 50000 && primes[i] < g) {
+  while (i < 70000 && primes[i] < g) {
     if (bn_mod_u64(n, primes[i]) == 0) {
       bn_set_u64(f, primes[i]);
       return false;
@@ -154,7 +154,7 @@ void bn_factorize(bigvector* v, bignum* n)
   }
 
   // first trialdiv
-  if (!trialdiv_factor(&f, &tmp, 10000)) {
+  if (!trialdiv_factor(&f, &tmp, 50000)) {
     bigvector_append_distinct(v, &f);
 
     bn_div(&tmp, &tmp, &f);

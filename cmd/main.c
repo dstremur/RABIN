@@ -140,7 +140,8 @@ int main()
   ntt_ctx ctx;
 
   //bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
-  bigntt_ctx_init_simple(&ctx, 25, 10001);
+  //bigntt_ctx_init_golden(&ctx, 8);
+  //bigntt_ctx_init_simple(&ctx, 8, 4294967295);
   bigntt_ctx_print_debug(&ctx);
 
   bn_free(&n1);
