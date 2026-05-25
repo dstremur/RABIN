@@ -113,13 +113,13 @@ int main()
   printf("\n");
   benchmark_mul(512);
   benchmark_mul(1024);
-  benchmark_mul(1100);
-  benchmark_mul(1200);
   benchmark_mul(2048);
   benchmark_mul(4096);
   benchmark_mul(8192);
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
+  benchmark_mul(1 << 16);
+  benchmark_mul(1 << 17);
 
   bn_free_constants();
 }
