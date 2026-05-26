@@ -167,9 +167,10 @@ bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
   // bigvector_println(&factors);
 
   // now find a generator
-  bn_find_gen(&g, &p, &factors);
+  // bn_find_gen(&g, &p, &factors);
   // bn_println(&g);
 
+  bn_set_u64(&g, 3);
   // psi = g^(p - 1 / 2^k+1) = c * 2^(55 - (k+1)) mod p
   bn_set_u64(&tmp, 5);
   bn_lshift(&tmp, &tmp, 55 - (k + 1));
@@ -188,6 +189,30 @@ bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
 
   bn_free_multi(&p, &g, &omega, &psi, &tmp, &c_bn, NULL);
   return true;
+}
+
+bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p)
+{
+  // Max value of a resulting coefficient is roughly ntt_size * (2^bit_width -
+  // 1)^2 For bit_width = 16 and ntt_size = 2^20, max_coeff is ~2^52. Our prime
+  // is ~2^{57.3}, so this is safe.
+  bignum max_val, base_minus_1;
+  bn_init_multi(&max_val, &base_minus_1, NULL);
+
+  bn_lshift(&base_minus_1, &BN_ONE, bit_width);
+  bn_sub(&base_minus_1, &base_minus_1, &BN_ONE);  // (2^W - 1)
+
+  bn_mul(&max_val, &base_minus_1, &base_minus_1);  // (2^W - 1)^2
+
+  bignum n_bn;
+  bn_init(&n_bn);
+  bn_set_u64(&n_bn, ntt_size);
+  bn_mul(&max_val, &max_val, &n_bn);  // N * (2^W - 1)^2
+
+  bool safe = (bn_cmp(&max_val, p) < 0);
+
+  bn_free_multi(&max_val, &base_minus_1, &n_bn, NULL);
+  return safe;
 }
 
 bool bigntt_ctx_init(ntt_ctx* ctx, bignum* p, bignum* g, bignum* omega,

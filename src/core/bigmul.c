@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bigntt.h"
 #include "../../include/bignum.h"
 #include "../../include/u64.h"
 #define KARATSUBA_LIMIT 128
@@ -241,4 +242,37 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
   }
 
   bn_trim(r);
+}
+
+void bn_mul_fast(bignum* res, const bignum* a, const bignum* b)
+{
+  if (bn_is_zero(a) || bn_is_zero(b)) {
+    bn_set_u64(res, 0);
+    return;
+  }
+
+  u64 bit_width = 16;
+  bigpoly poly_a, poly_b, poly_res;
+  bigpoly_init(&poly_a);
+  bigpoly_init(&poly_b);
+  bigpoly_init(&poly_res);
+
+  // 1. Decompose integers into polynomials
+  bn_decompose(&poly_a, a, bit_width);
+  bn_decompose(&poly_b, b, bit_width);
+
+  // 2. Perform Polynomial NTT Multiplication (Your existing function)
+  // Note: bigpoly_mul_ntt internally uses bigntt_ctx_init_golden
+  bigpoly_mul_ntt(&poly_res, &poly_a, &poly_b);
+
+  // 3. Ripple carries
+  poly_carry_propagation(&poly_res, bit_width);
+
+  // 4. Convert back to bignum
+  bn_recompose(res, &poly_res, bit_width);
+
+  // Cleanup
+  bigpoly_free(&poly_a);
+  bigpoly_free(&poly_b);
+  bigpoly_free(&poly_res);
 }

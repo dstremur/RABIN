@@ -12,6 +12,24 @@ void bigpoly_init(bigpoly* p)
   p->size = 0;
 }
 
+void bn_and(bignum* r, const bignum* a, const bignum* mask)
+{
+  bn_copy(r, a);
+
+  u64 min = MIN(r->size, mask->size);
+
+  for (u64 i = 0; i < min; i++) {
+    r->limbs[i] &= mask->limbs[i];
+  }
+
+  // zero the rest
+  for (u64 i = min; i < r->size; i++) {
+    r->limbs[i] = 0;
+  }
+
+  bn_trim(r);
+}
+
 // sets the value of a polynomial, takes an inputs coefficients array
 void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
 {
@@ -267,6 +285,89 @@ void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
 void bigpoly_mul(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   bigpoly_mul_school(r, p, q);
+}
+
+/**
+ * @brief Slices a bignum into chunks and stores them as polynomial
+ * coefficients.
+ * @param p The output polynomial.
+ * @param n The source bignum.
+ * @param bit_width How many bits of 'n' to store in each coefficient (e.g.,
+ * 16).
+ */
+void bn_decompose(bigpoly* r, const bignum* n, u64 width)
+{
+  bignum tmp, mask, digit;
+  bn_init_multi(&tmp, &mask, &digit);
+  bn_copy(&tmp, n);
+
+  // mask = 0xFFFF..
+  bn_lshift(&mask, &BN_ONE, width);
+  bn_sub(&mask, &mask, &BN_ONE);
+
+  u64 i = 0;
+  while (!bn_is_zero(&tmp)) {
+    bn_and(&digit, &tmp, &mask);
+
+    bigpoly_alloc(r, i + 1);
+    bn_copy(&r->coeff[i], &digit);
+
+    bn_rshift(&tmp, &tmp, width);
+
+    i++;
+  }
+
+  r->deg = (i > 0) ? i - 1 : 0;
+
+  bn_free_multi(&tmp, &mask, &digit);
+}
+
+void poly_carry_propagation(bigpoly* r, u64 bit_width)
+{
+  bignum carry, base, mask, total;
+  bn_init_multi(&carry, &base, &mask, &total, NULL);
+
+  bn_lshift(&base, &BN_ONE, bit_width);
+  bn_sub(&mask, &base, &BN_ONE);
+  bn_set_u64(&carry, 0);
+
+  u64 i = 0;
+  // Iterate through all coefficients plus any remaining carries
+  while (i <= r->deg || !bn_is_zero(&carry)) {
+    if (i > r->deg) {
+      bigpoly_alloc(r, i + 1);  // Expand poly if carry exceeds current deg
+      r->deg = i;
+    }
+
+    // total = coeff[i] + carry
+    bn_add(&total, &r->coeff[i], &carry);
+
+    // carry = total >> bit_width
+    bn_rshift(&carry, &total, bit_width);
+
+    // coeff[i] = total & mask
+    bn_and(&r->coeff[i], &total, &mask);
+
+    i++;
+  }
+
+  bn_free_multi(&carry, &base, &mask, &total, NULL);
+}
+
+void bn_recompose(bignum* n, const bigpoly* p, u64 bit_width)
+{
+  bn_set_u64(n, 0);
+  bignum term;
+  bn_init(&term);
+
+  for (u64 i = 0; i <= p->deg; i++) {
+    // term = coeff[i] << (i * bit_width)
+    bn_lshift(&term, &p->coeff[i], i * bit_width);
+    // n += term
+    bn_add(n, n, &term);
+  }
+
+  bn_free(&term);
 }
 
 void bigpoly_test()

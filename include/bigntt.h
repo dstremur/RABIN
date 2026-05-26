@@ -50,4 +50,5 @@ void bigpoly_conv_negacyclic_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b,
 
 // Standard fast polynomial multiplication.
 
+bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p);
 #endif 

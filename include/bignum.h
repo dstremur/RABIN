@@ -211,6 +211,8 @@ void bn_find_gen_fp(bignum* g, bignum* p);
 void bn_find_gen_proth(bignum* g, bignum* p, bignum* c);
 void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k, u64 c);
 
+void bn_mul_fast(bignum* res, const bignum* a, const bignum* b);
+
 void avxtest();
 
 #endif

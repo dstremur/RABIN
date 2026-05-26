@@ -26,4 +26,9 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_conv_cyclic(bigpoly* r, bigpoly* a, bigpoly* b, bignum* q);
 void bigpoly_test();
 
+void bn_recompose(bignum* n, const bigpoly* p, u64 bit_width);
+void poly_carry_propagation(bigpoly* r, u64 bit_width);
+void bn_decompose(bigpoly* p, const bignum* n, u64 bit_width);
+
+
 #endif

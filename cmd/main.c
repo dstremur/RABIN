@@ -98,6 +98,9 @@ int main()
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);
+  bn_mul_fast(&c, &a, &b);
+  printf("MUL NTT: ");
+  bn_println(&c);
   bn_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
@@ -111,16 +114,10 @@ int main()
   bn_lshift(&c, &a, 32);
   bn_println(&c);
   printf("Pow: ");
-  bn_pow(&c, &a, &b);
+  //bn_pow(&c, &a, &b);
   bn_println(&c);
 
   bigpoly_test();
-
-  bn_gen_proth_ntt(&c, &psi, &c, &c, 20, 10000);
-  printf("proth prime: ");
-  bn_println(&psi);
-  printf("proth generator: ");
-  bn_println(&c);
 
   printf("factorize a: ");
   bigvector v;
@@ -131,20 +128,13 @@ int main()
   bigvector_println(&v);
   bigvector_free(&v);
 
-  bignum n1;
-  bn_init(&n1);
-
-  bn_init_val(&n1, "18446744069414584321");
-  bn_init_val(&omega, "1803076106186727246");
-  bn_init_val(&psi, "11353340290879379826");
   ntt_ctx ctx;
 
   //bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
-  //bigntt_ctx_init_golden(&ctx, 8);
+  bigntt_ctx_init_golden(&ctx, 8);
   //bigntt_ctx_init_simple(&ctx, 8, 4294967295);
   bigntt_ctx_print_debug(&ctx);
 
-  bn_free(&n1);
 
   bigntt_ctx_free(&ctx);
 
