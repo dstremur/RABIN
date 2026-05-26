@@ -7,6 +7,7 @@ void bigvector_init(bigvector* a, u64 d)
   a->size = d;
   a->capacity = d;
   a->data = malloc(d * sizeof(bignum));
+  a->dynamic = false;
 
   for (u64 i = 0; i < d; i++) {
     bn_init(&a->data[i]);
