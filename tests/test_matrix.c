@@ -94,6 +94,45 @@ void run_hadamard_benchmark(u64 size, u64 bits)
   bn_free(&val);
 }
 
+
+void run_mul_benchmark(u64 size, u64 bits)
+{
+  bigmatrix M, A, B;
+  bignum det, val;
+
+  bn_init(&det);
+  bn_init(&val);
+  bigmatrix_init(&M, size, size);
+  bigmatrix_init(&A, size, size);
+  bigmatrix_init(&B, size, size);
+
+  // Populate with random data to prevent "easy" zeros
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&A, &val, i, j);
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&B, &val, i, j);
+    }
+  }
+
+  printf("Benchmarking %llu x %llu (%llu-bit entries) matrix multiply ... ", size,
+         size, bits);
+  fflush(stdout);
+
+  double start = get_time();
+  bigmatrix_mul(&M, &A, &B);
+  double end = get_time();
+
+  printf("Time: %f seconds\n", end - start);
+
+  bigmatrix_free(&M);
+   bigmatrix_free(&A);
+    bigmatrix_free(&B);
+  bn_free(&det);
+  bn_free(&val);
+}
+
 void test_pascal_det(u64 size)
 {
   bigmatrix P;
@@ -336,6 +375,11 @@ int main()
 
   u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
   int num_tests = sizeof(sizes) / sizeof(sizes[0]);
+
+  for (int i = 0; i < num_tests; i++) {
+    //run_mul_benchmark(sizes[i], 32); 
+  }
+
 
   for (int i = 0; i < num_tests; i++) {
     run_det_benchmark(sizes[i], 32);  // 32-bit random entries

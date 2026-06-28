@@ -49,7 +49,7 @@ typedef struct {
 typedef struct {
   u64 p;
   u64 p_inv;
-  u64 r2_mod_p;  // 2^128 mod p
+  u64 r2_mod_p;  // 2^128 mod p, R = 2^64
 } mont_ctx;
 
 typedef struct {

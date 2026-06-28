@@ -7,7 +7,6 @@ global bn_add_inner
 
 
 bn_add_inner: 
-	push rbx 
 
 	mov r10, r8 
 	mov r11, rdx 
@@ -21,36 +20,39 @@ bn_add_inner:
 
 ; add a and b
 .loop_add: 
-	mov rax, [rsi + r9*8]	; rax = a[i] 
-	adc rax, [rcx + r9*8] 	; rax += b[i] + C 
-	mov [rdi + r9*8], rax 	; r[i] = rax 
+	mov rax, [rsi]	; rax = a[i] 
+	adc rax, [rcx] 	; rax += b[i] + C 
+	mov [rdi], rax 	; r[i] = rax 
 
-	inc r9 
+	lea     rsi, [rsi + 8]
+    lea     rcx, [rcx + 8]
+    lea     rdi, [rdi + 8]
+
 	dec r10 
 	jnz .loop_add
 
 .start_prop:
-	setc bl 
+	setc al 
 
 	test r11, r11 
 	jz	.done 	; if i >= a_size, return 
 
-	shr bl, 1
+	shr al, 1
 
 .loop_prop: 
-	mov rax, [rsi + r9*8] 
-	adc rax , 0 	; add carry 
-	mov [rdi + r9*8], rax 	; r[i] = rax 
+	mov r10, [rsi] 
+	adc r10 , 0 	; add carry 
+	mov [rdi], r10 	; r[i] = rax 
 
-	inc r9 
+	lea     rsi, [rsi + 8]
+    lea     rdi, [rdi + 8]
+
 	dec r11
 	jnz .loop_prop 
 
-	setc bl
+	setc al
 .done: 
-	movzx rax, bl
-	pop rbx 
-
+	movzx rax,al
 	ret 
 
 

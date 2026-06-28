@@ -29,10 +29,8 @@ u64 mod_add(u64 a, u64 b, u64 p)
 
 u64 mod_sub(u64 a, u64 b, u64 p)
 {
-  if (a < b) {
-    return (p - b) + a;
-  }
-  return a - b;
+  u64 res = a - b;
+    return res + (p & (u64)((i64)res >> 63));
 }
 
 u64 mod_mul(u64 a, u64 b, u64 p)
@@ -52,6 +50,39 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
   }
   return res;
 }
+
+u64 mont_redc(unsigned __int128 T, mont_ctx* ctx)
+{
+  u64 p = ctx->p; 
+
+  // T mod R
+  u64 T_modR = (u64)T; 
+
+  u64 m = T_modR * ctx->p_inv;
+
+  unsigned __int128 t_wide = (T + (unsigned __int128)m * p);
+  u64 t = (u64)(t_wide >> 64);
+        
+  return (t >= p) ? (t - p) : t;
+}
+
+u64 mont_mul(u64 a, u64 b, mont_ctx* ctx)
+{
+  unsigned __int128 R = (unsigned __int128)a * b; 
+
+  return mont_redc(R, ctx);
+}
+
+u64 mont_in(u64 a, mont_ctx* ctx)
+{
+  return mont_mul(a, ctx->r2_mod_p, ctx);
+}
+
+u64 mont_out(u64 a_hat, mont_ctx* ctx)
+{
+  return mont_mul(a_hat, 1, ctx);
+}
+
 
 // p needs to be prime
 u64 mod_inverse_euclid(u64 a, u64 p)
@@ -136,22 +167,23 @@ u64 matrix_u64_det(matrix_u64* M)
 
 u64 mont_inverse(u64 a_mont, const mont_ctx* ctx)
 {
-  u64 a = from_mont(a_mont, ctx);
+  u64 a = mont_out(a_mont, ctx);
 
   u64 inv = mod_inverse_euclid(a, ctx->p);
 
-  return to_mont(inv, ctx);
+  return mont_in(inv, ctx);
 }
+#define TILE_SIZE 64
 
 // works in place, need to pass copy
 u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
 {
-  u64 det = to_mont(1, ctx);
+  u64 det = mont_in(1, ctx);
   u64 p = ctx->p;
 
   // convert matrix to montgomery form
   for (u64 i = 0; i < n * n; i++) {
-    mat[i] = to_mont(mat[i], ctx);
+    mat[i] = mont_in(mat[i], ctx);
   }
 
   for (u64 i = 0; i < n; i++) {
@@ -175,23 +207,36 @@ u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
     }
 
     u64 pivot_val = mat[i * n + i];
-    det = mod_mul_mont(det, pivot_val, ctx);
+    det = mont_mul(det, pivot_val, ctx);
 
-    u64 pivot_real = from_mont(pivot_val, ctx);
+    u64 pivot_real = mont_out(pivot_val, ctx);
     u64 inv_real = mod_inverse_euclid(pivot_real, p);
-    u64 inv = to_mont(inv_real, ctx);
+    u64 inv = mont_in(inv_real, ctx);
 
     u64* row_i = mat + i * n;
 
     for (u64 j = i + 1; j < n; j++) {
-      u64 factor = mod_mul_mont(mat[j * n + i], inv, ctx);
+      u64 factor = mont_mul(mat[j * n + i], inv, ctx);
       if (factor == 0) continue;
       u64* row_j = mat + j * n;
-      for (u64 k = i + 1; k < n; k++) {
-        row_j[k] = mod_sub(row_j[k], mod_mul_mont(factor, row_i[k], ctx), p);
+
+      // use tiling 
+      u64 k = i + 1;
+      for (; k <= (n >= TILE_SIZE ? n - TILE_SIZE: 0); k += TILE_SIZE){
+        for (u64 tk = 0; tk < TILE_SIZE; tk++){
+          u64 idx = k + tk;
+          u64 prod = mont_mul(factor, row_i[idx], ctx);
+          row_j[idx] = mod_sub(row_j[idx], prod, p);
+        }
       }
+
+      // process remaining elements
+            for (; k < n; k++) {
+                u64 prod = mont_mul(factor, row_i[k], ctx);
+                row_j[k] = mod_sub(row_j[k], prod, p);
+            }
     }
   }
 
-  return from_mont(det, ctx);
+  return mont_out(det, ctx);
 }

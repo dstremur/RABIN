@@ -49,12 +49,16 @@ align 16
     adcx    r10, r8
     adox    r10, [rdi + 24]
     mov     [rdi + 24], r10
+    
+    adox    r11, r9 ; r11 = r11 + OF 
     mov     r8, r11
 
     lea     rdi, [rdi + 32]
     lea     rsi, [rsi + 32]
 
-    loop    .loop
+    dec rcx
+    jnz .loop
+    ;loop    .loop
 
 .tail_setup:
     mov rcx, rax	; switch to rcx for loop to work 
