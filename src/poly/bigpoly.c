@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "../../include/bigntt.h"
+#include "../../include/u64.h"
 
 void bigpoly_init(bigpoly* p)
 {
@@ -194,56 +195,83 @@ void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q,
   r->deg = max;
 }
 
+// multiply two polynomials using ntt only works for coeffcient below u64
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
-  ntt_ctx ctx;
+  ntt_ctx_u64 ctx;
 
   u64 required_len = p->deg + q->deg + 1;
   u64 ntt_size = 1;
   u64 k = 0;
-  // pad to next power of 2
+
+  // Pad to next power of 2
   while (ntt_size < required_len) {
     ntt_size <<= 1;
     k++;
   }
 
-  bigpoly_alloc(r, required_len);
-
-  if (!bigntt_ctx_init_golden(&ctx, k)) {
+  if (!ntt_ctx_u64_init_golden(&ctx, k)) {
     return;
   }
 
-  bigpoly p_hat, q_hat, r_hat;
-  bigpoly_init(&p_hat);
-  bigpoly_init(&q_hat);
-  bigpoly_init(&r_hat);
+  // 1. Allocate flat u64 arrays for the inputs and outputs
+  u64* p_arr = calloc(ntt_size, sizeof(u64));
+  u64* q_arr = calloc(ntt_size, sizeof(u64));
+  u64* p_hat = calloc(ntt_size, sizeof(u64));
+  u64* q_hat = calloc(ntt_size, sizeof(u64));
+  u64* r_hat = calloc(ntt_size, sizeof(u64));
+  u64* r_arr = calloc(ntt_size, sizeof(u64));
 
-  bigntt_cyclic_forward(&p_hat, p, &ctx);
-  bigntt_cyclic_forward(&q_hat, q, &ctx);
+  // 2. Extract u64 values from the bignum polynomials
+  for (u64 i = 0; i <= p->deg; i++) {
+    p_arr[i] = p->coeff[i].limbs[0];
+  }
+  for (u64 i = 0; i <= q->deg; i++) {
+    q_arr[i] = q->coeff[i].limbs[0];
+  }
 
-  bigpoly_mul_digit(&r_hat, &p_hat, &q_hat, &ctx.q);
+  // 3. Perform Forward NTTs
+  ntt_u64_cyclic_forward(p_hat, p_arr, &ctx);
+  ntt_u64_cyclic_forward(q_hat, q_arr, &ctx);
 
-  bigpoly r_ntt;
-  bigpoly_init(&r_ntt);
-  bigntt_cyclic_inverse(&r_ntt, &r_hat, &ctx);
+  // 4. Pointwise Multiplication
+  for (u64 i = 0; i < ntt_size; i++) {
+    // Both p_hat and q_hat are currently in Montgomery form.
+    // mont_mul computes (P * Q * R^-1), yielding the product still in
+    // Montgomery form.
+    u64 r_mont = mont_mul(p_hat[i], q_hat[i], &ctx.mctx);
 
+    // ntt_u64_cyclic_inverse expects inputs in standard form (it calls mont_in
+    // internally). Therefore, we must convert r_mont OUT of Montgomery space
+    // before passing it.
+    r_hat[i] = mont_out(r_mont, &ctx.mctx);
+  }
+
+  // 5. Perform Inverse NTT
+  ntt_u64_cyclic_inverse(r_arr, r_hat, &ctx);
+
+  // 6. Pack the result back into the bigpoly structure
+  // Note: Your original code freed 'r' before init. Ensure bigpoly_free is safe
+  // on uninitialized 'r'.
   bigpoly_free(r);
   bigpoly_init(r);
   bigpoly_alloc(r, required_len);
 
   for (u64 i = 0; i < required_len; i++) {
-    bn_copy(&r->coeff[i], &r_ntt.coeff[i]);
+    bn_set_u64(&r->coeff[i], r_arr[i]);
   }
 
   r->deg = required_len - 1;
-
   bigpoly_trim(r);
 
-  bigpoly_free(&p_hat);
-  bigpoly_free(&q_hat);
-  bigpoly_free(&r_hat);
-  bigpoly_free(&r_ntt);
-  bigntt_ctx_free(&ctx);
+  // 7. Cleanup
+  free(p_arr);
+  free(q_arr);
+  free(p_hat);
+  free(q_hat);
+  free(r_hat);
+  free(r_arr);
+  ntt_ctx_u64_free(&ctx);
 }
 
 // multiplies two polynomials

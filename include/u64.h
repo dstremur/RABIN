@@ -2,6 +2,8 @@
 #define BIGU64_H
 
 #include "bignum.h"
+#include "string.h"
+#include "stdio.h"
 
 #define INLINE static inline __attribute__((always_inline))
 
@@ -11,8 +13,6 @@ typedef struct {
   u64 c_size;
   u64 modulus;  // The prime for this specific slice
 } matrix_u64;
-
-
 
 u64 mod_add(u64 a, u64 b, u64 p);
 u64 mod_sub(u64 a, u64 b, u64 p);
@@ -25,7 +25,10 @@ u64 matrix_u64_det(matrix_u64* A);
 u64 matrix_u64_det_optimized(u64* data, u64 n, const mont_ctx* ctx);
 
 void mont_init(mont_ctx* ctx, u64 p);
-
-
+u64 mont_inverse(u64 a_mont, const mont_ctx* ctx);
+u64 mont_mul(u64 a, u64 b, mont_ctx* ctx);
+u64 mont_in(u64 a, mont_ctx* ctx);
+u64 mont_out(u64 a, mont_ctx* ctx);
+u64 mont_redc(unsigned __int128 T, mont_ctx* ctx);
 
 #endif
