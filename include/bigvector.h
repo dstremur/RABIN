@@ -1,7 +1,6 @@
 
 #include "bignum.h"
 
-
 void bigvector_init(bigvector* a, u64 d);
 void bigvector_init_dynamic(bigvector* a);
 

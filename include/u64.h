@@ -2,8 +2,8 @@
 #define BIGU64_H
 
 #include "bignum.h"
-#include "string.h"
 #include "stdio.h"
+#include "string.h"
 
 #define INLINE static inline __attribute__((always_inline))
 
@@ -18,13 +18,12 @@ typedef struct {
   u64 n;
   u64 k;
   u64 q;
-  u64 n_inv; // in Montgomery form
-  u64* omega_powers;     // all in Montgomery form
-  u64* omega_inv_powers; // all in Montgomery form
+  u64 n_inv;              // in Montgomery form
+  u64* omega_powers;      // all in Montgomery form
+  u64* omega_inv_powers;  // all in Montgomery form
   u64* bit_rev_indices;
   mont_ctx mctx;
 } ntt_ctx_u64;
-
 
 u64 mod_add(u64 a, u64 b, u64 p);
 u64 mod_sub(u64 a, u64 b, u64 p);
@@ -46,7 +45,8 @@ u64 mont_redc(unsigned __int128 T, mont_ctx* ctx);
 bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);
 void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
 void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
-void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
+void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
+                                          ntt_ctx_u64* ctx);
 void ntt_ctx_u64_free(ntt_ctx_u64* ctx);
 bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi);
 bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);

@@ -40,7 +40,6 @@ typedef struct {
   bignum tmp;      // scratchpad
 } bn_mont_ctx;
 
-
 typedef struct {
   u64* limbs;
   u64 size;
@@ -59,10 +58,6 @@ typedef struct {
   bool dynamic;
 } bigvector;
 
-
-
-
-
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 #define MIN(a, b) ((a) < (b) ? (a) : (b));
 
@@ -71,7 +66,6 @@ typedef struct {
 extern bignum BN_ONE;
 extern bignum BN_TWO;
 extern bignum BN_ZERO;
-
 
 void bn_init_constants();
 void bn_free_constants();
@@ -209,7 +203,8 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
 
 void bn_find_gen_fp(bignum* g, bignum* p);
 void bn_find_gen_proth(bignum* g, bignum* p, bignum* c);
-void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k, u64 c);
+void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
+                      u64 c);
 
 void bn_mul_fast(bignum* res, const bignum* a, const bignum* b);
 

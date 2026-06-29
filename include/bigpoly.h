@@ -19,7 +19,7 @@ void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_free(bigpoly* p);
 void bigpoly_copy(bigpoly* p, bigpoly* q);
-bool bigpoly_equal(bigpoly *a, bigpoly *b);
+bool bigpoly_equal(bigpoly* a, bigpoly* b);
 
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q);
 void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q);
@@ -30,6 +30,5 @@ void bigpoly_test();
 void bn_recompose(bignum* n, const bigpoly* p, u64 bit_width);
 void poly_carry_propagation(bigpoly* r, u64 bit_width);
 void bn_decompose(bigpoly* p, const bignum* n, u64 bit_width);
-
 
 #endif
