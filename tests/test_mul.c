@@ -34,8 +34,10 @@ void benchmark_mul(int limbs)
   if (bn_cmp(&res_school, &res_karat) != 0) {
     printf("[FAIL] Mismatch at %d limbs!\n", limbs);
   } else {
-    printf("Limbs: %4d | School: %fs | Karatsuba: %fs | Speedup: %.2fx | NTT: %fs \n",
-           limbs, time_school, time_karat, time_school / time_karat, time_ntt);
+    printf(
+        "Limbs: %4d | School: %fs | Karatsuba: %fs | Speedup: %.2fx | NTT: %fs "
+        "\n",
+        limbs, time_school, time_karat, time_school / time_karat, time_ntt);
   }
 
   bn_free(&a);
@@ -46,7 +48,7 @@ void benchmark_mul(int limbs)
 
 int main()
 {
-	bn_init_constants();
+  bn_init_constants();
   // Test from small to large to find the crossover point
   int sizes[] = {16,    32,     64,     128,    256,    512,
                  1024,  2048,   4096,   8192,   16000,  32000,

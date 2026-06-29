@@ -21,20 +21,10 @@ typedef struct {
     // Bit-reversal permutation array to avoid recomputing indices
     u64* bit_rev_indices;   
 
-    mont_ctx mctx; // montgomery context 
+    bn_mont_ctx mctx; // montgomery context 
 } ntt_ctx;
 
 
-typedef struct {
-  u64 n;
-  u64 k;
-  u64 q;
-  u64 n_inv; // in Montgomery form
-  u64* omega_powers;     // all in Montgomery form
-  u64* omega_inv_powers; // all in Montgomery form
-  u64* bit_rev_indices;
-  mont_ctx mctx;
-} ntt_ctx_u64;
 
 
 bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c);
@@ -43,18 +33,18 @@ bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k);
 bool bigntt_find_prime(bignum* q, u64 n, u64 bits);
 bool bigntt_find_generator(bignum* g, const bignum* q); 
 bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q);
-void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
-void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
+
 void bigntt_ctx_free(ntt_ctx* ctx); 
-void ntt_ctx_u64_free(ntt_ctx_u64* ctx);
 
 
-bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);
+
+
 // forward NTT using Cooley-Tukey butterflies
 // input in normal order, output in bit-reversed order
 void bigntt_forward(bigpoly* out_hat, const bigpoly* in, const ntt_ctx* ctx);
 void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
+void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 
 // inverse NTT using Gentleman-Sande (GS) butterflies
 // input in bit-reversed order, output in normal order

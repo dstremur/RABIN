@@ -195,8 +195,67 @@ void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q,
   r->deg = max;
 }
 
-// multiply two polynomials using ntt only works for coeffcient below u64
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
+{
+  ntt_ctx ctx;
+
+  u64 required_len = p->deg + q->deg + 1;
+  u64 ntt_size = 1;
+  u64 k = 0;
+  // pad to next power of 2
+  while (ntt_size < required_len) {
+    ntt_size <<= 1;
+    k++;
+  }
+
+  bigpoly_alloc(r, required_len);
+
+  if (!bigntt_ctx_init_golden(&ctx, k)) {
+    return;
+  }
+
+  bigpoly p_hat, q_hat, r_hat;
+  bigpoly_init(&p_hat);
+  bigpoly_init(&q_hat);
+  bigpoly_init(&r_hat);
+
+  bigntt_cyclic_forward(&p_hat, p, &ctx);
+  bigntt_cyclic_forward(&q_hat, q, &ctx);
+  bigpoly_alloc(&r_hat, ntt_size);
+
+  // bigpoly_mul_digit(&r_hat, &p_hat, &q_hat, &ctx.q);
+
+  for (u64 i = 0; i < ntt_size; i++) {
+    // MontMul(pR, qR) = (pR * qR * R^-1) mod q = (p*q)R mod q
+    bn_mont_mul(&r_hat.coeff[i], &p_hat.coeff[i], &q_hat.coeff[i], &ctx.mctx);
+  }
+  r_hat.deg = ntt_size - 1;
+
+  bigpoly r_ntt;
+  bigpoly_init(&r_ntt);
+  bigntt_cyclic_inverse_mont_in(&r_ntt, &r_hat, &ctx);
+
+  bigpoly_free(r);
+  bigpoly_init(r);
+  bigpoly_alloc(r, required_len);
+
+  for (u64 i = 0; i < required_len; i++) {
+    bn_copy(&r->coeff[i], &r_ntt.coeff[i]);
+  }
+
+  r->deg = required_len - 1;
+
+  bigpoly_trim(r);
+
+  bigpoly_free(&p_hat);
+  bigpoly_free(&q_hat);
+  bigpoly_free(&r_hat);
+  bigpoly_free(&r_ntt);
+  bigntt_ctx_free(&ctx);
+}
+
+// multiply two polynomials using ntt only works for coeffcient below u64
+void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   ntt_ctx_u64 ctx;
 
@@ -236,23 +295,12 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 
   // 4. Pointwise Multiplication
   for (u64 i = 0; i < ntt_size; i++) {
-    // Both p_hat and q_hat are currently in Montgomery form.
-    // mont_mul computes (P * Q * R^-1), yielding the product still in
-    // Montgomery form.
-    u64 r_mont = mont_mul(p_hat[i], q_hat[i], &ctx.mctx);
-
-    // ntt_u64_cyclic_inverse expects inputs in standard form (it calls mont_in
-    // internally). Therefore, we must convert r_mont OUT of Montgomery space
-    // before passing it.
-    r_hat[i] = mont_out(r_mont, &ctx.mctx);
+    r_hat[i] = mont_mul(p_hat[i], q_hat[i], &ctx.mctx);
   }
 
   // 5. Perform Inverse NTT
-  ntt_u64_cyclic_inverse(r_arr, r_hat, &ctx);
+  ntt_u64_cyclic_inverse_montgomery_in(r_arr, r_hat, &ctx);
 
-  // 6. Pack the result back into the bigpoly structure
-  // Note: Your original code freed 'r' before init. Ensure bigpoly_free is safe
-  // on uninitialized 'r'.
   bigpoly_free(r);
   bigpoly_init(r);
   bigpoly_alloc(r, required_len);
@@ -434,7 +482,7 @@ void bigpoly_test()
   bigpoly_free(&r);
   bigpoly_init(&r);
 
-  bigpoly_mul_ntt(&r, &p, &q);
+  bigpoly_mul_ntt_u64(&r, &p, &q);
   bigpoly_print(&r);
 
   // Cleanup

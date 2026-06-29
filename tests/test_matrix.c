@@ -94,7 +94,6 @@ void run_hadamard_benchmark(u64 size, u64 bits)
   bn_free(&val);
 }
 
-
 void run_mul_benchmark(u64 size, u64 bits)
 {
   bigmatrix M, A, B;
@@ -116,8 +115,8 @@ void run_mul_benchmark(u64 size, u64 bits)
     }
   }
 
-  printf("Benchmarking %llu x %llu (%llu-bit entries) matrix multiply ... ", size,
-         size, bits);
+  printf("Benchmarking %llu x %llu (%llu-bit entries) matrix multiply ... ",
+         size, size, bits);
   fflush(stdout);
 
   double start = get_time();
@@ -127,8 +126,8 @@ void run_mul_benchmark(u64 size, u64 bits)
   printf("Time: %f seconds\n", end - start);
 
   bigmatrix_free(&M);
-   bigmatrix_free(&A);
-    bigmatrix_free(&B);
+  bigmatrix_free(&A);
+  bigmatrix_free(&B);
   bn_free(&det);
   bn_free(&val);
 }
@@ -377,9 +376,8 @@ int main()
   int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
   for (int i = 0; i < num_tests; i++) {
-    //run_mul_benchmark(sizes[i], 32); 
+    // run_mul_benchmark(sizes[i], 32);
   }
-
 
   for (int i = 0; i < num_tests; i++) {
     run_det_benchmark(sizes[i], 32);  // 32-bit random entries

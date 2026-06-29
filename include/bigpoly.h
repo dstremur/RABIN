@@ -22,6 +22,7 @@ void bigpoly_copy(bigpoly* p, bigpoly* q);
 bool bigpoly_equal(bigpoly *a, bigpoly *b);
 
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q);
+void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q);
 
 void bigpoly_conv_cyclic(bigpoly* r, bigpoly* a, bigpoly* b, bignum* q);
 void bigpoly_test();

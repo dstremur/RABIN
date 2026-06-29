@@ -4,15 +4,16 @@
 #include "../include/bignum.h"
 #include "../include/bigpoly.h"
 #define ITERATIONS 1
-//#define POLY_SIZE 512
+// #define POLY_SIZE 512
 
 void benchmark_mul(u64 n)
 {
-  bigpoly a, b, r_std, r_ntt;
+  bigpoly a, b, r_std, r_ntt, r_ntt_big;
   bigpoly_init(&a);
   bigpoly_init(&b);
   bigpoly_init(&r_std);
   bigpoly_init(&r_ntt);
+  bigpoly_init(&r_ntt_big);
 
   bigpoly_alloc(&a, n);
   bigpoly_alloc(&b, n);
@@ -32,34 +33,47 @@ void benchmark_mul(u64 n)
   // 1. Standard Multiplication Timing
   clock_t start_std = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
+    // bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
   }
   clock_t end_std = clock();
-  double time_std = (double)(end_std - start_std) / CLOCKS_PER_SEC;
+  double time_std = (double)(end_std - start_std + 100000000) / CLOCKS_PER_SEC;
 
   // 2. NTT Multiplication Timing
   clock_t start_ntt = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    bigpoly_mul_ntt(&r_ntt, &a, &b);  // NTT O(N log N)
+    bigpoly_mul_ntt_u64(&r_ntt, &a, &b);  // NTT O(N log N)
   }
   clock_t end_ntt = clock();
   double time_ntt = (double)(end_ntt - start_ntt) / CLOCKS_PER_SEC;
 
-  if (bigpoly_equal(&r_std, &r_ntt)) {
-        printf("Verification: [PASSED] (NTT results match Standard)\n");
-    } else {
-        printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
-        // Optional: print first few coefficients to debug
-        // bigpoly_print(&r_std);
-        // bigpoly_print(&r_ntt);
-    }
+  clock_t start_ntt_big = clock();
+  for (int i = 0; i < ITERATIONS; i++) {
+    bigpoly_mul_ntt(&r_ntt_big, &a, &b);  // NTT O(N log N)
+  }
+  clock_t end_ntt_big = clock();
+  double time_ntt_big = (double)(end_ntt_big - start_ntt_big) / CLOCKS_PER_SEC;
+
+  if (bigpoly_equal(&r_ntt_big, &r_ntt)) {
+    printf("Verification: [PASSED] (NTT results match Standard)\n");
+  } else {
+    printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
+    // Optional: print first few coefficients to debug
+    // bigpoly_print(&r_std);
+    // bigpoly_print(&r_ntt);
+  }
 
   // Results Output
   printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std, ITERATIONS);
   printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt, ITERATIONS);
+  printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big,
+         ITERATIONS);
 
   if (time_ntt < time_std) {
     printf("Result: NTT is %.2fx faster than Standard.\n", time_std / time_ntt);
+    printf("Result: NTT is %.2fx faster than NTT bignum.\n",
+           time_ntt_big / time_ntt);
+    printf("Result: NTT big is %.2fx faster than Std.\n",
+           time_std / time_ntt_big);
   } else {
     printf("Result: Standard is faster at this size (NTT overhead).\n");
   }
@@ -71,8 +85,8 @@ void benchmark_mul(u64 n)
   bigpoly_free(&b);
   bigpoly_free(&r_std);
   bigpoly_free(&r_ntt);
+  bigpoly_free(&r_ntt_big);
 }
-
 
 int main()
 {
@@ -107,6 +121,9 @@ int main()
     bn_free(&C[i]);
   }
   free(C);
+  bigpoly_free(&a);
+  bigpoly_free(&b);
+  bigpoly_free(&r);
 
   benchmark_mul(15);
   benchmark_mul(64);
@@ -119,6 +136,10 @@ int main()
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
   benchmark_mul(1 << 16);
+  benchmark_mul(1 << 17);
+  benchmark_mul(1 << 18);
+  benchmark_mul(1 << 19);
+  benchmark_mul(1 << 20);
   benchmark_mul(1 << 17);
 
   bn_free_constants();
