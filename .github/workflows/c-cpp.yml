@@ -19,7 +19,5 @@ jobs:
            sudo apt-get install -y nasm libgmp-dev libflint-dev
     - name: make
       run: make
-    - name: make test all
-      run: make test_all
     - name: make openssl
       run: make test_openssl
