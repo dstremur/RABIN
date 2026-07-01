@@ -6,6 +6,7 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
   u64 q = ctx->q;
 
   // 1. Bit-reversal permutation AND entering Montgomery space
+
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
     // Convert to Montgomery form right as we load the data

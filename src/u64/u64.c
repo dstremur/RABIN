@@ -9,22 +9,25 @@
 
 typedef unsigned __int128 u128;
 
-u64 mod_add(u64 a, u64 b, u64 p)
+inline u64 mod_add(u64 a, u64 b, u64 p)
 {
   u64 res = a + b;
-  if (res >= p || res < a) {
-    res -= p;
-  }
-  return res;
+
+  u64 mask = -(u64)((res >= p) | (res < a));
+  return res - (p & mask);
 }
 
 u64 mod_sub(u64 a, u64 b, u64 p)
 {
   u64 res = a - b;
-  return res + (p & (u64)((i64)res >> 63));
+  // If a < b, a borrow occurred.
+  // (a < b) evaluates to 1 or 0. Negating it creates a mask of all 1s or all
+  // 0s.
+  u64 mask = -(u64)(a < b);
+  return res + (p & mask);
 }
 
-u64 mod_mul(u64 a, u64 b, u64 p)
+inline u64 mod_mul(u64 a, u64 b, u64 p)
 {
   unsigned __int128 res = (unsigned __int128)a * b;
   return (u64)(res % p);

@@ -136,11 +136,9 @@ int main()
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
   benchmark_mul(1 << 16);
-  // benchmark_mul(1 << 17);
-  // benchmark_mul(1 << 18);
-  // benchmark_mul(1 << 19);
-  // benchmark_mul(1 << 20);
-  // benchmark_mul(1 << 17);
+  benchmark_mul(1 << 17);
+  benchmark_mul(1 << 18);
+  benchmark_mul(1 << 19);
 
   bn_free_constants();
 }

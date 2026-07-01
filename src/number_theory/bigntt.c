@@ -417,12 +417,19 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
 
         // res[even] = (u + t) mod q
         bn_add(&res.coeff[even], &u, &t);
-        bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
+        // bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
+
+        if (bn_cmp(&res.coeff[even], &ctx->q) >= 0) {
+          bn_sub(&res.coeff[even], &res.coeff[even], &ctx->q);
+        }
 
         // res[odd] = (u - t) mod q
         bn_sub(&res.coeff[odd], &u, &t);
         bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
-        bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        // bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        if (bn_cmp(&res.coeff[odd], &ctx->q) >= 0) {
+          bn_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        }
       }
     }
   }
@@ -493,12 +500,19 @@ void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
 
         // res[even] = (u + t) mod q
         bn_add(&res.coeff[even], &u, &t);
-        bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
+        // bn_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
+
+        if (bn_cmp(&res.coeff[even], &ctx->q) >= 0) {
+          bn_sub(&res.coeff[even], &res.coeff[even], &ctx->q);
+        }
 
         // res[odd] = (u - t) mod q
         bn_sub(&res.coeff[odd], &u, &t);
         bn_add(&res.coeff[odd], &res.coeff[odd], &ctx->q);
-        bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        // bn_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        if (bn_cmp(&res.coeff[odd], &ctx->q) >= 0) {
+          bn_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q);
+        }
       }
     }
   }
