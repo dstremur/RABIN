@@ -33,10 +33,10 @@ void benchmark_mul(u64 n)
   // 1. Standard Multiplication Timing
   clock_t start_std = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    // bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
+    bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
   }
   clock_t end_std = clock();
-  double time_std = (double)(end_std - start_std + 100000000) / CLOCKS_PER_SEC;
+  double time_std = (double)(end_std - start_std) / CLOCKS_PER_SEC;
 
   // 2. NTT Multiplication Timing
   clock_t start_ntt = clock();
@@ -53,7 +53,7 @@ void benchmark_mul(u64 n)
   clock_t end_ntt_big = clock();
   double time_ntt_big = (double)(end_ntt_big - start_ntt_big) / CLOCKS_PER_SEC;
 
-  if (bigpoly_equal(&r_ntt_big, &r_ntt)) {
+  if (bigpoly_equal(&r_std, &r_ntt)) {
     printf("Verification: [PASSED] (NTT results match Standard)\n");
   } else {
     printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
@@ -136,11 +136,11 @@ int main()
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
   benchmark_mul(1 << 16);
-  benchmark_mul(1 << 17);
-  benchmark_mul(1 << 18);
-  benchmark_mul(1 << 19);
-  benchmark_mul(1 << 20);
-  benchmark_mul(1 << 17);
+  // benchmark_mul(1 << 17);
+  // benchmark_mul(1 << 18);
+  // benchmark_mul(1 << 19);
+  // benchmark_mul(1 << 20);
+  // benchmark_mul(1 << 17);
 
   bn_free_constants();
 }
