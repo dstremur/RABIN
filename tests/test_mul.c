@@ -26,7 +26,7 @@ void benchmark_mul(int limbs)
 
   // 2. Time Karatsuba
   start = clock();
-  bn_mul_fast(&res_karat, &a, &b);
+  // bn_mul_fast(&res_karat, &a, &b);
   end = clock();
   double time_ntt = (double)(end - start) / CLOCKS_PER_SEC;
 

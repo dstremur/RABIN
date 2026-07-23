@@ -91,8 +91,12 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
 
   // normalize lengths, shorter is zero-padded
   u64 max_len = MAX(a_len, b_len);
-  for (u64 i = a_len; i < max_len; i++) s_a[i] = 0;
-  for (u64 i = b_len; i < max_len; i++) s_b[i] = 0;
+  if (max_len > a_len) {
+    memset(s_a + a_len, 0, (max_len - a_len) * sizeof(u64));
+  }
+  if (max_len > b_len) {
+    memset(s_b + b_len, 0, (max_len - b_len) * sizeof(u64));
+  }
 
   // recursive middle multiplication
   // z1 = s_a * s_b
