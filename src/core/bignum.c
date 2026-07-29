@@ -133,30 +133,45 @@ char* bn_to_string(const bignum* n)
     return strdup("0");
   }
 
-  bignum tmp;
+  bignum tmp, q;
   bn_init(&tmp);
+  bn_init(&q);
   bn_copy(&tmp, n);
 
   uint64_t* parts = NULL;
   size_t parts_count = 0;
+  uint64_t base_10_19 = 10000000000000000000ULL;  // 10^19
 
-  // Extract 19-digit chunks
+  // Extract 19-digit chunks safely
   while (!(tmp.size == 1 && tmp.limbs[0] == 0)) {
-    bignum q;
-    bn_init(&q);
-    // Ensure bn_divmod_u64 is correctly updating 'q' and returning 'rem'
-    uint64_t rem = bn_divmod_u64(&q, &tmp, BASE_10_19);
+    uint64_t rem = bn_divmod_u64(&q, &tmp, base_10_19);
 
     parts = realloc(parts, (parts_count + 1) * sizeof(uint64_t));
+    if (!parts) {
+      bn_free(&tmp);
+      bn_free(&q);
+      return NULL;
+    }
     parts[parts_count++] = rem;
 
-    bn_free(&tmp);
-    tmp = q;
+    // Use bn_copy instead of raw struct assignment to prevent pointer aliasing
+    bn_copy(&tmp, &q);
+  }
+
+  bn_free(&q);
+  bn_free(&tmp);
+
+  if (parts_count == 0) {
+    free(parts);
+    return strdup("0");
   }
 
   u64 buffer_size = (parts_count * 19) + 2;
   char* result = (char*)malloc(buffer_size);
-  if (!result) return NULL;
+  if (!result) {
+    free(parts);
+    return NULL;
+  }
 
   char* ptr = result;
 
@@ -173,8 +188,6 @@ char* bn_to_string(const bignum* n)
   }
 
   free(parts);
-  bn_free(&tmp);
-
   return result;
 }
 

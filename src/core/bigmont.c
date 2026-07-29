@@ -77,12 +77,15 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
     }
   }
 
-  if (r->capacity < size) bn_alloc(r, size);
-  memcpy(r->limbs, &t_limbs[size], size * sizeof(u64));
+  // Allocate space for size + 1 limbs to prevent upper-limb truncation
+  u64 res_size = size + 1;
+  bn_alloc(r, res_size);
 
-  r->size = size;
+  // Copy size + 1 limbs from the upper half of the buffer
+  memcpy(r->limbs, &t_limbs[size], res_size * sizeof(u64));
+  r->size = res_size;
 
-  // Trim r before comparing so bn_cmp works accurately
+  // Trim leading zeros so bn_cmp works accurately
   bn_trim(r);
 
   while (bn_cmp(r, &ctx->n) >= 0) {
