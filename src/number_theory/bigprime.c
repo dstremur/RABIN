@@ -156,10 +156,17 @@ cleanup:
 }
 
 // check n for primality using a Baillie-PSW test
-// Assumes sufficient trial division was done previously
 bool bn_bpsw(const bignum* n)
 {
   if (bn_is_even(n)) return false;
+
+  // Trial division by small primes to quickly reject composites (mirrors
+  // GMP's fast path). ~88% of random odd numbers have a factor < 10000.
+  for (u64 i = 0; primes[i] < 10000; i++) {
+    u64 p = primes[i];
+    if (n->size == 1 && n->limbs[0] == p) return true;
+    if (bn_mod_u64(n, p) == 0) return false;
+  }
 
   // 1. run miller rabin base 2
   bignum two;
