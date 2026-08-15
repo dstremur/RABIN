@@ -3,7 +3,7 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=x86-64 -lgmp -lflint
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -lgmp -lflint -funroll-loops -fopenmp 
 ASFLAGS = -f elf64
 LDFLAGS = -fopenmp -lm -flto -lgmp -lflint
 
