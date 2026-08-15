@@ -21,3 +21,5 @@ jobs:
       run: make
     - name: make openssl
       run: make test_openssl
+    - name: make gmp
+      run: make test_gmp
