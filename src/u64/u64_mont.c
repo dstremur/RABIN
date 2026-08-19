@@ -1,3 +1,4 @@
+#include "../../include/bighelper.h"
 #include "../../include/u64.h"
 
 void mont_init(mont_ctx* ctx, u64 p)

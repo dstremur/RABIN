@@ -118,13 +118,12 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b);
 
 // bigdiv.c
 void bn_div(bignum* q, const bignum* a, const bignum* b);
+void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b);
 void bn_newton_div(bignum* q, const bignum* a, const bignum* d);
-void bn_div_knuth(bignum* q, const bignum* a, const bignum* b);
-void bn_div_exact(bignum* r, const bignum* a, const bignum* b);
+void bn_div_exact(bignum* q, const bignum* a, const bignum* b);
 // bigmod.c
-void bn_mod(bignum* r, const bignum* a, const bignum* n);
+void bn_mod(bignum* r, const bignum* a, const bignum* b);
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
-uint64_t mod_inverse_u64(uint64_t n);
 uint64_t bn_mod_u64(const bignum* a, uint64_t d);
 bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m);
 // bigexp.c
@@ -143,8 +142,6 @@ void bn_lshift1_add(bignum* r, int bit);
 void bn_lshift(bignum* r, const bignum* a, int shift);
 void bn_rshift(bignum* r, const bignum* a, int shift);
 void bn_rshift1(bignum* r);
-void bn_rshift(bignum* r, const bignum* a, int shift);
-void bn_lshift(bignum* r, const bignum* a, int shift);
 
 // bigrabin.c
 bool bn_rabin(const bignum* n, const bignum* a);

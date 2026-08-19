@@ -1,13 +1,10 @@
 #include <ctype.h>
-#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bighelper.h"
 #include "../../include/bignum.h"
-
-extern uint64_t bn_add_inner(uint64_t* r, const uint64_t* a, uint64_t a_size,
-                             const uint64_t* b, uint64_t b_size);
 
 // TODO: sign handling
 void bn_add_abs(bignum* r, const bignum* a, const bignum* b)

@@ -1,10 +1,10 @@
 #include <assert.h>
 #include <ctype.h>
-#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
@@ -68,11 +68,10 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 
     // Handle the final carry for this row
     u64 k = i + size;
-    unsigned char c =
-        _addcarry_u64(0, t_limbs[k], carry, (unsigned long long*)&t_limbs[k]);
+    unsigned char c = adc64(0, t_limbs[k], carry, &t_limbs[k]);
     k++;
     while (c && k < t->size) {
-      c = _addcarry_u64(c, t_limbs[k], 0, (unsigned long long*)&t_limbs[k]);
+      c = adc64(c, t_limbs[k], 0, &t_limbs[k]);
       k++;
     }
   }

@@ -1,9 +1,9 @@
 #include <ctype.h>
-#include <immintrin.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
 void bn_mod1(bignum* r, const bignum* a, const bignum* b)
@@ -44,7 +44,7 @@ void bn_mod1(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-void bn_mod(bignum* r, const bignum* a, const bignum* b)
+void bn_mod2(bignum* r, const bignum* a, const bignum* b)
 {
   if (b->size == 0 || (b->size == 1 && b->limbs[0] == 0)) return;
 
@@ -137,34 +137,18 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
       if (r_hat < vn1) break;
     }
 
-    // 6. Multiply and Subtract
-    // We compute u = u - q_hat * v
-    u64 borrow_multiply = 0;
-    unsigned char borrow_sub = 0;
-
-    for (u64 i = 0; i < n; i++) {
-      __uint128_t p = (__uint128_t)q_hat * v.limbs[i] + borrow_multiply;
-      u64 p_low = (u64)p;
-      borrow_multiply = (u64)(p >> 64);
-
-      // Subtract the product limb from u with borrow propagation
-      borrow_sub = _subborrow_u64(borrow_sub, u.limbs[j + i], p_low,
-                                  (unsigned long long*)&u.limbs[j + i]);
-    }
+    // 6. Multiply and Subtract: u = u - q_hat * v
+    u64 borrow = limbs_submul_1(u.limbs + j, v.limbs, n, q_hat);
 
     // Final borrow check against the "extra" limb
-    borrow_sub = _subborrow_u64(borrow_sub, u.limbs[j + n], borrow_multiply,
-                                (unsigned long long*)&u.limbs[j + n]);
+    u64 top = u.limbs[j + n];
+    u.limbs[j + n] = top - borrow;
+    unsigned char borrow_sub = (top < borrow);
 
     // 7. Add Back (if q_hat was 1 too large)
     if (borrow_sub) {
-      unsigned char carry = 0;
-      for (u64 i = 0; i < n; i++) {
-        carry = _addcarry_u64(carry, u.limbs[j + i], v.limbs[i],
-                              (unsigned long long*)&u.limbs[j + i]);
-      }
-      _addcarry_u64(carry, u.limbs[j + n], 0,
-                    (unsigned long long*)&u.limbs[j + n]);
+      u64 carry = limbs_add_n(u.limbs + j, v.limbs, n);
+      u.limbs[j + n] += carry;
     }
   }
 
@@ -180,16 +164,6 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
   bn_free(&u);
   bn_free(&v);
-}
-
-// Fast modular inverse for a single 64-bit limb (Newton's method)
-uint64_t mod_inverse_u64(uint64_t n)
-{
-  uint64_t inv = 1;
-  for (int i = 0; i < 6; i++) {
-    inv *= (2 - n * inv);
-  }
-  return -inv;
 }
 
 uint64_t bn_mod_u64(const bignum* a, uint64_t d)

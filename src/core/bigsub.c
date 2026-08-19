@@ -3,10 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bighelper.h"
 #include "../../include/bignum.h"
-
-extern uint64_t bn_sub_inner(uint64_t* r, const uint64_t* a, uint64_t a_size,
-                             const uint64_t* b, uint64_t b_size);
 
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 {
