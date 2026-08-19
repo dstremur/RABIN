@@ -5,8 +5,6 @@
 #include "../../include/bigvector.h"
 #include "../../include/u64.h"
 
-static inline bool is_pow_2(u64 n) { return n && !(n & (n - 1)); }
-
 // finds a generator g of Fp given the factorization of p - 1
 void bn_find_gen(bignum* g, bignum* p, bigvector* factors)
 {

@@ -497,12 +497,6 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   bn_divmod(NULL, r, a, b);
 }
 
-/* kept for source compatibility – the old bit-at-a-time version was O(64n^2) */
-void bn_div_long(bignum* q, const bignum* a, const bignum* b)
-{
-  bn_divmod(q, NULL, a, b);
-}
-
 /*===========================================================================
  *  7. Exact division (Jebelean)
  *

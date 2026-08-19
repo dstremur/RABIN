@@ -41,11 +41,6 @@ typedef struct {
 } bn_mont_ctx;
 
 typedef struct {
-  u64* limbs;
-  u64 size;
-} bn52;
-
-typedef struct {
   u64 p;
   u64 p_inv;
   u64 r2_mod_p;  // 2^128 mod p, R = 2^64
@@ -60,8 +55,6 @@ typedef struct {
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b));
 #define MIN(a, b) ((a) < (b) ? (a) : (b));
-
-#define MAX_LIMBS 512
 
 extern bignum BN_ONE;
 extern bignum BN_TWO;

@@ -176,20 +176,6 @@ u64 rns_estimate_determinant(bigmatrix* A)
   return k;
 }
 
-void bigmatrix_reduce(matrix_u64* R, const bigmatrix* A, u64 m)
-{
-  R->data = malloc(sizeof(u64) * A->c_size * A->r_size);
-  R->c_size = A->c_size;
-  R->r_size = A->r_size;
-  R->modulus = m;
-
-  for (u64 i = 0; i < A->r_size; i++) {
-    for (u64 j = 0; j < A->c_size; j++) {
-      R->data[i * R->c_size + j] = bn_mod_u64(GET(A, i, j), m);
-    }
-  }
-}
-
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 {
   // create array of n matrices mod p_i

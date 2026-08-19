@@ -6,8 +6,6 @@
 #include "string.h"
 typedef unsigned __int128 u128;
 
-#define INLINE static inline __attribute__((always_inline))
-
 typedef struct {
   u64* data;
   u64 r_size;

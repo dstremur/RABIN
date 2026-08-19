@@ -69,49 +69,6 @@ i64 bn_jacobi(const bignum* a, const bignum* m)
   return res;
 }
 
-// return the euler euler criterion
-// p must be an odd prime and a comprime to p
-// return 1 if there is a quadratic residue, -1 if not
-i64 euler_criterion(bignum* a, bignum* p)
-{
-  bignum exp, r, one, p_minus_one;
-
-  bn_init_multi(&exp, &r, &one, &p_minus_one, NULL);
-
-  bn_set_u64(&one, 1);
-
-  bn_mod(&r, a, p);
-  if (bn_is_zero(&r)) {
-    bn_free(&exp);
-    bn_free(&r);
-    bn_free(&one);
-    bn_free(&p_minus_one);
-    return 0;
-  }
-
-  bn_sub(&p_minus_one, p, &one);
-
-  bn_copy(&exp, &p_minus_one);
-  bn_rshift1(&exp);
-
-  bn_mod_exp(&r, a, &exp, p);
-
-  i64 result;
-  if (bn_cmp(&r, &one) == 0) {
-    result = 1;
-  } else if (bn_cmp(&r, &p_minus_one) == 0) {
-    result = -1;
-  } else {
-    result = 0;
-  }
-
-  bn_free(&exp);
-  bn_free(&r);
-  bn_free(&one);
-  bn_free(&p_minus_one);
-
-  return result;
-}
 /* Inputs:
 p, a prime
 n, an element of Z / p Z such that solutions to the congruence r^2 = n exist;

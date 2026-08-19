@@ -180,21 +180,6 @@ void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_trim(r);
 }
 
-void bigpoly_mul_digit(bigpoly* r, const bigpoly* p, const bigpoly* q,
-                       const bignum* m)
-{
-  u64 max = MAX(p->deg, q->deg);
-
-  bigpoly_alloc(r, max);
-
-  for (u64 i = 0; i <= max; i++) {
-    bn_mul(&r->coeff[i], &p->coeff[i], &q->coeff[i]);
-    bn_mod(&r->coeff[i], &r->coeff[i], m);
-  }
-
-  r->deg = max;
-}
-
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   ntt_ctx ctx;
