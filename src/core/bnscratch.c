@@ -39,8 +39,8 @@ static __thread u64* tls_buf = NULL;
 static __thread u64 tls_cap = 0; /* capacity in u64 units */
 static __thread u64 tls_off = 0; /* current bump offset */
 
-/*
- * Reserve n u64s of thread-local scratch space.
+/**
+ * @brief Reserve n u64s of thread-local scratch space.
  *
  * Returns a pointer to at least n u64s. The memory is NOT zeroed.
  * The block stays valid until bn_scratch_release() is called.
@@ -49,6 +49,10 @@ static __thread u64 tls_off = 0; /* current bump offset */
  *   Time: O(1) amortized, O(1) realloc on arena growth
  *   Auxiliary memory: O(n) u64s (grow-only per thread)
  *   Output memory: O(n) u64s
+ *
+ * @param[in] n Number of u64s to reserve.
+ *
+ * @return A pointer to at least n u64s of scratch (not zeroed).
  */
 u64* bn_scratch_get(u64 n)
 {
@@ -77,8 +81,8 @@ u64* bn_scratch_get(u64 n)
   return malloc(n * sizeof(u64));
 }
 
-/*
- * Release the current thread's scratch block(s) by rewinding the bump
+/**
+ * @brief Release the current thread's scratch block(s) by rewinding the bump
  * pointer. The arena memory itself is kept for reuse.
  *
  * Complexity:

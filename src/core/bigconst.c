@@ -33,8 +33,8 @@ bignum BN_ZERO;
 bignum BN_ONE;
 bignum BN_TWO;
 
-/*
- * Initialize the global constants BN_ZERO, BN_ONE, and BN_TWO.
+/**
+ * @brief Initialize the global constants BN_ZERO, BN_ONE, and BN_TWO.
  *
  * Must be called once before any of the constants is used. Calling it
  * more than once without an intervening bn_free_constants() leaks the
@@ -57,8 +57,8 @@ void bn_init_constants()
   bn_set_u64(&BN_TWO, 2);
 }
 
-/*
- * Free the limb storage of the global constants.
+/**
+ * @brief Free the limb storage of the global constants.
  *
  * After this call the constants are uninitialized and must not be used
  * until bn_init_constants() is called again.

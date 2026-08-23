@@ -30,8 +30,8 @@
 
 #include "../include/bignum.h"
 
-/*
- * Compute the Jacobi symbol (a / m).
+/**
+ * @brief Compute the Jacobi symbol (a / m).
  *
  * Let n = m->size, measured in 64-bit limbs.
  *
@@ -48,6 +48,12 @@
  *   Time: O(n^2) - O(n) iterations of O(n) modular reductions
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] a Numerator of the Jacobi symbol.
+ * @param[in] m Denominator (must be positive and odd).
+ *
+ * @return 1 If a is a quadratic residue mod m, -1 if a nonresidue, 0
+ *           if gcd(a, m) > 1 or m is not positive and odd.
  */
 i64 bn_jacobi(const bignum* a, const bignum* m)
 {
@@ -111,8 +117,8 @@ i64 bn_jacobi(const bignum* a, const bignum* m)
   return res;
 }
 
-/*
- * Tonelli-Shanks: square root of n modulo the prime p.
+/**
+ * @brief Tonelli-Shanks: square root of n modulo the prime p.
  *
  * Let n_l = p->size, measured in 64-bit limbs.
  *
@@ -136,6 +142,11 @@ i64 bn_jacobi(const bignum* a, const bignum* m)
  *         exponentiations and the nonresidue search
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(n_l) limbs
+ *
+ * @param[out] r Result storing a square root of n mod p (if it exists).
+ * @param[in]  n Value whose square root is computed (a quadratic
+ *               residue mod p).
+ * @param[in]  p Prime modulus.
  */
 void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
 {
@@ -255,8 +266,8 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
   bn_free(&b2);
 }
 
-/*
- * Greatest common divisor via the binary (Stein) algorithm:
+/**
+ * @brief Greatest common divisor via the binary (Stein) algorithm:
  * d = gcd(a, b).
  *
  * Let n = max(a->size, b->size), measured in 64-bit limbs.
@@ -270,6 +281,10 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
  *   Time: O(n^2) - O(n) iterations of O(n) subtractions/shifts
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] d Result storing gcd(a, b).
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
  */
 void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 {

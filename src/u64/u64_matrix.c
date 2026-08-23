@@ -29,8 +29,8 @@
 #include "../../include/u64.h"
 #define TILE_SIZE 64
 
-/*
- * Determinant of a square u64 matrix modulo the prime M->modulus.
+/**
+ * @brief Determinant of a square u64 matrix modulo the prime M->modulus.
  *
  * Let n = M->r_size = M->c_size.
  *
@@ -47,6 +47,10 @@
  *   Time: O(n^3)
  *   Auxiliary memory: O(n^2) for the working copy
  *   Output memory: O(1)
+ *
+ * @param[in] M Square matrix (entries modulo M->modulus).
+ *
+ * @return The determinant modulo M->modulus, or 0 if singular.
  */
 u64 matrix_u64_det(matrix_u64* M)
 {
@@ -101,8 +105,8 @@ u64 matrix_u64_det(matrix_u64* M)
   return det;
 }
 
-/*
- * Determinant of a u64 matrix modulo ctx->p, in the Montgomery domain.
+/**
+ * @brief Determinant of a u64 matrix modulo ctx->p, in the Montgomery domain.
  *
  * Let n = matrix dimension.
  *
@@ -117,6 +121,12 @@ u64 matrix_u64_det(matrix_u64* M)
  *   Time: O(n^3)
  *   Auxiliary memory: O(1) (in place)
  *   Output memory: O(1)
+ *
+ * @param[in,out] mat Matrix (destroyed in place).
+ * @param[in]      n  Matrix dimension.
+ * @param[in]    ctx  Montgomery context.
+ *
+ * @return The determinant modulo ctx->p, or 0 if singular.
  */
 u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
 {

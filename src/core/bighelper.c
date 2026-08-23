@@ -39,8 +39,8 @@
  *  add
  *-------------------------------------------------------------------------*/
 
-/*
- * Add two raw limb arrays: r = a + b.
+/**
+ * @brief Add two raw limb arrays: r = a + b.
  *
  * Let n = max(a_len, b_len), measured in 64-bit limbs.
  *
@@ -55,6 +55,14 @@
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs, at most n + 1
+ *
+ * @param[out] r     Result buffer (needs n + 1 limbs; must not alias a or b).
+ * @param[in]  a     First operand limbs.
+ * @param[in]  a_len Number of limbs in a.
+ * @param[in]  b     Second operand limbs.
+ * @param[in]  b_len Number of limbs in b.
+ *
+ * @return The number of significant limbs in the result.
  */
 u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len)
 {
@@ -82,8 +90,8 @@ u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len)
  *  multiplication
  *-------------------------------------------------------------------------*/
 
-/*
- * Schoolbook (grade-school) multiplication of raw limb arrays:
+/**
+ * @brief Schoolbook (grade-school) multiplication of raw limb arrays:
  * r = a * b.
  *
  * Let n = a_size and m = b_size, measured in 64-bit limbs.
@@ -96,6 +104,12 @@ u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len)
  *   Time: O(n * m)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n + m) limbs
+ *
+ * @param[out] r      Result buffer (needs n + m limbs).
+ * @param[in]  a      First operand limbs.
+ * @param[in]  a_size Number of limbs in a.
+ * @param[in]  b      Second operand limbs.
+ * @param[in]  b_size Number of limbs in b.
  */
 void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
                       u64 b_size)
@@ -107,8 +121,8 @@ void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
   }
 }
 
-/*
- * Karatsuba multiplication of two raw limb arrays of n limbs each:
+/**
+ * @brief Karatsuba multiplication of two raw limb arrays of n limbs each:
  * r = a * b.
  *
  * Let n = number of limbs per operand.
@@ -130,6 +144,12 @@ void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
  *   Time: O(n^log2(3)) ~ O(n^1.585)
  *   Auxiliary memory: O(n) limbs of scratch
  *   Output memory: O(n) limbs (2n)
+ *
+ * @param[out] r       Result buffer (needs 2n limbs).
+ * @param[in]  a       First operand limbs (n of them).
+ * @param[in]  b       Second operand limbs (n of them).
+ * @param[in]  n       Number of limbs per operand.
+ * @param[in]  scratch Scratch buffer (needs 8 * n + 8 limbs).
  */
 void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
                          u64* scratch)
@@ -193,8 +213,8 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
   bn_add_inner(r + m, r + m, 2 * n - m, z1, 2 * max_len);
 }
 
-/*
- * Karatsuba squaring of a raw limb array: r = a * a.
+/**
+ * @brief Karatsuba squaring of a raw limb array: r = a * a.
  *
  * Let n = a_len, measured in 64-bit limbs.
  *
@@ -215,6 +235,11 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
  *   Time: O(n^log2(3)) ~ O(n^1.585)
  *   Auxiliary memory: O(n) limbs of scratch
  *   Output memory: O(n) limbs (2 * a_len)
+ *
+ * @param[out] r       Result buffer (needs 2 * a_len limbs).
+ * @param[in]  a       Operand limbs.
+ * @param[in]  a_len   Number of limbs in a.
+ * @param[in]  scratch Scratch buffer (needs 8 * a_len + 8 limbs).
  */
 void limbs_sqr_karatsuba(u64* r, const u64* a, u64 a_len, u64* scratch)
 {

@@ -31,8 +31,8 @@
 
 #include "../include/bignum.h"
 
-/*
- * Miller-Rabin test of n to base a (plain modular arithmetic).
+/**
+ * @brief Miller-Rabin test of n to base a (plain modular arithmetic).
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -53,6 +53,13 @@
  *         squarings
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] n Number to test.
+ * @param[in] a Base of the test.
+ *
+ * @return true  If n passes the test (probably prime).
+ * @return false If n is even, n <= 1, or a witness for compositeness
+ *               was found.
  */
 bool bn_rabin(const bignum* n, const bignum* a)
 {
@@ -129,8 +136,8 @@ cleanup:
   return !composite;
 }
 
-/*
- * Miller-Rabin test of n to base a (Montgomery domain).
+/**
+ * @brief Miller-Rabin test of n to base a (Montgomery domain).
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -148,6 +155,13 @@ cleanup:
  *         bn_mont_ctx_init), then O(s * n_l^2) for the test itself
  *   Auxiliary memory: O(n_l) limbs for the context and temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] n Number to test.
+ * @param[in] a Base of the test.
+ *
+ * @return true  If n passes the test (probably prime).
+ * @return false If n is even, n <= 1, or a witness for compositeness
+ *               was found.
  */
 bool bn_rabin_mont(const bignum* n, const bignum* a)
 {

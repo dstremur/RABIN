@@ -4,7 +4,12 @@
 void bigvector_init(bigvector* a, u64 d);
 void bigvector_init_dynamic(bigvector* a);
 
-// only for dynamic vectors
+/**
+ * @brief only for dynamic vectors.
+ *
+ * @param[in,out] v Dynamic vector to append to.
+ * @param[in]     a Bignum to append.
+ */
 void bigvector_append(bigvector* v, bignum* a);
 void bigvector_remove(bigvector* v, u64 index);
 

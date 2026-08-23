@@ -58,4 +58,6 @@ dkms.conf
 build/
 
 PLAN.md
-
+# Doxygen output
+html/
+latex/

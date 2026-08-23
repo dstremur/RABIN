@@ -37,13 +37,15 @@
 #include "../../include/bigntt.h"
 #include "../../include/u64.h"
 
-/*
- * Initialize a polynomial to the empty state (no coefficients).
+/**
+ * @brief Initialize a polynomial to the empty state (no coefficients).
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] p Polynomial to initialize.
  */
 void bigpoly_init(bigpoly* p)
 {
@@ -52,8 +54,8 @@ void bigpoly_init(bigpoly* p)
   p->size = 0;
 }
 
-/*
- * Bitwise AND of two bignums: r = a & mask.
+/**
+ * @brief Bitwise AND of two bignums: r = a & mask.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -65,6 +67,10 @@ void bigpoly_init(bigpoly* p)
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[out]   r    Result storing a & mask.
+ * @param[in]    a    First operand.
+ * @param[in] mask Mask.
  */
 void bn_and(bignum* r, const bignum* a, const bignum* mask)
 {
@@ -84,8 +90,8 @@ void bn_and(bignum* r, const bignum* a, const bignum* mask)
   bn_trim(r);
 }
 
-/*
- * Set a polynomial from an array of bignum coefficients.
+/**
+ * @brief Set a polynomial from an array of bignum coefficients.
  *
  * Let d = deg.
  *
@@ -96,6 +102,10 @@ void bn_and(bignum* r, const bignum* a, const bignum* mask)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out]    p     Polynomial to set.
+ * @param[in] coeff Array of coefficients.
+ * @param[in]   deg   Degree of the polynomial.
  */
 void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
 {
@@ -108,8 +118,8 @@ void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
   p->deg = deg;
 }
 
-/*
- * Set a polynomial from an array of 64-bit signed coefficients.
+/**
+ * @brief Set a polynomial from an array of 64-bit signed coefficients.
  *
  * Let d = deg.
  *
@@ -120,6 +130,10 @@ void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
  *   Time: O(d)
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out]    p     Polynomial to set.
+ * @param[in] coeff Array of 64-bit signed coefficients.
+ * @param[in]   deg   Degree of the polynomial.
  */
 void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
 {
@@ -133,8 +147,8 @@ void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
   bigpoly_trim(p);
 }
 
-/*
- * Copy the coefficients of q into p (up to q->deg).
+/**
+ * @brief Copy the coefficients of q into p (up to q->deg).
  *
  * Let d = q->deg.
  *
@@ -145,6 +159,9 @@ void bigpoly_set_i64(bigpoly* p, i64* coeff, u64 deg)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] p Destination polynomial.
+ * @param[in]  q Source polynomial.
  */
 void bigpoly_copy(bigpoly* p, bigpoly* q)
 {
@@ -153,8 +170,8 @@ void bigpoly_copy(bigpoly* p, bigpoly* q)
   }
 }
 
-/*
- * Test whether two polynomials are equal.
+/**
+ * @brief Test whether two polynomials are equal.
  *
  * Let d = max(a->deg, b->deg).
  *
@@ -165,6 +182,12 @@ void bigpoly_copy(bigpoly* p, bigpoly* q)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a First polynomial.
+ * @param[in] b Second polynomial.
+ *
+ * @return true  If the polynomials are equal.
+ * @return false If the polynomials differ.
  */
 bool bigpoly_equal(bigpoly* a, bigpoly* b)
 {
@@ -177,13 +200,15 @@ bool bigpoly_equal(bigpoly* a, bigpoly* b)
   return true;
 }
 
-/*
- * Free all coefficient storage of a polynomial.
+/**
+ * @brief Free all coefficient storage of a polynomial.
  *
  * Complexity:
  *   Time: O(size)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] p Polynomial to free.
  */
 void bigpoly_free(bigpoly* p)
 {
@@ -199,8 +224,8 @@ void bigpoly_free(bigpoly* p)
   p->size = 0;
 }
 
-/*
- * Grow the coefficient array of a polynomial to at least deg + 1
+/**
+ * @brief Grow the coefficient array of a polynomial to at least deg + 1
  * slots.
  *
  * If the capacity is already sufficient, nothing happens. Otherwise
@@ -213,6 +238,12 @@ void bigpoly_free(bigpoly* p)
  *   Time: O(new_cap) for the initialization of the new slots
  *   Auxiliary memory: O(new_cap) during the realloc
  *   Output memory: O(new_cap) bignums
+ *
+ * @param[in,out] p   Polynomial to grow.
+ * @param[in]  deg Minimum number of coefficient slots minus one.
+ *
+ * @return true  On success.
+ * @return false If the realloc fails.
  */
 bool bigpoly_alloc(bigpoly* p, u64 deg)
 {
@@ -236,8 +267,8 @@ bool bigpoly_alloc(bigpoly* p, u64 deg)
   return true;
 }
 
-/*
- * Remove leading zero coefficients from a polynomial.
+/**
+ * @brief Remove leading zero coefficients from a polynomial.
  *
  * Lowers p->deg until the top coefficient is nonzero (or the degree
  * is 0). The capacity is left unchanged.
@@ -246,6 +277,8 @@ bool bigpoly_alloc(bigpoly* p, u64 deg)
  *   Time: O(number of trimmed coefficients)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] p Polynomial to trim.
  */
 void bigpoly_trim(bigpoly* p)
 {
@@ -254,13 +287,15 @@ void bigpoly_trim(bigpoly* p)
   }
 }
 
-/*
- * Print a polynomial to stdout in descending powers of x.
+/**
+ * @brief Print a polynomial to stdout in descending powers of x.
  *
  * Complexity:
  *   Time: O(d * n) where d is the degree and n the coefficient size
  *   Auxiliary memory: O(1)
  *   Output memory: O(d * n) characters written
+ *
+ * @param[in] p Polynomial to print.
  */
 void bigpoly_print(const bigpoly* p)
 {
@@ -274,8 +309,8 @@ void bigpoly_print(const bigpoly* p)
   printf("\n");
 }
 
-/*
- * Add two polynomials: r = p + q.
+/**
+ * @brief Add two polynomials: r = p + q.
  *
  * Let d = max(p->deg, q->deg).
  *
@@ -287,6 +322,10 @@ void bigpoly_print(const bigpoly* p)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -312,8 +351,8 @@ void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_trim(r);
 }
 
-/*
- * Subtract two polynomials: r = p - q.
+/**
+ * @brief Subtract two polynomials: r = p - q.
  *
  * Let d = max(p->deg, q->deg).
  *
@@ -325,6 +364,10 @@ void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -351,8 +394,8 @@ void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_trim(r);
 }
 
-/*
- * Multiply two polynomials with the bignum NTT: r = p * q.
+/**
+ * @brief Multiply two polynomials with the bignum NTT: r = p * q.
  *
  * Let d = p->deg + q->deg + 1 (length of the true product) and
  * n = 2^k the next power of two >= d.
@@ -371,6 +414,10 @@ void bigpoly_sub(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *         limbs, plus O(n * k_l^2) for the context tables
  *   Auxiliary memory: O(n) bignums for the transformed copies
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -431,8 +478,8 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigntt_ctx_free(&ctx);
 }
 
-/*
- * Multiply two polynomials with the u64 NTT: r = p * q.
+/**
+ * @brief Multiply two polynomials with the u64 NTT: r = p * q.
  *
  * Let d = p->deg + q->deg + 1 (length of the true product) and
  * n = 2^k the next power of two >= d.
@@ -451,6 +498,10 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *   Time: O(n log n) for the NTTs
  *   Auxiliary memory: O(n) u64s for the flat arrays (scratch arena)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -514,8 +565,8 @@ void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bn_scratch_release();
 }
 
-/*
- * Multiply two polynomials with the schoolbook algorithm: r = p * q.
+/**
+ * @brief Multiply two polynomials with the schoolbook algorithm: r = p * q.
  *
  * Let d = p->deg + q->deg.
  *
@@ -528,6 +579,10 @@ void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *         the coefficients in limbs
  *   Auxiliary memory: O(d) bignums for the temporary
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
@@ -564,8 +619,8 @@ void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_free(&temp);
 }
 
-/*
- * Multiply two polynomials: r = p * q.
+/**
+ * @brief Multiply two polynomials: r = p * q.
  *
  * Currently a thin wrapper around bigpoly_mul_school().
  *
@@ -573,14 +628,18 @@ void bigpoly_mul_school(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *   Time: see bigpoly_mul_school()
  *   Auxiliary memory: O(d) bignums
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result polynomial.
+ * @param[in]  p First polynomial.
+ * @param[in]  q Second polynomial.
  */
 void bigpoly_mul(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
   bigpoly_mul_school(r, p, q);
 }
 
-/*
- * Decompose a bignum into a polynomial of fixed-width chunks.
+/**
+ * @brief Decompose a bignum into a polynomial of fixed-width chunks.
  *
  * Let n = n->size, measured in 64-bit limbs, and W = width.
  *
@@ -595,6 +654,10 @@ void bigpoly_mul(bigpoly* r, const bigpoly* p, const bigpoly* q)
  *   Time: O(n * ceil(n/W)) - one O(n) shift per chunk
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n/W) bignums
+ *
+ * @param[out]    r    Result polynomial storing the chunks.
+ * @param[in]     n    Bignum to decompose.
+ * @param[in] width Chunk width in bits.
  */
 void bn_decompose(bigpoly* r, const bignum* n, u64 width)
 {
@@ -623,8 +686,8 @@ void bn_decompose(bigpoly* r, const bignum* n, u64 width)
   bn_free_multi(&tmp, &mask, &digit);
 }
 
-/*
- * Propagate carries between the fixed-width coefficient slots of a
+/**
+ * @brief Propagate carries between the fixed-width coefficient slots of a
  * polynomial, in place.
  *
  * Let d = r->deg and W = bit_width.
@@ -638,6 +701,9 @@ void bn_decompose(bigpoly* r, const bignum* n, u64 width)
  *   Time: O(d * n) where n is the size of the coefficients in limbs
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(d) bignums (possibly grown by the final carry)
+ *
+ * @param[in,out]      r       Polynomial to normalize (modified in place).
+ * @param[in] bit_width Width of each coefficient slot in bits.
  */
 void poly_carry_propagation(bigpoly* r, u64 bit_width)
 {
@@ -671,8 +737,8 @@ void poly_carry_propagation(bigpoly* r, u64 bit_width)
   bn_free_multi(&carry, &base, &mask, &total, NULL);
 }
 
-/*
- * Recompose a polynomial of fixed-width chunks into a bignum.
+/**
+ * @brief Recompose a polynomial of fixed-width chunks into a bignum.
  *
  * Let d = p->deg and W = bit_width.
  *
@@ -684,6 +750,10 @@ void poly_carry_propagation(bigpoly* r, u64 bit_width)
  *   Time: O(d * n) where n is the size of the result in limbs
  *   Auxiliary memory: O(n) limbs for the running term
  *   Output memory: O(n) limbs
+ *
+ * @param[out]        n         Result bignum.
+ * @param[in]         p         Polynomial of chunks.
+ * @param[in] bit_width Width of each chunk in bits.
  */
 void bn_recompose(bignum* n, const bigpoly* p, u64 bit_width)
 {
@@ -701,8 +771,8 @@ void bn_recompose(bignum* n, const bigpoly* p, u64 bit_width)
   bn_free(&term);
 }
 
-/*
- * Self-test of the polynomial operations.
+/**
+ * @brief Self-test of the polynomial operations.
  *
  * Builds p(x) = 2x^2 + 3x + 1 and q(x) = 4x + 5, prints them, and
  * prints p + q and p * q (schoolbook and u64-NTT). Intended for

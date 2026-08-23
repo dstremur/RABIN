@@ -29,8 +29,8 @@
 
 #include "../include/bignum.h"
 
-/*
- * Shift r left by one bit, in place: r = r * 2.
+/**
+ * @brief Shift r left by one bit, in place: r = r * 2.
  *
  * Let n = r->size, measured in 64-bit limbs.
  *
@@ -42,6 +42,8 @@
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
+ *
+ * @param[in,out] r Value to shift left by one bit (modified in place).
  */
 void bn_lshift1(bignum* r)
 {
@@ -61,8 +63,8 @@ void bn_lshift1(bignum* r)
   }
 }
 
-/*
- * Shift r right by one bit, in place: r = r / 2 (truncated).
+/**
+ * @brief Shift r right by one bit, in place: r = r / 2 (truncated).
  *
  * Let n = r->size, measured in 64-bit limbs.
  *
@@ -74,6 +76,8 @@ void bn_lshift1(bignum* r)
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[in,out] r Value to shift right by one bit (modified in place).
  */
 void bn_rshift1(bignum* r)
 {
@@ -88,8 +92,8 @@ void bn_rshift1(bignum* r)
   bn_trim(r);
 }
 
-/*
- * Shift a left by shift bits into r: r = a << shift.
+/**
+ * @brief Shift a left by shift bits into r: r = a << shift.
  *
  * Let n = a->size, measured in 64-bit limbs.
  * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
@@ -105,6 +109,10 @@ void bn_rshift1(bignum* r)
  *   Auxiliary memory: O(1) in the normal case,
  *                     O(n) if r aliases a and a temporary is used
  *   Output memory: O(n) limbs, at most n + w + 1 limbs
+ *
+ * @param[out] r     Result of a << shift.
+ * @param[in]  a     Value to shift.
+ * @param[in]  shift Number of bits to shift left.
  */
 void bn_lshift(bignum* r, const bignum* a, int shift)
 {
@@ -170,8 +178,8 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-/*
- * Shift a right by shift bits into r: r = a >> shift (truncated).
+/**
+ * @brief Shift a right by shift bits into r: r = a >> shift (truncated).
  *
  * Let n = a->size, measured in 64-bit limbs.
  * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
@@ -188,6 +196,10 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
  *   Auxiliary memory: O(1) in the normal case,
  *                     O(n) if r aliases a and a temporary is used
  *   Output memory: O(n) limbs, at most n - w limbs
+ *
+ * @param[out] r     Result of a >> shift.
+ * @param[in]  a     Value to shift.
+ * @param[in]  shift Number of bits to shift right.
  */
 void bn_rshift(bignum* r, const bignum* a, int shift)
 {
@@ -248,8 +260,8 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-/*
- * Shift r left by one bit and add bit (0 or 1), in place:
+/**
+ * @brief Shift r left by one bit and add bit (0 or 1), in place:
  * r = (r << 1) + bit.
  *
  * Let n = r->size, measured in 64-bit limbs.
@@ -264,6 +276,9 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
+ *
+ * @param[in,out] r   Value to shift and add into (modified in place).
+ * @param[in]     bit Bit (0 or 1) to add at the least significant position.
  */
 void bn_lshift1_add(bignum* r, int bit)
 {

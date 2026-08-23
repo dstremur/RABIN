@@ -30,8 +30,8 @@
 #include "../../include/primes.h"
 #include "stdio.h"
 
-/*
- * Trial-divide n against the prime table up to the bound g.
+/**
+ * @brief Trial-divide n against the prime table up to the bound g.
  *
  * Returns false if any prime p < g (up to 50000 table entries) divides
  * n, true if no such divisor was found.
@@ -41,6 +41,12 @@
  *         prime
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] n Number to trial-divide (reduced in place).
+ * @param[in]     g Upper bound on the trial primes.
+ *
+ * @return true  If no prime p < g divides n.
+ * @return false If a prime p < g divides n.
  */
 bool trialdiv(bignum* n, u64 g)
 {
@@ -56,8 +62,8 @@ bool trialdiv(bignum* n, u64 g)
   return true;
 }
 
-/*
- * Trial-divide n against the prime table up to the bound g, storing
+/**
+ * @brief Trial-divide n against the prime table up to the bound g, storing
  * the first divisor found in f.
  *
  * Returns false and sets f to the smallest prime p < g (up to 70000
@@ -68,6 +74,13 @@ bool trialdiv(bignum* n, u64 g)
  *   Time: O(min(70000, pi(g)) * n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1) limbs for f
+ *
+ * @param[out]    f Result storing the first divisor found.
+ * @param[in,out] n Number to trial-divide (reduced in place).
+ * @param[in]     g Upper bound on the trial primes.
+ *
+ * @return true  If no prime p < g divides n (f left unchanged).
+ * @return false If a prime p < g divides n (f set to it).
  */
 bool trialdiv_factor(bignum* f, bignum* n, u64 g)
 {
@@ -84,8 +97,8 @@ bool trialdiv_factor(bignum* f, bignum* n, u64 g)
   return true;
 }
 
-/*
- * One attempt at Pollard's rho with Floyd's cycle detection.
+/**
+ * @brief One attempt at Pollard's rho with Floyd's cycle detection.
  *
  * Let n = n->size, measured in 64-bit limbs.
  *
@@ -102,6 +115,13 @@ bool trialdiv_factor(bignum* f, bignum* n, u64 g)
  *         costing a few n-limb multiplications and a gcd
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs for f
+ *
+ * @param[out] f Result storing the factor found.
+ * @param[in]  n Number to factor.
+ *
+ * @return true  On success (a nontrivial factor is stored in f).
+ * @return false If the cycle closes without a factor or after 1000000
+ *               iterations.
  */
 bool bn_pollard_rho_inner(bignum* f, const bignum* n)
 {
@@ -155,8 +175,8 @@ bool bn_pollard_rho_inner(bignum* f, const bignum* n)
   return false;
 }
 
-/*
- * Pollard's rho factorization of n.
+/**
+ * @brief Pollard's rho factorization of n.
  *
  * Let n = n->size, measured in 64-bit limbs.
  *
@@ -168,6 +188,12 @@ bool bn_pollard_rho_inner(bignum* f, const bignum* n)
  *   Time: O(n^{1/4} * n^2) expected per attempt, up to 64 attempts
  *   Auxiliary memory: O(n) limbs
  *   Output memory: O(n) limbs for f
+ *
+ * @param[out] f Result storing the factor found.
+ * @param[in]  n Number to factor.
+ *
+ * @return true  On success (a nontrivial factor is stored in f).
+ * @return false If all 64 attempts failed.
  */
 bool bn_pollard_rho(bignum* f, const bignum* n)
 {
@@ -186,8 +212,8 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
   return false;
 }
 
-/*
- * Append f to the factor vector unless it equals the last factor
+/**
+ * @brief Append f to the factor vector unless it equals the last factor
  * already stored.
  *
  * Keeps consecutive factors distinct so repeated factors are recorded
@@ -198,6 +224,9 @@ bool bn_pollard_rho(bignum* f, const bignum* n)
  *   Time: O(n) where n is the size of f in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs appended
+ *
+ * @param[in,out] v Factor vector to append to.
+ * @param[in]     f Factor to append.
  */
 static void bigvector_append_distinct(bigvector* v, const bignum* f)
 {
@@ -215,8 +244,8 @@ static void bigvector_append_distinct(bigvector* v, const bignum* f)
   bigvector_append(v, (bignum*)f);
 }
 
-/*
- * Completely factorize n, appending the factors to the vector v.
+/**
+ * @brief Completely factorize n, appending the factors to the vector v.
  *
  * Let n = n->size, measured in 64-bit limbs.
  *
@@ -240,6 +269,9 @@ static void bigvector_append_distinct(bigvector* v, const bignum* f)
  *         p - 1 attempts on the hardest composite branch
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs for the factor list
+ *
+ * @param[out]    v Vector receiving the factors.
+ * @param[in,out] n Number to factorize (modified in place).
  */
 void bn_factorize(bigvector* v, bignum* n)
 {
@@ -334,8 +366,8 @@ cleanup:
   bn_free_multi(&tmp, &f, &n1, &rem, NULL);
 }
 
-/*
- * One stage of Pollard's p - 1 method.
+/**
+ * @brief One stage of Pollard's p - 1 method.
  *
  * Let n = n->size, measured in 64-bit limbs.
  *
@@ -352,6 +384,14 @@ cleanup:
  *         prime <= B per iteration
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs for f
+ *
+ * @param[out]         f          Result storing the factor found.
+ * @param[in]          n          Number to factor.
+ * @param[in]          B          Smoothness bound.
+ * @param[in]          iterations Number of random-base attempts.
+ *
+ * @return true  On success (a nontrivial factor is stored in f).
+ * @return false If no factor was found.
  */
 bool bn_pollard_p_minus_one_stage_1(bignum* f, bignum* n, u64 B, u64 iterations)
 {
@@ -408,8 +448,8 @@ cleanup:
   return res;
 }
 
-/*
- * Pollard's p - 1 factorization of n, with three escalating stages.
+/**
+ * @brief Pollard's p - 1 factorization of n, with three escalating stages.
  *
  * Let n = n->size, measured in 64-bit limbs.
  *
@@ -427,6 +467,12 @@ cleanup:
  *   Time: sum of the three stages, O(pi(B) * n^2) per iteration
  *   Auxiliary memory: O(n) limbs
  *   Output memory: O(n) limbs for f
+ *
+ * @param[out] f Result storing the factor found.
+ * @param[in]  n Number to factor.
+ *
+ * @return true  On success (a nontrivial factor is stored in f).
+ * @return false If all stages failed.
  */
 bool bn_pollard_p_minus_one(bignum* f, bignum* n)
 {

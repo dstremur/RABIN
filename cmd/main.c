@@ -47,8 +47,8 @@ typedef struct {
   const char* description;
 } test_case;
 
-/*
- * Print a debug dump of a bignum NTT context.
+/**
+ * @brief Print a debug dump of a bignum NTT context.
  *
  * Shows the transform length, modulus, n inverse, selected omega /
  * omega_inv / psi powers (with expected values annotated), and the
@@ -59,6 +59,8 @@ typedef struct {
  *   Time: O(n) where n is the transform length (printing the tables)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) characters written
+ *
+ * @param[in] ctx NTT context to print.
  */
 void bigntt_ctx_print_debug(const ntt_ctx *ctx)
 {
@@ -100,8 +102,8 @@ void bigntt_ctx_print_debug(const ntt_ctx *ctx)
     printf("=========================================\n");
 }
 
-/*
- * Demo entry point.
+/**
+ * @brief Demo entry point.
  *
  * Reads two bignums a and b from stdin, then runs a sequence of
  * library calls printing each result. Also initializes a Goldilocks
@@ -115,6 +117,8 @@ void bigntt_ctx_print_debug(const ntt_ctx *ctx)
  *         factorization attempts on a
  *   Auxiliary memory: O(size of a and b) limbs
  *   Output memory: O(1)
+ *
+ * @return 0 On success, 1 if input reading fails.
  */
 int main()
 {

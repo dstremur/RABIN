@@ -37,13 +37,17 @@
 #include "../../include/bigrns.h"
 #include "../../include/primes.h"
 
-/*
- * Initialize a matrix with r rows and c columns of zero bignums.
+/**
+ * @brief Initialize a matrix with r rows and c columns of zero bignums.
  *
  * Complexity:
  *   Time: O(r * c)
  *   Auxiliary memory: O(1)
  *   Output memory: O(r * c) bignums
+ *
+ * @param[out] M Matrix to initialize.
+ * @param[in]  r Number of rows.
+ * @param[in]  c Number of columns.
  */
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
 {
@@ -57,13 +61,15 @@ void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
   }
 }
 
-/*
- * Free all storage of a matrix.
+/**
+ * @brief Free all storage of a matrix.
  *
  * Complexity:
  *   Time: O(r * c)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] A Matrix to free.
  */
 void bigmatrix_free(bigmatrix* A)
 {
@@ -78,13 +84,15 @@ void bigmatrix_free(bigmatrix* A)
   A->data = NULL;
 }
 
-/*
- * Print a matrix to stdout in Python list-of-lists syntax.
+/**
+ * @brief Print a matrix to stdout in Python list-of-lists syntax.
  *
  * Complexity:
  *   Time: O(r * c * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(r * c * n) characters written
+ *
+ * @param[in] A Matrix to print.
  */
 void bigmatrix_print_python(const bigmatrix* A)
 {
@@ -101,8 +109,8 @@ void bigmatrix_print_python(const bigmatrix* A)
   printf("]\n");  // End outer list
 }
 
-/*
- * Copy a matrix: R = A.
+/**
+ * @brief Copy a matrix: R = A.
  *
  * Let r = A->r_size, c = A->c_size.
  *
@@ -112,6 +120,9 @@ void bigmatrix_print_python(const bigmatrix* A)
  *   Time: O(r * c * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(r * c) bignums
+ *
+ * @param[out] R Destination matrix.
+ * @param[in]  A Source matrix.
  */
 void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
 {
@@ -123,8 +134,8 @@ void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
   }
 }
 
-/*
- * Get a single element: R = A[r][c].
+/**
+ * @brief Get a single element: R = A[r][c].
  *
  * No-op if (r, c) is out of range.
  *
@@ -132,6 +143,11 @@ void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
  *   Time: O(n) where n is the size of the entry in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[out] R Result storing the element.
+ * @param[in]  A Matrix.
+ * @param[in]  r Row index.
+ * @param[in]  c Column index.
  */
 void bigmatrix_get(bignum* R, const bigmatrix* A, u64 r, u64 c)
 {
@@ -140,8 +156,8 @@ void bigmatrix_get(bignum* R, const bigmatrix* A, u64 r, u64 c)
   bn_copy(R, GET(A, r, c));
 }
 
-/*
- * Set a single element: A[r][c] = a.
+/**
+ * @brief Set a single element: A[r][c] = a.
  *
  * No-op if (r, c) is out of range.
  *
@@ -149,6 +165,11 @@ void bigmatrix_get(bignum* R, const bigmatrix* A, u64 r, u64 c)
  *   Time: O(n) where n is the size of a in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]    a Value to store.
+ * @param[in]    r Row index.
+ * @param[in]    c Column index.
  */
 void bigmatrix_set(bigmatrix* A, const bignum* a, u64 r, u64 c)
 {
@@ -157,8 +178,8 @@ void bigmatrix_set(bigmatrix* A, const bignum* a, u64 r, u64 c)
   bn_copy(GET(A, r, c), a);
 }
 
-/*
- * Extract a column into a vector: c = A[:, col].
+/**
+ * @brief Extract a column into a vector: c = A[:, col].
  *
  * The vector c must already be allocated with r_size elements; a
  * size mismatch is reported but not fatal.
@@ -167,6 +188,10 @@ void bigmatrix_set(bigmatrix* A, const bignum* a, u64 r, u64 c)
  *   Time: O(r * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(r) bignums
+ *
+ * @param[out]  c   Result vector storing the column.
+ * @param[in]   A   Matrix.
+ * @param[in] col Column index.
  */
 void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col)
 {
@@ -177,8 +202,8 @@ void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col)
   }
 }
 
-/*
- * Extract a row into a vector: r = A[row, :].
+/**
+ * @brief Extract a row into a vector: r = A[row, :].
  *
  * The vector r must already be allocated with c_size elements; a
  * size mismatch is reported but not fatal.
@@ -187,6 +212,10 @@ void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col)
  *   Time: O(c * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(c) bignums
+ *
+ * @param[out]  r   Result vector storing the row.
+ * @param[in]   A   Matrix.
+ * @param[in] row Row index.
  */
 void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
 {
@@ -197,8 +226,8 @@ void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
   }
 }
 
-/*
- * Matrix-vector product: r = A * v.
+/**
+ * @brief Matrix-vector product: r = A * v.
  *
  * Let r = A->r_size, c = A->c_size.
  *
@@ -209,6 +238,10 @@ void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
  *   Time: O(r * c * n^2) where n is the size of the entries in limbs
  *   Auxiliary memory: O(c) bignums for the row buffer
  *   Output memory: O(r) bignums
+ *
+ * @param[out] r Result vector storing the product.
+ * @param[in]  A Matrix.
+ * @param[in]  v Input vector.
  */
 void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* v)
 {
@@ -233,8 +266,8 @@ void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* v)
   bigvector_free(&tmp);
 }
 
-/*
- * Vector-matrix product: r = v * A.
+/**
+ * @brief Vector-matrix product: r = v * A.
  *
  * Let r = A->r_size, c = A->c_size.
  *
@@ -246,6 +279,10 @@ void bigmatrix_mv(bigvector* r, const bigmatrix* A, bigvector* v)
  *   Time: O(r * c * n^2) where n is the size of the entries in limbs
  *   Auxiliary memory: O(r) bignums for the column buffer
  *   Output memory: O(c) bignums
+ *
+ * @param[out] r Result vector storing the product.
+ * @param[in]  A Matrix.
+ * @param[in]  v Input vector.
  */
 void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* v)
 {
@@ -270,8 +307,8 @@ void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* v)
   bigvector_free(&tmp);
 }
 
-/*
- * Hadamard bound on the determinant: r = prod_i ||col_i||.
+/**
+ * @brief Hadamard bound on the determinant: r = prod_i ||col_i||.
  *
  * Let n = A->c_size.
  *
@@ -285,6 +322,9 @@ void bigmatrix_vm(bigvector* r, const bigmatrix* A, bigvector* v)
  *   Time: O(n^2 * k^2) where k is the size of the entries in limbs
  *   Auxiliary memory: O(n) bignums for the column buffer
  *   Output memory: O(n * k) limbs
+ *
+ * @param[out] r Result storing the Hadamard bound.
+ * @param[in]  A Matrix.
  */
 void bigmatrix_hadamard(bignum* r, const bigmatrix* A)
 {
@@ -308,8 +348,8 @@ void bigmatrix_hadamard(bignum* r, const bigmatrix* A)
   bigvector_free(&v);
 }
 
-/*
- * Component-wise addition of two matrices: R = A + B.
+/**
+ * @brief Component-wise addition of two matrices: R = A + B.
  *
  * Let r = A->r_size, c = A->c_size.
  *
@@ -319,6 +359,10 @@ void bigmatrix_hadamard(bignum* r, const bigmatrix* A)
  *   Time: O(r * c * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(r * c) bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A First matrix.
+ * @param[in]  B Second matrix.
  */
 void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 {
@@ -332,13 +376,15 @@ void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
   return;
 }
 
-/*
- * Print a matrix to stdout, one row per line.
+/**
+ * @brief Print a matrix to stdout, one row per line.
  *
  * Complexity:
  *   Time: O(r * c * n) where n is the size of the entries in limbs
  *   Auxiliary memory: O(n) limbs for the temporary
  *   Output memory: O(r * c * n) characters written
+ *
+ * @param[in] A Matrix to print.
  */
 void bigmatrix_print(const bigmatrix* A)
 {
@@ -356,8 +402,8 @@ void bigmatrix_print(const bigmatrix* A)
   bn_free(&temp);
 }
 
-/*
- * Schoolbook matrix multiplication: R = A * B.
+/**
+ * @brief Schoolbook matrix multiplication: R = A * B.
  *
  * Let r = A->r_size, k = A->c_size, c = B->c_size.
  *
@@ -368,6 +414,10 @@ void bigmatrix_print(const bigmatrix* A)
  *         limbs
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(r * c) bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A First matrix.
+ * @param[in]  B Second matrix.
  */
 void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 {
@@ -394,8 +444,8 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
   bn_free(&tmp);
 }
 
-/*
- * Determinant of a square bignum matrix.
+/**
+ * @brief Determinant of a square bignum matrix.
  *
  * Let n = A->c_size.
  *
@@ -418,6 +468,9 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
  *   Auxiliary memory: O(n^2) bignums for the copy, O(n^2) u64s per
  *         thread in the RNS path
  *   Output memory: O(n_b) limbs
+ *
+ * @param[out] d Result storing the determinant.
+ * @param[in]  A Square matrix.
  */
 void bigmatrix_det(bignum* d, const bigmatrix* A)
 {

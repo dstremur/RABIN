@@ -32,8 +32,8 @@
 
 #include <stdio.h>
 
-/*
- * Initialize a static vector of d zero bignums.
+/**
+ * @brief Initialize a static vector of d zero bignums.
  *
  * Allocates exactly d slots (capacity = size = d) and initializes
  * each to a zero bignum. The vector cannot be grown afterwards.
@@ -42,6 +42,9 @@
  *   Time: O(d)
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] a Vector to initialize.
+ * @param[in]  d Number of elements.
  */
 void bigvector_init(bigvector* a, u64 d)
 {
@@ -55,8 +58,8 @@ void bigvector_init(bigvector* a, u64 d)
   }
 }
 
-/*
- * Initialize an empty dynamic vector.
+/**
+ * @brief Initialize an empty dynamic vector.
  *
  * The vector starts with size = capacity = 0 and may be grown with
  * bigvector_append().
@@ -65,6 +68,8 @@ void bigvector_init(bigvector* a, u64 d)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] a Vector to initialize.
  */
 void bigvector_init_dynamic(bigvector* a)
 {
@@ -72,13 +77,15 @@ void bigvector_init_dynamic(bigvector* a)
   a->dynamic = true;
 }
 
-/*
- * Free all storage of a vector.
+/**
+ * @brief Free all storage of a vector.
  *
  * Complexity:
  *   Time: O(size)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] a Vector to free.
  */
 void bigvector_free(bigvector* a)
 {
@@ -92,8 +99,8 @@ void bigvector_free(bigvector* a)
   a->dynamic = false;
 }
 
-/*
- * Append a copy of a bignum to a dynamic vector.
+/**
+ * @brief Append a copy of a bignum to a dynamic vector.
  *
  * Only allowed on vectors created with bigvector_init_dynamic();
  * otherwise an error is printed and nothing happens. If the capacity
@@ -105,6 +112,9 @@ void bigvector_free(bigvector* a)
  *         the growth
  *   Auxiliary memory: O(capacity) during the realloc
  *   Output memory: O(size + 1) bignums
+ *
+ * @param[in,out] v Dynamic vector to append to.
+ * @param[in]     a Bignum to append.
  */
 void bigvector_append(bigvector* v, bignum* a)
 {
@@ -137,8 +147,8 @@ void bigvector_append(bigvector* v, bignum* a)
   return;
 }
 
-/*
- * Set element i of a vector to a copy of v.
+/**
+ * @brief Set element i of a vector to a copy of v.
  *
  * No-op if i is out of range.
  *
@@ -146,6 +156,10 @@ void bigvector_append(bigvector* v, bignum* a)
  *   Time: O(n) where n is the size of v in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[in,out] a Vector to modify.
+ * @param[in]     v Value to store.
+ * @param[in]     i Element index.
  */
 void bigvector_set(bigvector* a, bignum* v, u64 i)
 {
@@ -154,8 +168,8 @@ void bigvector_set(bigvector* a, bignum* v, u64 i)
   bn_copy(&a->data[i], v);
 }
 
-/*
- * Component-wise addition of two vectors: r = a + b.
+/**
+ * @brief Component-wise addition of two vectors: r = a + b.
  *
  * Let d = a->size.
  *
@@ -166,6 +180,10 @@ void bigvector_set(bigvector* a, bignum* v, u64 i)
  *   Time: O(d * n) where n is the size of the elements in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result vector.
+ * @param[in]  a First vector.
+ * @param[in]  b Second vector.
  */
 void bigvector_add(bigvector* r, const bigvector* a, const bigvector* b)
 {
@@ -176,8 +194,8 @@ void bigvector_add(bigvector* r, const bigvector* a, const bigvector* b)
   }
 }
 
-/*
- * Component-wise subtraction of two vectors: r = a - b.
+/**
+ * @brief Component-wise subtraction of two vectors: r = a - b.
  *
  * Let d = a->size.
  *
@@ -188,6 +206,10 @@ void bigvector_add(bigvector* r, const bigvector* a, const bigvector* b)
  *   Time: O(d * n) where n is the size of the elements in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(d) bignums
+ *
+ * @param[out] r Result vector.
+ * @param[in]  a First vector.
+ * @param[in]  b Second vector.
  */
 void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b)
 {
@@ -198,8 +220,8 @@ void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b)
   }
 }
 
-/*
- * Euclidean norm of a vector: r = sqrt(sum_i a_i^2).
+/**
+ * @brief Euclidean norm of a vector: r = sqrt(sum_i a_i^2).
  *
  * Let d = a->size.
  *
@@ -212,6 +234,9 @@ void bigvector_sub(bigvector* r, const bigvector* a, const bigvector* b)
  *         plus O(n^2 log n) for the square root
  *   Auxiliary memory: O(n) limbs
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result storing the norm.
+ * @param[in]  a Vector.
  */
 void bigvector_norm(bignum* r, const bigvector* a)
 {
@@ -227,8 +252,8 @@ void bigvector_norm(bignum* r, const bigvector* a)
   bn_free(&temp);
 }
 
-/*
- * Dot product of two vectors: r = sum_i a_i * b_i.
+/**
+ * @brief Dot product of two vectors: r = sum_i a_i * b_i.
  *
  * Let d = a->size.
  *
@@ -239,6 +264,10 @@ void bigvector_norm(bignum* r, const bigvector* a)
  *   Time: O(d * n^2) where n is the size of the elements in limbs
  *   Auxiliary memory: O(n) limbs
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result storing the dot product.
+ * @param[in]  a First vector.
+ * @param[in]  b Second vector.
  */
 void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
 {
@@ -257,13 +286,15 @@ void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
   bn_free(&temp);
 }
 
-/*
- * Print a vector to stdout as [a_0, a_1, ...].
+/**
+ * @brief Print a vector to stdout as [a_0, a_1, ...].
  *
  * Complexity:
  *   Time: O(d * n) where d is the size and n the element size
  *   Auxiliary memory: O(1)
  *   Output memory: O(d * n) characters written
+ *
+ * @param[in] a Vector to print.
  */
 void bigvector_print(bigvector* a)
 {
@@ -278,13 +309,15 @@ void bigvector_print(bigvector* a)
   printf("]");
 }
 
-/*
- * Print a vector to stdout followed by a newline.
+/**
+ * @brief Print a vector to stdout followed by a newline.
  *
  * Complexity:
  *   Time: O(d * n) where d is the size and n the element size
  *   Auxiliary memory: O(1)
  *   Output memory: O(d * n) characters written
+ *
+ * @param[in] a Vector to print.
  */
 void bigvector_println(bigvector* a)
 {

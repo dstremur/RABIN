@@ -36,8 +36,8 @@
 #include "../../include/bigvector.h"
 #include "../../include/u64.h"
 
-/*
- * Find a generator g of the multiplicative group F_p^* given the
+/**
+ * @brief Find a generator g of the multiplicative group F_p^* given the
  * prime factorization of p - 1.
  *
  * Let n_l = p->size, measured in 64-bit limbs.
@@ -51,6 +51,10 @@
  *         factor per candidate, O(1) candidates expected
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(n_l) limbs
+ *
+ * @param[out]      g       Result storing the generator (primitive root).
+ * @param[in]       p       Prime modulus.
+ * @param[in]       factors Vector of prime factors of p - 1.
  */
 void bn_find_gen(bignum* g, bignum* p, bigvector* factors)
 {
@@ -74,8 +78,8 @@ start:
   bn_free_multi(&a, &b, &exp, &n_min_1, NULL);
 }
 
-/*
- * Find a generator g of the multiplicative group F_p^*.
+/**
+ * @brief Find a generator g of the multiplicative group F_p^*.
  *
  * Let n_l = p->size, measured in 64-bit limbs.
  *
@@ -87,6 +91,9 @@ start:
  *         O(n_l^2) for the generator search
  *   Auxiliary memory: O(n_l) limbs
  *   Output memory: O(n_l) limbs
+ *
+ * @param[out] g Result storing the generator (primitive root).
+ * @param[in]  p Prime modulus.
  */
 void bn_find_gen_fp(bignum* g, bignum* p)
 {
@@ -105,8 +112,8 @@ void bn_find_gen_fp(bignum* g, bignum* p)
   bn_free_multi(&n_min_1, NULL);
 }
 
-/*
- * Find a generator g of F_p^* for a Proth prime p = c * 2^k + 1.
+/**
+ * @brief Find a generator g of F_p^* for a Proth prime p = c * 2^k + 1.
  *
  * Let n_l = p->size, measured in 64-bit limbs.
  *
@@ -118,6 +125,10 @@ void bn_find_gen_fp(bignum* g, bignum* p)
  *   Time: factorization of c plus O(n_l^2) for the generator search
  *   Auxiliary memory: O(n_l) limbs
  *   Output memory: O(n_l) limbs
+ *
+ * @param[out] g Result storing the generator (primitive root).
+ * @param[in]  p Proth prime modulus.
+ * @param[in]  c Odd multiplier of the Proth prime (p = c * 2^k + 1).
  */
 void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
 {
@@ -139,8 +150,8 @@ void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
   bigvector_free(&factors);
 }
 
-/*
- * Generate a Proth prime p = c * 2^k + 1 (with c starting at the given
+/**
+ * @brief Generate a Proth prime p = c * 2^k + 1 (with c starting at the given
  * odd value) together with a generator g and the roots psi, omega.
  *
  * Let k = exponent of the power of two.
@@ -157,6 +168,13 @@ void bn_find_gen_proth(bignum* g, bignum* p, bignum* c)
  *         factorization of c and O(k^2) for the generator search
  *   Auxiliary memory: O(k/64) limbs
  *   Output memory: O(k/64) limbs per output
+ *
+ * @param[out]     g     Result storing the generator.
+ * @param[out]     p     Result storing the Proth prime.
+ * @param[out]     omega Result storing the primitive k-th root of unity.
+ * @param[out]     psi   Result storing the primitive (k+1)-th root of unity.
+ * @param[in]      k     Exponent of the power of two.
+ * @param[in]      c     Starting value for the odd multiplier c.
  */
 void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
                       u64 c)
@@ -214,8 +232,8 @@ void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
   bigvector_free(&factors);
 }
 
-/*
- * Initialize a bignum NTT context by generating a fresh Proth prime.
+/**
+ * @brief Initialize a bignum NTT context by generating a fresh Proth prime.
  *
  * Let k = log2 of the transform length (n = 2^k).
  *
@@ -230,6 +248,13 @@ void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
  *         for the context tables
  *   Auxiliary memory: O(k/64) limbs
  *   Output memory: O(n) bignums per table (4 tables)
+ *
+ * @param[out] ctx NTT context to initialize.
+ * @param[in]    k log2 of the transform length (n = 2^k).
+ * @param[in]    c Starting value for the odd multiplier of the Proth prime.
+ *
+ * @return true  On success.
+ * @return false On allocation failure.
  */
 bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
 {
@@ -247,8 +272,8 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
   return true;
 }
 
-/*
- * Initialize a bignum NTT context for the Goldilocks field
+/**
+ * @brief Initialize a bignum NTT context for the Goldilocks field
  * p = 5 * 2^55 + 1.
  *
  * Let k = log2 of the transform length (n = 2^k, k <= 54).
@@ -268,6 +293,12 @@ bool bigntt_ctx_init_simple(ntt_ctx* ctx, u64 k, u64 c)
  *         derivation
  *   Auxiliary memory: O(k/64) limbs
  *   Output memory: O(n) bignums per table (4 tables)
+ *
+ * @param[out] ctx NTT context to initialize.
+ * @param[in]    k log2 of the transform length (n = 2^k, k <= 54).
+ *
+ * @return true  On success.
+ * @return false If k > 54 or on allocation failure.
  */
 bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
 {
@@ -309,8 +340,8 @@ bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
   return true;
 }
 
-/*
- * Check that an NTT of the given size cannot wrap around modulo p.
+/**
+ * @brief Check that an NTT of the given size cannot wrap around modulo p.
  *
  * Let ntt_size = N (number of coefficients) and bit_width = W.
  *
@@ -324,6 +355,13 @@ bool bigntt_ctx_init_golden(ntt_ctx* ctx, u64 k)
  *   Time: O(k^2) where k is the size of p in limbs
  *   Auxiliary memory: O(k) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in]  ntt_size Number of coefficients (transform length N).
+ * @param[in] bit_width Bit width W of the input coefficients.
+ * @param[in]         p Modulus prime.
+ *
+ * @return true  If the convolution is exact (no wrap-around modulo p).
+ * @return false If the convolution may wrap around modulo p.
  */
 bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p)
 {
@@ -349,8 +387,8 @@ bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p)
   return safe;
 }
 
-/*
- * Initialize a bignum NTT context for the prime p and transform length
+/**
+ * @brief Initialize a bignum NTT context for the prime p and transform length
  * n = 2^k.
  *
  * Precomputes:
@@ -374,6 +412,17 @@ bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p)
  *   Auxiliary memory: O(k) limbs for temporaries
  *   Output memory: O(n) bignums per table (4 tables) plus O(n) u64
  *                  indices
+ *
+ * @param[out]  ctx   NTT context to initialize.
+ * @param[in]     p   Prime modulus.
+ * @param[in]     g   Generator (accepted for interface compatibility).
+ * @param[in] omega Primitive k-th root of unity mod p.
+ * @param[in]   psi   Primitive (k+1)-th root of unity mod p.
+ * @param[in]     k   log2 of the transform length (n = 2^k).
+ * @param[in]     c   Odd multiplier (accepted for interface compatibility).
+ *
+ * @return true  On success.
+ * @return false On allocation failure or a non-invertible root.
  */
 bool bigntt_ctx_init(ntt_ctx* ctx, bignum* p, bignum* g, bignum* omega,
                      bignum* psi, u64 k, u64 c)
@@ -507,8 +556,8 @@ fail:
   return false;
 }
 
-/*
- * Free all storage held by a bignum NTT context.
+/**
+ * @brief Free all storage held by a bignum NTT context.
  *
  * Frees the four power tables (each entry is a bignum), the
  * bit-reversal table, the modulus, n_inv, and the Montgomery context.
@@ -518,6 +567,8 @@ fail:
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] ctx NTT context to free.
  */
 void bigntt_ctx_free(ntt_ctx* ctx)
 {
@@ -554,8 +605,8 @@ void bigntt_ctx_free(ntt_ctx* ctx)
   bn_mont_ctx_free(&ctx->mctx);
 }
 
-/*
- * Forward cyclic NTT of a bignum polynomial: a_hat = NTT(a).
+/**
+ * @brief Forward cyclic NTT of a bignum polynomial: a_hat = NTT(a).
  *
  * Let n = ctx->n = 2^k and k_l = the size of ctx->q in limbs.
  *
@@ -575,6 +626,10 @@ void bigntt_ctx_free(ntt_ctx* ctx)
  *         operations
  *   Auxiliary memory: O(n) bignums for the working copy
  *   Output memory: O(n) bignums
+ *
+ * @param[out] a_hat Result storing the forward NTT (Montgomery domain).
+ * @param[in]      a Input polynomial.
+ * @param[in]    ctx NTT context.
  */
 void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
 {
@@ -653,8 +708,8 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   bigpoly_free(&res);
 }
 
-/*
- * Inverse cyclic NTT of a bignum polynomial: a_hat = NTT^{-1}(a).
+/**
+ * @brief Inverse cyclic NTT of a bignum polynomial: a_hat = NTT^{-1}(a).
  *
  * Let n = ctx->n = 2^k and k_l = the size of ctx->q in limbs.
  *
@@ -666,14 +721,18 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
  *   Time: O(n log n * k_l^2)
  *   Auxiliary memory: O(n) bignums for the working copy
  *   Output memory: O(n) bignums
+ *
+ * @param[out] a_hat Result storing the inverse NTT (normal domain).
+ * @param[in]      a Input polynomial (normal domain).
+ * @param[in]    ctx NTT context.
  */
 void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
 {
   bigntt_cyclic_inverse_mont_in(a_hat, a, ctx);
 }
 
-/*
- * Inverse cyclic NTT with Montgomery-domain input:
+/**
+ * @brief Inverse cyclic NTT with Montgomery-domain input:
  * a_hat = NTT^{-1}(a), where a is already in the Montgomery domain.
  *
  * Let n = ctx->n = 2^k and k_l = the size of ctx->q in limbs.
@@ -691,6 +750,10 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
  *   Time: O(n log n * k_l^2)
  *   Auxiliary memory: O(n) bignums for the working copy
  *   Output memory: O(n) bignums
+ *
+ * @param[out] a_hat Result storing the inverse NTT (normal domain).
+ * @param[in]      a Input polynomial (Montgomery domain).
+ * @param[in]    ctx NTT context.
  */
 void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
 {

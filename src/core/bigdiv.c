@@ -66,15 +66,21 @@
  *  1. Newton division
  *=========================================================================*/
 
-/*
- * Number of Newton iterations needed to refine the reciprocal of a
- * d_bits-bit divisor. Each iteration roughly doubles the number of
- * correct bits, so about 2/3 * log2(d) iterations are enough.
+/**
+ * @brief Number of Newton iterations needed to refine the reciprocal of a
+ * d_bits-bit divisor.
+ *
+ * Each iteration roughly doubles the number of correct bits, so about
+ * 2/3 * log2(d) iterations are enough.
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] bits Bit length of the divisor d.
+ *
+ * @return The number of Newton iterations to perform.
  */
 static u64 estimate_iterations(u64 bits)
 {
@@ -86,8 +92,8 @@ static u64 estimate_iterations(u64 bits)
   return its + 1;
 }
 
-/*
- * Divide a by d using a Newton-iterated reciprocal: q = a / d.
+/**
+ * @brief Divide a by d using a Newton-iterated reciprocal: q = a / d.
  *
  * Let n = a->size and m = d->size, measured in 64-bit limbs.
  *
@@ -108,6 +114,10 @@ static u64 estimate_iterations(u64 bits)
  *         plus one seeding division
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] q Quotient a / d.
+ * @param[in]  a Dividend.
+ * @param[in]  d Divisor.
  */
 void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
 {
@@ -174,8 +184,8 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
  *  turning the per-digit estimate into a few multiplications.
  *=========================================================================*/
 
-/*
- * v = floor((2^128 - 1) / d) - 2^64 ; requires d >= 2^63.
+/**
+ * @brief v = floor((2^128 - 1) / d) - 2^64 ; requires d >= 2^63.
  *
  * Reciprocal used by the 2/1 division: for n1 < d it yields
  * q = floor((n1 n0) / d) with an error of at most 1.
@@ -184,6 +194,10 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] d Normalised divisor limb (d >= 2^63).
+ *
+ * @return The reciprocal v = floor((2^128 - 1) / d) - 2^64.
  */
 static inline u64 bn_invert_limb(u64 d)
 {
@@ -197,8 +211,9 @@ static inline u64 bn_invert_limb(u64 d)
 #endif
 }
 
-/*
- * Reciprocal for the 3/2 division; requires d1 >= 2^63.
+/**
+ * @brief Reciprocal for the 3/2 division; requires d1 >= 2^63.
+ *
  * With v = bn_invert_3by2(d1, d0), q = floor((n2 n1 n0) / (d1 d0))
  * is obtained from a couple of multiplications with an error of at
  * most 1.
@@ -207,6 +222,11 @@ static inline u64 bn_invert_limb(u64 d)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] d1 High limb of the normalised divisor (d1 >= 2^63).
+ * @param[in] d0 Low limb of the normalised divisor.
+ *
+ * @return The 3/2 reciprocal v.
  */
 static u64 bn_invert_3by2(u64 d1, u64 d0)
 {
@@ -234,8 +254,9 @@ static u64 bn_invert_3by2(u64 d1, u64 d0)
  *  3. Quotient digit computation
  *=========================================================================*/
 
-/*
- * {n1,n0} / d, requires d >= 2^63 and n1 < d.
+/**
+ * @brief {n1,n0} / d, requires d >= 2^63 and n1 < d.
+ *
  * Returns the quotient digit and stores the remainder in *rp.
  *
  * The reciprocal dinv yields a quotient estimate that is off by at
@@ -245,6 +266,14 @@ static u64 bn_invert_3by2(u64 d1, u64 d0)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] rp   Receives the remainder.
+ * @param[in]  n1   High limb of the dividend window.
+ * @param[in]  n0   Low limb of the dividend window.
+ * @param[in]  d    Normalised divisor (d >= 2^63).
+ * @param[in]  dinv Reciprocal from bn_invert_limb(d).
+ *
+ * @return The exact quotient digit.
  */
 static inline u64 bn_div2by1(u64* rp, u64 n1, u64 n0, u64 d, u64 dinv)
 {
@@ -267,8 +296,9 @@ static inline u64 bn_div2by1(u64* rp, u64 n1, u64 n0, u64 d, u64 dinv)
   return q1;
 }
 
-/*
- * {n2,n1,n0} / {d1,d0}.  Requires d1 >= 2^63 and {n2,n1} < {d1,d0}.
+/**
+ * @brief {n2,n1,n0} / {d1,d0}.  Requires d1 >= 2^63 and {n2,n1} < {d1,d0}.
+ *
  * Returns the quotient digit and stores the 128-bit remainder
  * r1:r0 = {n2,n1,n0} - q*{d1,d0} in *r1p:*r0p.
  *
@@ -276,6 +306,17 @@ static inline u64 bn_div2by1(u64* rp, u64 n1, u64 n0, u64 d, u64 dinv)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] r1p  Receives the high limb of the 128-bit remainder.
+ * @param[out] r0p  Receives the low limb of the 128-bit remainder.
+ * @param[in]  n2   Top limb of the dividend window.
+ * @param[in]  n1   Middle limb of the dividend window.
+ * @param[in]  n0   Low limb of the dividend window.
+ * @param[in]  d1   High limb of the normalised divisor (d1 >= 2^63).
+ * @param[in]  d0   Low limb of the normalised divisor.
+ * @param[in]  dinv Reciprocal from bn_invert_3by2(d1, d0).
+ *
+ * @return The exact quotient digit.
  */
 static inline u64 bn_div3by2(u64* r1p, u64* r0p, u64 n2, u64 n1, u64 n0, u64 d1,
                              u64 d0, u64 dinv)
@@ -311,8 +352,8 @@ static inline u64 bn_div3by2(u64* r1p, u64* r0p, u64 n2, u64 n1, u64 n0, u64 d1,
  *  4. Single-limb divisor
  *=========================================================================*/
 
-/*
- * qp[0..un-1] = up/d, returns up % d.  qp may be NULL.
+/**
+ * @brief qp[0..un-1] = up/d, returns up % d.  qp may be NULL.
  *
  * Let n = un, measured in 64-bit limbs.
  *
@@ -324,6 +365,13 @@ static inline u64 bn_div3by2(u64* r1p, u64* r0p, u64 n2, u64 n1, u64 n0, u64 d1,
  *   Time: O(n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs for qp
+ *
+ * @param[out] qp  Quotient limbs (may be NULL).
+ * @param[in]  up  Dividend limbs.
+ * @param[in]  un  Number of dividend limbs.
+ * @param[in]  d   Single-limb divisor.
+ *
+ * @return The remainder up % d.
  */
 static u64 limbs_divrem_1(u64* qp, const u64* up, u64 un, u64 d)
 {
@@ -374,8 +422,9 @@ static u64 limbs_divrem_1(u64* qp, const u64* up, u64 un, u64 d)
  *  5. Algorithm D core (multi-limb divisor)
  *=========================================================================*/
 
-/*
- *      qp[0 .. un-vn]  = up/vp          (un >= vn >= 2, vp[vn-1] != 0)
+/**
+ * @brief qp[0 .. un-vn]  = up/vp          (un >= vn >= 2, vp[vn-1] != 0)
+ *
  *      rp[0 .. vn-1]   = up%vp          (rp may be NULL)
  *      scratch: un + 1 + (normalisation ? vn : 0) limbs
  *
@@ -395,6 +444,14 @@ static u64 limbs_divrem_1(u64* qp, const u64* up, u64 un, u64 d)
  *   Time: O((un - vn + 1) * vn) - one O(vn) submul per quotient digit
  *   Auxiliary memory: O(un + vn) limbs of scratch
  *   Output memory: O(un - vn + 1) limbs for qp, O(vn) for rp
+ *
+ * @param[out] qp      Quotient limbs (un - vn + 1 of them).
+ * @param[out] rp      Remainder limbs (vn of them; may be NULL).
+ * @param[in]  up      Dividend limbs.
+ * @param[in]  un      Number of dividend limbs.
+ * @param[in]  vp      Divisor limbs (vp[vn-1] != 0).
+ * @param[in]  vn      Number of divisor limbs (>= 2).
+ * @param[in]  scratch Scratch area (un + 1 + (s ? vn : 0) limbs).
  */
 static void bn_divmod_limbs(u64* qp, u64* rp, const u64* up, u64 un,
                             const u64* vp, u64 vn, u64* scratch)
@@ -469,21 +526,25 @@ static void bn_divmod_limbs(u64* qp, u64* rp, const u64* up, u64 un,
  *  6. Public API
  *=========================================================================*/
 
-/*
- * Number of significant limbs of a bignum (skips trailing zeros).
+/**
+ * @brief Number of significant limbs of a bignum (skips trailing zeros).
  *
  * Complexity:
  *   Time: O(number of trailing zero limbs)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] x Bignum to measure.
+ *
+ * @return The number of significant (non-trailing-zero) limbs.
  */
 static inline u64 bn_nsize(const bignum* x)
 {
   return limbs_norm(x->limbs, x->size);
 }
 
-/*
- * q = a / b, r = a % b  (either result may be NULL).
+/**
+ * @brief q = a / b, r = a % b  (either result may be NULL).
  *
  * Let n = a->size and m = b->size, measured in 64-bit limbs.
  *
@@ -504,6 +565,11 @@ static inline u64 bn_nsize(const bignum* x)
  *   Auxiliary memory: O(n + m) limbs of scratch (stack or heap), plus
  *                     O(n) if q or r aliases an operand
  *   Output memory: O(n - m + 1) limbs for q, O(m) for r
+ *
+ * @param[out] q Quotient a / b (may be NULL).
+ * @param[out] r Remainder a % b (may be NULL).
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (must be nonzero).
  */
 void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
 {
@@ -595,8 +661,8 @@ void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-/*
- * q = a / b (truncated division, C semantics).
+/**
+ * @brief q = a / b (truncated division, C semantics).
  *
  * Let n = a->size and m = b->size, measured in 64-bit limbs.
  *
@@ -606,14 +672,18 @@ void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
  *   Time: O(n) for a single-limb divisor, O((n - m + 1) * m) otherwise
  *   Auxiliary memory: O(n + m) limbs
  *   Output memory: O(n - m + 1) limbs
+ *
+ * @param[out] q Quotient a / b.
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (must be nonzero).
  */
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   bn_divmod(q, NULL, a, b);
 }
 
-/*
- * r = a % b (truncated remainder, C semantics: sign(r) == sign(a)).
+/**
+ * @brief r = a % b (truncated remainder, C semantics: sign(r) == sign(a)).
  *
  * Let n = a->size and m = b->size, measured in 64-bit limbs.
  *
@@ -623,6 +693,10 @@ void bn_div(bignum* q, const bignum* a, const bignum* b)
  *   Time: O(n) for a single-limb divisor, O((n - m + 1) * m) otherwise
  *   Auxiliary memory: O(n + m) limbs
  *   Output memory: O(m) limbs
+ *
+ * @param[out] r Remainder a % b.
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (must be nonzero).
  */
 void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
@@ -641,8 +715,8 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
  *  the running remainder), so no estimation or correction is needed.
  *=========================================================================*/
 
-/*
- * q = a / b, assuming b divides a exactly (Jebelean's exact division).
+/**
+ * @brief q = a / b, assuming b divides a exactly (Jebelean's exact division).
  *
  * Let n = a->size and m = b->size, measured in 64-bit limbs.
  *
@@ -661,6 +735,10 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
  *   Time: O(n * m) - one O(m) submul per quotient limb
  *   Auxiliary memory: O(n + m) limbs for the shifted copies
  *   Output memory: O(n - m + 1) limbs
+ *
+ * @param[out] q Quotient a / b (requires b | a).
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (must divide a exactly).
  */
 void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
 {

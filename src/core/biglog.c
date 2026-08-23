@@ -26,8 +26,8 @@
 
 #include "../../include/bignum.h"
 
-/*
- * Calculate the integer natural logarithm of a, truncated.
+/**
+ * @brief Calculate the integer natural logarithm of a, truncated.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -47,6 +47,9 @@
  *         O(n^2) for the bn_div() of two n-limb values
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(1) limbs (the result fits in a few limbs)
+ *
+ * @param[out] r Result storing floor(ln(a)).
+ * @param[in]  a Value to take the natural logarithm of.
  */
 void bn_ln(bignum* r, bignum* a)
 {
@@ -71,8 +74,8 @@ void bn_ln(bignum* r, bignum* a)
   bn_free_multi(&log2, &tmp, &tmp2, NULL);
 }
 
-/*
- * Calculate the integer base-2 logarithm of a.
+/**
+ * @brief Calculate the integer base-2 logarithm of a.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -88,6 +91,9 @@ void bn_ln(bignum* r, bignum* a)
  *   Time: O(1) (only the most significant limb is inspected)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1) limbs
+ *
+ * @param[out] r Result storing floor(log_2(a)).
+ * @param[in]  a Value to take the base-2 logarithm of.
  */
 void bn_log_2(bignum* r, bignum* a)
 {

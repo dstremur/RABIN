@@ -40,14 +40,16 @@
 
 #define BASE_10_19 10000000000000000000ULL
 
-/*
- * Initialize a bignum to zero, releasing no memory (r must not have
+/**
+ * @brief Initialize a bignum to zero, releasing no memory (r must not have
  * been allocated yet).
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] r Bignum to initialize to zero.
  */
 void bn_init(bignum* r)
 {
@@ -57,8 +59,8 @@ void bn_init(bignum* r)
   r->is_neg = false;
 }
 
-/*
- * Initialize multiple bignums to zero.
+/**
+ * @brief Initialize multiple bignums to zero.
  *
  * Takes a NULL-terminated list of bignum pointers; the first argument
  * is the first bignum and the variadic arguments continue the list.
@@ -68,6 +70,9 @@ void bn_init(bignum* r)
  *   Time: O(k) for k bignums
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[out] r First bignum to initialize; further bignums follow as
+ *               variadic arguments, terminated by NULL.
  */
 void bn_init_multi(bignum* r, ...)
 {
@@ -86,8 +91,8 @@ void bn_init_multi(bignum* r, ...)
   va_end(arg);
 }
 
-/*
- * Swap the contents of two bignums by exchanging their structs.
+/**
+ * @brief Swap the contents of two bignums by exchanging their structs.
  *
  * Only the struct fields (pointers, sizes, sign) are swapped, so this
  * is O(1) regardless of size.
@@ -96,6 +101,9 @@ void bn_init_multi(bignum* r, ...)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] a First bignum.
+ * @param[in,out] b Second bignum.
  */
 void bn_swap(bignum* a, bignum* b)
 {
@@ -106,8 +114,8 @@ void bn_swap(bignum* a, bignum* b)
   *b = temp;
 }
 
-/*
- * Test whether a bignum is even.
+/**
+ * @brief Test whether a bignum is even.
  *
  * Returns 1 if n is even (including zero), 0 otherwise. Only the least
  * significant bit of the lowest limb is inspected.
@@ -116,6 +124,10 @@ void bn_swap(bignum* a, bignum* b)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] n Bignum to test.
+ *
+ * @return 1 If n is even (including zero), 0 otherwise.
  */
 int bn_is_even(const bignum* n)
 {
@@ -126,21 +138,25 @@ int bn_is_even(const bignum* n)
   return (n->limbs[0] & 1) == 0;
 }
 
-/*
- * Test whether a bignum is zero.
+/**
+ * @brief Test whether a bignum is zero.
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a Bignum to test.
+ *
+ * @return true If a is zero, false otherwise.
  */
 bool bn_is_zero(const bignum* a)
 {
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
-/*
- * Test whether a bignum equals a 64-bit signed integer.
+/**
+ * @brief Test whether a bignum equals a 64-bit signed integer.
  *
  * Returns true iff n has exactly one limb and that limb equals a.
  *
@@ -148,6 +164,11 @@ bool bn_is_zero(const bignum* a)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] n Bignum to test.
+ * @param[in] a 64-bit signed integer to compare against.
+ *
+ * @return true If n equals a, false otherwise.
  */
 bool bn_is_eq_i64(const bignum* n, i64 a)
 {
@@ -155,8 +176,8 @@ bool bn_is_eq_i64(const bignum* n, i64 a)
   return n->limbs[0] == (uint64_t)a;
 }
 
-/*
- * Grow the limb storage of r to at least capacity limbs.
+/**
+ * @brief Grow the limb storage of r to at least capacity limbs.
  *
  * If r->capacity is already sufficient, nothing happens. Otherwise the
  * storage is reallocated with exponential growth (at least double the
@@ -171,6 +192,12 @@ bool bn_is_eq_i64(const bignum* n, i64 a)
  *   Time: O(capacity) for the zero-fill and the realloc copy
  *   Auxiliary memory: O(capacity) during the realloc
  *   Output memory: O(capacity) limbs
+ *
+ * @param[in,out] r        Bignum whose storage is grown.
+ * @param[in]     capacity Minimum number of limbs required.
+ *
+ * @return true  On success.
+ * @return false If the realloc fails (r is left unchanged).
  */
 bool bn_alloc(bignum* r, u64 capacity)
 {
@@ -190,8 +217,8 @@ bool bn_alloc(bignum* r, u64 capacity)
   return true;
 }
 
-/*
- * Parse a base-10 decimal string into a bignum.
+/**
+ * @brief Parse a base-10 decimal string into a bignum.
  *
  * Let d = number of decimal digits in str.
  *
@@ -204,6 +231,9 @@ bool bn_alloc(bignum* r, u64 capacity)
  *   Time: O(d * n) where n is the number of limbs, i.e. O(d^2 / 64)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[out] n   Bignum to set (previous contents are freed).
+ * @param[in]  str Base-10 decimal string to parse (may start with '-').
  */
 void bn_init_val(bignum* n, const char* str)
 {
@@ -240,8 +270,8 @@ void bn_init_val(bignum* n, const char* str)
   bn_trim(n);
 }
 
-/*
- * Convert a bignum to a base-10 decimal string.
+/**
+ * @brief Convert a bignum to a base-10 decimal string.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -258,6 +288,11 @@ void bn_init_val(bignum* n, const char* str)
  *   Auxiliary memory: O(n) limbs for temporaries, O(n) for the chunk
  *                    array and the output string
  *   Output memory: O(n) characters
+ *
+ * @param[in] n Bignum to convert.
+ *
+ * @return A newly allocated decimal string (caller must free it), or
+ *         NULL on allocation failure.
  */
 char* bn_to_string(const bignum* n)
 {
@@ -323,8 +358,8 @@ char* bn_to_string(const bignum* n)
   return result;
 }
 
-/*
- * Print a bignum to stdout in base 10.
+/**
+ * @brief Print a bignum to stdout in base 10.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -337,6 +372,8 @@ char* bn_to_string(const bignum* n)
  *   Auxiliary memory: O(n) limbs for temporaries, O(n) for the chunk
  *                    array
  *   Output memory: O(n) characters written
+ *
+ * @param[in] n Bignum to print.
  */
 void bn_print(const bignum* n)
 {
@@ -380,13 +417,15 @@ void bn_print(const bignum* n)
   bn_free(&tmp);
 }
 
-/*
- * Print a bignum to stdout in base 10 followed by a newline.
+/**
+ * @brief Print a bignum to stdout in base 10 followed by a newline.
  *
  * Complexity:
  *   Time: O(n^2), see bn_print()
  *   Auxiliary memory: O(n)
  *   Output memory: O(n) characters written
+ *
+ * @param[in] n Bignum to print.
  */
 void bn_println(const bignum* n)
 {
@@ -399,8 +438,8 @@ void bn_println(const bignum* n)
   printf("\n");
 }
 
-/*
- * Free the limb storage of a bignum and reset it to the zero state.
+/**
+ * @brief Free the limb storage of a bignum and reset it to the zero state.
  *
  * Safe to call on a NULL pointer or on an already-freed bignum.
  *
@@ -408,6 +447,8 @@ void bn_println(const bignum* n)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] r Bignum to free (may be NULL).
  */
 void bn_free(bignum* r)
 {
@@ -424,8 +465,8 @@ void bn_free(bignum* r)
   r->capacity = 0;
 }
 
-/*
- * Free multiple bignums.
+/**
+ * @brief Free multiple bignums.
  *
  * Takes a NULL-terminated list of bignum pointers; the first argument
  * is the first bignum and the variadic arguments continue the list.
@@ -435,6 +476,9 @@ void bn_free(bignum* r)
  *   Time: O(k) for k bignums
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] r First bignum to free; further bignums follow as
+ *                  variadic arguments, terminated by NULL.
  */
 void bn_free_multi(bignum* r, ...)
 {
@@ -453,8 +497,8 @@ void bn_free_multi(bignum* r, ...)
   bn_free(r);
 }
 
-/*
- * Remove trailing zero limbs from a bignum.
+/**
+ * @brief Remove trailing zero limbs from a bignum.
  *
  * Reduces r->size so that the most significant limb is nonzero (or
  * size is 1). The capacity is left unchanged.
@@ -463,6 +507,8 @@ void bn_free_multi(bignum* r, ...)
  *   Time: O(number of trimmed limbs)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] r Bignum to trim.
  */
 void bn_trim(bignum* r)
 {
@@ -471,8 +517,8 @@ void bn_trim(bignum* r)
   }
 }
 
-/*
- * Return the value of the i-th bit of a (0 or 1).
+/**
+ * @brief Return the value of the i-th bit of a (0 or 1).
  *
  * Bit 0 is the least significant bit. Bits beyond the current size
  * read as 0.
@@ -481,6 +527,11 @@ void bn_trim(bignum* r)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a Bignum to read the bit from.
+ * @param[in] i Bit index (0 = least significant).
+ *
+ * @return The value of bit i (0 or 1).
  */
 int bn_get_bit(const bignum* a, int i)
 {
@@ -492,8 +543,8 @@ int bn_get_bit(const bignum* a, int i)
   return (a->limbs[limb] >> offset) & 1;
 }
 
-/*
- * Compare two signed bignums.
+/**
+ * @brief Compare two signed bignums.
  *
  * Returns 1 if a > b, -1 if a < b, 0 if a == b.
  *
@@ -506,6 +557,11 @@ int bn_get_bit(const bignum* a, int i)
  *   Time: O(n) worst case, where n = max(a->size, b->size)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a First bignum.
+ * @param[in] b Second bignum.
+ *
+ * @return 1 If a > b, -1 if a < b, 0 if a == b.
  */
 int bn_cmp(const bignum* a, const bignum* b)
 {
@@ -532,8 +588,8 @@ int bn_cmp(const bignum* a, const bignum* b)
   return cmp;
 }
 
-/*
- * Compare the absolute values (magnitudes) of two bignums.
+/**
+ * @brief Compare the absolute values (magnitudes) of two bignums.
  *
  * Returns 1 if |a| > |b|, -1 if |a| < |b|, 0 if |a| == |b|. Signs are
  * ignored. The comparison is by size first, then most significant
@@ -543,6 +599,11 @@ int bn_cmp(const bignum* a, const bignum* b)
  *   Time: O(n) worst case, where n = max(a->size, b->size)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a First bignum.
+ * @param[in] b Second bignum.
+ *
+ * @return 1 If |a| > |b|, -1 if |a| < |b|, 0 if |a| == |b|.
  */
 int bn_cmp_abs(const bignum* a, const bignum* b)
 {
@@ -556,8 +617,8 @@ int bn_cmp_abs(const bignum* a, const bignum* b)
   return 0;
 }
 
-/*
- * Deep copy a bignum: r = a.
+/**
+ * @brief Deep copy a bignum: r = a.
  *
  * Copies the limb storage and the sign. r may alias a (a no-op in
  * that case). If a is zero-sized, r is reset to size 0.
@@ -566,6 +627,9 @@ int bn_cmp_abs(const bignum* a, const bignum* b)
  *   Time: O(n) where n = a->size
  *   Auxiliary memory: O(1)
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Destination of the copy.
+ * @param[in]  a Source bignum.
  */
 void bn_copy(bignum* r, const bignum* a)
 {
@@ -582,8 +646,8 @@ void bn_copy(bignum* r, const bignum* a)
   memcpy(r->limbs, a->limbs, r->size * sizeof(u64));
 }
 
-/*
- * Set a bignum to an unsigned 64-bit value.
+/**
+ * @brief Set a bignum to an unsigned 64-bit value.
  *
  * Frees any previous contents and stores val in a single limb with a
  * positive sign.
@@ -592,6 +656,9 @@ void bn_copy(bignum* r, const bignum* a)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1) limbs
+ *
+ * @param[out] n   Bignum to set.
+ * @param[in]  val Unsigned 64-bit value to store.
  */
 void bn_set_u64(bignum* n, uint64_t val)
 {
@@ -602,8 +669,8 @@ void bn_set_u64(bignum* n, uint64_t val)
   n->is_neg = false;
 }
 
-/*
- * Set a bignum to a signed 64-bit value.
+/**
+ * @brief Set a bignum to a signed 64-bit value.
  *
  * For negative val the magnitude is computed as -val (with overflow
  * protection for INT64_MIN) and the sign flag is set.
@@ -612,6 +679,9 @@ void bn_set_u64(bignum* n, uint64_t val)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1) limbs
+ *
+ * @param[out] n   Bignum to set.
+ * @param[in]  val Signed 64-bit value to store.
  */
 void bn_set_i64(bignum* n, int64_t val)
 {
@@ -624,8 +694,8 @@ void bn_set_i64(bignum* n, int64_t val)
   }
 }
 
-/*
- * Set the i-th bit of a to 1.
+/**
+ * @brief Set the i-th bit of a to 1.
  *
  * Bit 0 is the least significant bit. If the bit lies beyond the
  * current size, the bignum is grown (with zeroed limbs) to reach it.
@@ -634,6 +704,9 @@ void bn_set_i64(bignum* n, int64_t val)
  *   Time: O(1) amortized (O(limb) for the zero-fill on growth)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1) limbs, possibly grown
+ *
+ * @param[in,out] a Bignum to modify.
+ * @param[in]     i Bit index (0 = least significant).
  */
 void bn_set_bit(bignum* a, int i)
 {
@@ -648,8 +721,8 @@ void bn_set_bit(bignum* a, int i)
   a->limbs[limb] |= ((u64)1 << offset);
 }
 
-/*
- * Clear the i-th bit of a to 0.
+/**
+ * @brief Clear the i-th bit of a to 0.
  *
  * Bit 0 is the least significant bit. Bits beyond the current size
  * are already 0 and are left untouched.
@@ -658,6 +731,9 @@ void bn_set_bit(bignum* a, int i)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] a Bignum to modify.
+ * @param[in]     i Bit index (0 = least significant).
  */
 void bn_clear_bit(bignum* a, int i)
 {
@@ -669,8 +745,8 @@ void bn_clear_bit(bignum* a, int i)
   }
 }
 
-/*
- * Return the bit length of a: the index of the highest set bit plus
+/**
+ * @brief Return the bit length of a: the index of the highest set bit plus
  * one (0 for zero).
  *
  * Only the most significant limb is inspected.
@@ -679,6 +755,10 @@ void bn_clear_bit(bignum* a, int i)
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a Bignum to measure.
+ *
+ * @return The bit length of a (index of highest set bit + 1, or 0).
  */
 int bn_bit_length(const bignum* a)
 {
@@ -695,8 +775,12 @@ int bn_bit_length(const bignum* a)
   return (a->size - 1) * 64 + bits;
 }
 
-/*
- * Count the trailing zero bits of a u64 (64 for a zero word).
+/**
+ * @brief Count the trailing zero bits of a u64 (64 for a zero word).
+ *
+ * @param[in] val 64-bit value to count trailing zeros of.
+ *
+ * @return The number of trailing zero bits (64 if val is 0).
  */
 static inline u64 count_trailing_zeros_u64(u64 val)
 {
@@ -704,8 +788,8 @@ static inline u64 count_trailing_zeros_u64(u64 val)
   return (u64)__builtin_ctzll(val);
 }
 
-/*
- * Return the number of trailing zero bits of a.
+/**
+ * @brief Return the number of trailing zero bits of a.
  *
  * Counts whole zero limbs (64 bits each) plus the trailing zeros of
  * the first nonzero limb. Returns 0 for a == 0.
@@ -714,6 +798,10 @@ static inline u64 count_trailing_zeros_u64(u64 val)
  *   Time: O(number of zero limbs)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a Bignum to count trailing zero bits of.
+ *
+ * @return The number of trailing zero bits (0 if a is zero).
  */
 u64 bn_cnt_trailing_zeros(const bignum* a)
 {

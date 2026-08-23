@@ -36,8 +36,8 @@
 #include "../../include/bignum.h"
 #include "../../include/primes.h"
 
-/*
- * Generate a random prime of the given bit length into p.
+/**
+ * @brief Generate a random prime of the given bit length into p.
  *
  * Let k = bits.
  *
@@ -54,6 +54,12 @@
  *         costing trial division plus one BPSW test
  *   Auxiliary memory: O(k/64) limbs
  *   Output memory: O(k/64) limbs
+ *
+ * @param[out] p    Result storing the generated prime.
+ * @param[in]  bits Desired bit length of the prime.
+ *
+ * @return true  On success.
+ * @return false If /dev/urandom cannot be opened or reading fails.
  */
 bool bn_gen_prime(bignum* p, int bits)
 {
@@ -127,8 +133,8 @@ bool bn_gen_safe_prime(bignum* p, int bits)
   return true;
 }
 
-/*
- * Test whether n is a perfect square.
+/**
+ * @brief Test whether n is a perfect square.
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -141,6 +147,11 @@ bool bn_gen_safe_prime(bignum* p, int bits)
  *         a division
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] n Number to test.
+ *
+ * @return true  If n is a perfect square.
+ * @return false If n is not a perfect square (or is negative).
  */
 bool bn_is_perfect_square(const bignum* n)
 {
@@ -183,8 +194,8 @@ bool bn_is_perfect_square(const bignum* n)
   return is_square;
 }
 
-/*
- * Strong Lucas test of n with Lucas parameters (P, Q).
+/**
+ * @brief Strong Lucas test of n with Lucas parameters (P, Q).
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -204,6 +215,13 @@ bool bn_is_perfect_square(const bignum* n)
  *         context init), then O(s * n_l^2) for the V iteration
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] n Number to test.
+ * @param[in] P Lucas parameter P.
+ * @param[in] Q Lucas parameter Q.
+ *
+ * @return true  If n passes the test (probably prime).
+ * @return false If n fails the test.
  */
 bool bn_stronglucas(const bignum* n, bignum* P, bignum* Q)
 {
@@ -266,8 +284,8 @@ cleanup:
   return prime;
 }
 
-/*
- * Baillie-PSW primality test.
+/**
+ * @brief Baillie-PSW primality test.
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -292,6 +310,11 @@ cleanup:
  *         tests (each paying a Montgomery context initialization)
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in] n Number to test.
+ *
+ * @return true  If n is probably prime.
+ * @return false If n is even or a witness for compositeness was found.
  */
 bool bn_bpsw(const bignum* n)
 {
@@ -378,8 +401,8 @@ bool bn_bpsw(const bignum* n)
   return res;
 }
 
-/*
- * Lemma 1 check of Maurer's algorithm for the case r = 1.
+/**
+ * @brief Lemma 1 check of Maurer's algorithm for the case r = 1.
  *
  * Let n_l = n->size, measured in 64-bit limbs.
  *
@@ -396,6 +419,14 @@ bool bn_bpsw(const bignum* n)
  *   Time: O(n_l^2) - two modular exponentiations
  *   Auxiliary memory: O(n_l) limbs for temporaries
  *   Output memory: O(1)
+ *
+ * @param[in]      n      Number to certify (n = 2 R q + 1).
+ * @param[in]      n_min1 Value n - 1.
+ * @param[in]      a      Random base.
+ * @param[in]      q      Prime factor (q in n = 2 R q + 1).
+ *
+ * @return true  If the check passes (n is prime).
+ * @return false If the check fails.
  */
 bool checkLemma1(bignum* n, bignum* n_min1, bignum* a, bignum* q)
 {
@@ -431,14 +462,16 @@ cleanup:
   return result;
 }
 
-/*
- * Draw a relative size for Maurer's algorithm: 2^u with u uniform in
+/**
+ * @brief Draw a relative size for Maurer's algorithm: 2^u with u uniform in
  * [0, 1), i.e. a value in [1/2, 1) biased toward 1.
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @return The relative size, a value in [1/2, 1).
  */
 double gen_rel_size()
 {
@@ -448,8 +481,8 @@ double gen_rel_size()
   return pow(2.0, u - 1.0);
 }
 
-/*
- * Generate a provable prime of k bits into p (Maurer's algorithm).
+/**
+ * @brief Generate a provable prime of k bits into p (Maurer's algorithm).
  *
  * Repeatedly invokes bn_provable_prime_inner() until it succeeds; each
  * failed attempt unwinds its recursion and frees all memory, so the
@@ -460,6 +493,9 @@ double gen_rel_size()
  *         prime generation plus trial division and Lemma 1 checks)
  *   Auxiliary memory: O(k^2 / 64) limbs on the recursion stack
  *   Output memory: O(k/64) limbs
+ *
+ * @param[out] p Result storing the provable prime.
+ * @param[in]  k Desired bit length of the prime.
  */
 void bn_provable_prime(bignum* p, u64 k)
 {
@@ -471,8 +507,8 @@ void bn_provable_prime(bignum* p, u64 k)
   }
 }
 
-/*
- * One attempt at Maurer's simpler algorithm for a provable k-bit prime.
+/**
+ * @brief One attempt at Maurer's simpler algorithm for a provable k-bit prime.
  *
  * Let k = bit length of the target prime.
  *
@@ -496,6 +532,13 @@ void bn_provable_prime(bignum* p, u64 k)
  *         Lemma 1 modular exponentiations
  *   Auxiliary memory: O(k^2 / 64) limbs on the recursion stack
  *   Output memory: O(k/64) limbs
+ *
+ * @param[out] p Result storing the provable prime.
+ * @param[in]  k Desired bit length of the prime.
+ *
+ * @return true  On success (the prime is stored in p).
+ * @return false If the recursion fails or the search exceeds 1000
+ *               candidates.
  */
 bool bn_provable_prime_inner(bignum* p, u64 k)
 {
@@ -591,8 +634,8 @@ restart:
   return true;
 }
 
-/*
- * Generate `count` Proth primes of the form p = c * 2^k + 1 and print
+/**
+ * @brief Generate `count` Proth primes of the form p = c * 2^k + 1 and print
  * them as a C array initializer.
  *
  * Let k = exponent of the power of two.
@@ -607,6 +650,10 @@ restart:
  *   Time: O(count * k^3) expected - one BPSW test per candidate
  *   Auxiliary memory: O(k/64) limbs
  *   Output memory: O(count) printed entries
+ *
+ * @param[in] count Number of Proth primes to generate.
+ * @param[in]     k Exponent of the power of two.
+ * @param[in]     c Starting value for the odd multiplier c.
  */
 void bn_gen_proth_primes(u64 count, u64 k, u64 c)
 {
@@ -654,8 +701,8 @@ void bn_gen_proth_primes(u64 count, u64 k, u64 c)
   bn_free_multi(&p_bn, &c_bn, &two_k, NULL);
 }
 
-/*
- * Generate `count` primes just below 2^64 and print them as a C array
+/**
+ * @brief Generate `count` primes just below 2^64 and print them as a C array
  * initializer.
  *
  * Scans downward from 2^64 - 47 in steps of 2 (so all candidates are
@@ -668,6 +715,8 @@ void bn_gen_proth_primes(u64 count, u64 k, u64 c)
  *   Time: O(count * 1024^3) expected - one BPSW test per candidate
  *   Auxiliary memory: O(1) limbs (single-limb candidates)
  *   Output memory: O(count) printed entries
+ *
+ * @param[in] count Number of primes to generate.
  */
 void gen_rns_primes(u64 count)
 {

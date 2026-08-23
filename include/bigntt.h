@@ -34,25 +34,54 @@ bool bigntt_compute_roots(bignum* omega, bignum* psi, u64 n, const bignum* q);
 
 void bigntt_ctx_free(ntt_ctx* ctx);
 
-// forward NTT using Cooley-Tukey butterflies
-// input in normal order, output in bit-reversed order
+/**
+ * @brief forward NTT using Cooley-Tukey butterflies.
+ *
+ * input in normal order, output in bit-reversed order.
+ *
+ * @param[out] out_hat Output polynomial in bit-reversed order.
+ * @param[in]  in      Input polynomial in normal order.
+ * @param[in]  ctx     NTT context.
+ */
 void bigntt_forward(bigpoly* out_hat, const bigpoly* in, const ntt_ctx* ctx);
 void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
 
-// inverse NTT using Gentleman-Sande (GS) butterflies
-// input in bit-reversed order, output in normal order
+/**
+ * @brief inverse NTT using Gentleman-Sande (GS) butterflies.
+ *
+ * input in bit-reversed order, output in normal order.
+ *
+ * @param[out] out    Output polynomial in normal order.
+ * @param[in]  in_hat Input polynomial in bit-reversed order.
+ * @param[in]  ctx    NTT context.
+ */
 void bigntt_inverse(bigpoly* out, const bigpoly* in_hat, const ntt_ctx* ctx);
 
 void bigntt_pointwise_mul(bigpoly* r_hat, const bigpoly* a_hat,
                           const bigpoly* b_hat, const ntt_ctx* ctx);
 
-// Performs a cyclic (positive-wrapped) convolution: r = INTT(NTT(a) ◦ NTT(b))
+/**
+ * @brief Performs a cyclic (positive-wrapped) convolution:
+ * r = INTT(NTT(a) ◦ NTT(b)).
+ *
+ * @param[out] r   Result polynomial.
+ * @param[in]  a   First polynomial.
+ * @param[in]  b   Second polynomial.
+ * @param[in]  ctx NTT context.
+ */
 void bigpoly_conv_cyclic_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b,
                              const ntt_ctx* ctx);
 
-// Performs a negacyclic (negative-wrapped) convolution using psi
+/**
+ * @brief Performs a negacyclic (negative-wrapped) convolution using psi.
+ *
+ * @param[out] r   Result polynomial.
+ * @param[in]  a   First polynomial.
+ * @param[in]  b   Second polynomial.
+ * @param[in]  ctx NTT context.
+ */
 void bigpoly_conv_negacyclic_ntt(bigpoly* r, const bigpoly* a, const bigpoly* b,
                                  const ntt_ctx* ctx);
 

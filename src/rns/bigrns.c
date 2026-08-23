@@ -40,8 +40,8 @@
 
 #include "../../include/u64.h"
 
-/*
- * Estimate how many 62-bit primes are needed to represent a bignum.
+/**
+ * @brief Estimate how many 62-bit primes are needed to represent a bignum.
  *
  * Let k = bit length of a.
  *
@@ -53,6 +53,10 @@
  *   Time: O(n) where n is the size of a in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in] a Bignum to estimate the prime count for.
+ *
+ * @return The number of 62-bit primes needed (ceil(k / 62)).
  */
 u64 rns_estimate_primes(const bignum* a)
 {
@@ -62,8 +66,8 @@ u64 rns_estimate_primes(const bignum* a)
   return res;
 }
 
-/*
- * Initialize an RNS context from a list of primes.
+/**
+ * @brief Initialize an RNS context from a list of primes.
  *
  * Let c = count.
  *
@@ -78,6 +82,10 @@ u64 rns_estimate_primes(const bignum* a)
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(c) bignums for the CRT weights, O(c) u64s for
  *         the primes and Garner weights, O(c) mont_ctxs
+ *
+ * @param[out]   ctx    RNS context to initialize.
+ * @param[in] primes Array of primes.
+ * @param[in]  count  Number of primes.
  */
 void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
 {
@@ -133,23 +141,25 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
   bn_set_u64(&prev, 1);
 
   for (u64 i = 1; i < count; i++) {
-    u64 m_prev_mod = bn_mod_u64(&prev, primes[i]);
-    ctx->garner_weights[i] = mod_inverse_euclid(m_prev_mod, primes[i]);
-
     bn_set_u64(&tmp, primes[i - 1]);
     bn_mul(&prev, &prev, &tmp);
+
+    u64 m_prev_mod = bn_mod_u64(&prev, primes[i]);
+    ctx->garner_weights[i] = mod_inverse_euclid(m_prev_mod, primes[i]);
   }
 
   bn_free_multi(&tmp, &prev, NULL);
 }
 
-/*
- * Free all storage owned by an RNS context.
+/**
+ * @brief Free all storage owned by an RNS context.
  *
  * Complexity:
  *   Time: O(count)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
+ *
+ * @param[in,out] ctx RNS context to free.
  */
 void rns_context_free(ctx_rns* ctx)
 {
@@ -188,8 +198,8 @@ void rns_context_free(ctx_rns* ctx)
   ctx->count = 0;
 }
 
-/*
- * Convert a bignum to its RNS residue vector: r_i = a mod p_i.
+/**
+ * @brief Convert a bignum to its RNS residue vector: r_i = a mod p_i.
  *
  * Let c = ctx->count.
  *
@@ -200,6 +210,10 @@ void rns_context_free(ctx_rns* ctx)
  *   Time: O(c * n) where n is the size of a in limbs
  *   Auxiliary memory: O(1)
  *   Output memory: O(c) u64s
+ *
+ * @param[out] r   Result residue vector.
+ * @param[in]  a   Bignum to convert.
+ * @param[in]  ctx RNS context.
  */
 void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
 {
@@ -213,8 +227,8 @@ void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
   }
 }
 
-/*
- * Component-wise addition of two RNS residue vectors: r = a + b.
+/**
+ * @brief Component-wise addition of two RNS residue vectors: r = a + b.
  *
  * Let c = r->size.
  *
@@ -225,6 +239,11 @@ void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
  *   Time: O(c)
  *   Auxiliary memory: O(1)
  *   Output memory: O(c) u64s
+ *
+ * @param[out] r   Result residue vector.
+ * @param[in]  a   First residue vector.
+ * @param[in]  b   Second residue vector.
+ * @param[in]  ctx RNS context.
  */
 void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
 {
@@ -233,8 +252,8 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
-/*
- * Reconstruct a bignum from its RNS residue vector via the CRT.
+/**
+ * @brief Reconstruct a bignum from its RNS residue vector via the CRT.
  *
  * Let c = r->size and n = size of the product M in limbs.
  *
@@ -249,6 +268,10 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
  *         the final reduction
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] a   Result bignum.
+ * @param[in]  r   Residue vector.
+ * @param[in]  ctx RNS context.
  */
 void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
@@ -272,8 +295,56 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   printf("end \n");
 }
 
-/*
- * Estimate the number of primes needed for an RNS matrix determinant.
+void rns_to_bignum_garner(bignum* a, const rns_num* v, ctx_rns* ctx)
+{
+  u64 t = ctx->count;
+  if (t == 0) {
+    bn_init(a);
+    bn_set_u64(a, 0);
+    return;
+  }
+
+  // Step 2: Initialize x with v_1 (using 0-based indexing: v_0)
+  bn_init(a);
+  bn_set_u64(a, v->residues[0]);
+
+  bignum prod_prev, term, bn_u, bn_p;
+  bn_init_multi(&prod_prev, &term, &bn_u, &bn_p, NULL);
+
+  // Initialize the running product of primes (m_1 in the algorithm)
+  bn_set_u64(&prod_prev, ctx->primes[0]);
+
+  // Step 3: For i from 2 to t (1 to t-1 in 0-based indexing)
+  for (u64 i = 1; i < t; i++) {
+    // Calculate (v_i - x) mod m_i
+    u64 x_mod = bn_mod_u64(a, ctx->primes[i]);
+    u64 diff;
+    if (v->residues[i] >= x_mod) {
+      diff = v->residues[i] - x_mod;
+    } else {
+      diff = (v->residues[i] + ctx->primes[i]) - x_mod;
+    }
+
+    // u = (v_i - x) * C_i mod m_i
+    // (Cast to __int128 to prevent overflow if primes are up to 64-bit)
+    u64 u = (u64)(((unsigned __int128)diff * ctx->garner_weights[i]) %
+                  ctx->primes[i]);
+
+    // x = x + u * prod_{j=1}^{i-1} m_j
+    bn_set_u64(&bn_u, u);
+    bn_mul(&term, &bn_u, &prod_prev);
+    bn_add(a, a, &term);
+
+    // Update the running product for the next iteration: prod_prev *= m_i
+    bn_set_u64(&bn_p, ctx->primes[i]);
+    bn_mul(&prod_prev, &prod_prev, &bn_p);
+  }
+
+  bn_free_multi(&prod_prev, &term, &bn_u, &bn_p, NULL);
+}
+
+/**
+ * @brief Estimate the number of primes needed for an RNS matrix determinant.
  *
  * Let n = A->r_size.
  *
@@ -287,6 +358,10 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
  *         (Hadamard bound), plus O(n) for the estimate
  *   Auxiliary memory: O(k) limbs
  *   Output memory: O(1)
+ *
+ * @param[in] A Matrix to estimate the prime count for.
+ *
+ * @return The number of 62-bit primes needed.
  */
 u64 rns_estimate_determinant(bigmatrix* A)
 {
@@ -306,8 +381,8 @@ u64 rns_estimate_determinant(bigmatrix* A)
   return k;
 }
 
-/*
- * Compute the determinant of a bignum matrix via RNS.
+/**
+ * @brief Compute the determinant of a bignum matrix via RNS.
  *
  * Let n = A->r_size and c = ctx->count.
  *
@@ -326,6 +401,10 @@ u64 rns_estimate_determinant(bigmatrix* A)
  *         where n_b is the size of M in limbs
  *   Auxiliary memory: O(n^2) u64s per thread for the reduced matrix
  *   Output memory: O(n_b) limbs
+ *
+ * @param[out] det Result storing the determinant.
+ * @param[in]  A   Matrix.
+ * @param[in]  ctx RNS context.
  */
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 {

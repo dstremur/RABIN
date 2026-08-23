@@ -34,8 +34,8 @@
 #include "../../include/bignum.h"
 #include "../../include/u64.h"
 
-/*
- * Square a bignum: r = a * a.
+/**
+ * @brief Square a bignum: r = a * a.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -50,6 +50,9 @@
  *   Time: O(n^1.585) for n >= KARATSUBA_LIMIT, O(n^2) below it
  *   Auxiliary memory: O(n) limbs of scratch
  *   Output memory: O(n) limbs (at most 2n)
+ *
+ * @param[out] r Result storing a * a.
+ * @param[in]  a Value to square.
  */
 void bn_sqr(bignum* r, const bignum* a)
 {
@@ -73,8 +76,8 @@ void bn_sqr(bignum* r, const bignum* a)
   bn_trim(r);
 }
 
-/*
- * Multiply two signed bignums: r = a * b.
+/**
+ * @brief Multiply two signed bignums: r = a * b.
  *
  * Let n = max(a->size, b->size), measured in 64-bit limbs.
  *
@@ -94,6 +97,10 @@ void bn_sqr(bignum* r, const bignum* a)
  *                     zero-padding buffers on the Karatsuba path and
  *                     O(n) if r aliases an operand
  *   Output memory: O(n) limbs (at most a->size + b->size)
+ *
+ * @param[out] r Result of the signed product a * b.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
  */
 void bn_mul(bignum* r, const bignum* a, const bignum* b)
 {
@@ -146,8 +153,8 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-/*
- * Multiply two signed bignums with the schoolbook (grade-school)
+/**
+ * @brief Multiply two signed bignums with the schoolbook (grade-school)
  * algorithm: r = a * b.
  *
  * Let n = a->size and m = b->size, measured in 64-bit limbs.
@@ -160,6 +167,10 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
  *   Time: O(n * m)
  *   Auxiliary memory: O(1)
  *   Output memory: O(n + m) limbs
+ *
+ * @param[out] r Result of the schoolbook product a * b.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
  */
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
@@ -179,8 +190,8 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-/*
- * Multiply two bignums with the NTT-based fast path: res = a * b.
+/**
+ * @brief Multiply two bignums with the NTT-based fast path: res = a * b.
  *
  * Let n = max(a->size, b->size), measured in 64-bit limbs.
  *
@@ -201,6 +212,10 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
  *         recompose
  *   Auxiliary memory: O(n) limbs for the polynomial arrays
  *   Output memory: O(n) limbs (at most a->size + b->size)
+ *
+ * @param[out] res Result of the NTT-based product a * b.
+ * @param[in]  a   First operand.
+ * @param[in]  b   Second operand.
  */
 void bn_mul_fast(bignum* res, const bignum* a, const bignum* b)
 {

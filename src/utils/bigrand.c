@@ -36,8 +36,8 @@
 
 #include "../../include/bignum.h"
 
-/*
- * Generate a random bits-long odd number.
+/**
+ * @brief Generate a random bits-long odd number.
  *
  * Opens /dev/urandom, delegates to bn_gen_random_with_fd(), and
  * closes the descriptor.
@@ -49,6 +49,12 @@
  *   Time: O(bits / 64)
  *   Auxiliary memory: O(1)
  *   Output memory: O(bits / 64) limbs
+ *
+ * @param[out] r    Result storing the random odd number.
+ * @param[in]  bits Desired bit length of the number.
+ *
+ * @return true  On success.
+ * @return false If /dev/urandom cannot be opened or the read fails.
  */
 bool bn_gen_random(bignum* r, u64 bits)
 {
@@ -61,8 +67,8 @@ bool bn_gen_random(bignum* r, u64 bits)
   return true;
 }
 
-/*
- * Generate a random bits-long odd number using a given urandom fd.
+/**
+ * @brief Generate a random bits-long odd number using a given urandom fd.
  *
  * Reads ceil(bits / 64) random limbs from fd, masks the top limb to
  * the exact bit length, sets the MSB so the number is exactly
@@ -74,6 +80,13 @@ bool bn_gen_random(bignum* r, u64 bits)
  *   Time: O(bits / 64)
  *   Auxiliary memory: O(1)
  *   Output memory: O(bits / 64) limbs
+ *
+ * @param[out] r    Result storing the random odd number.
+ * @param[in]  bits Desired bit length of the number.
+ * @param[in]  fd   Open file descriptor for /dev/urandom.
+ *
+ * @return true  On success.
+ * @return false On allocation or read failure.
  */
 bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
 {
@@ -104,8 +117,8 @@ bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
   return true;
 }
 
-/*
- * Generate a random number in the closed range [low, high].
+/**
+ * @brief Generate a random number in the closed range [low, high].
  *
  * Let b = bit length of (high - low).
  *
@@ -117,6 +130,10 @@ bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
  *         number of draws), plus O(b) for the range computation
  *   Auxiliary memory: O(b) limbs for the range
  *   Output memory: O(b) limbs
+ *
+ * @param[out] r    Result storing the random number in [low, high].
+ * @param[in]  low  Lower bound (inclusive).
+ * @param[in]  high Upper bound (inclusive).
  */
 void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high)
 {

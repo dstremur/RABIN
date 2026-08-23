@@ -31,8 +31,8 @@
 #include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
-/*
- * Add the absolute values of a and b into r.
+/**
+ * @brief Add the absolute values of a and b into r.
  *
  * Let n = max(a->size, b->size), measured in 64-bit limbs.
  *
@@ -47,6 +47,10 @@
  *   Auxiliary memory: O(1) in the normal case,
  *                     O(n) if r aliases a or b and a temporary is used
  *   Output memory: O(n) limbs, at most n + 1 limbs
+ *
+ * @param[out] r Result storing the magnitude sum |a| + |b|.
+ * @param[in]  a First operand (magnitude only).
+ * @param[in]  b Second operand (magnitude only).
  */
 void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
 {
@@ -77,8 +81,8 @@ void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
   r->size = a->size + carry;
 }
 
-/*
- * Add two signed bignums.
+/**
+ * @brief Add two signed bignums.
  *
  * Let n = max(a->size, b->size), measured in 64-bit limbs.
  *
@@ -95,6 +99,10 @@ void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
  *   Auxiliary memory: O(1), except for any temporary storage used by
  *                     bn_add_abs(), bn_sub_abs(), bn_copy(), or bn_alloc()
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result of the signed addition a + b.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
  */
 void bn_add(bignum* r, const bignum* a, const bignum* b)
 {
@@ -121,8 +129,8 @@ void bn_add(bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-/*
- * Add an unsigned 64-bit value to a signed bignum.
+/**
+ * @brief Add an unsigned 64-bit value to a signed bignum.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -150,6 +158,10 @@ void bn_add(bignum* r, const bignum* a, const bignum* b)
  *   Auxiliary memory: O(1), except for any temporary storage used by
  *                     bn_copy() or bn_alloc()
  *   Output memory: O(n) limbs, or O(n + 1) if a new carry limb is created
+ *
+ * @param[out] r Result of the addition a + b.
+ * @param[in]  a Signed bignum operand.
+ * @param[in]  b Nonnegative 64-bit value to add.
  */
 void bn_add_u64(bignum* r, const bignum* a, u64 b)
 {
@@ -196,8 +208,8 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b)
   }
 }
 
-/*
- * Add a to r at the given limb offset.
+/**
+ * @brief Add a to r at the given limb offset.
  *
  * Let n = a->size, measured in 64-bit limbs.
  * Let o = offset.
@@ -223,6 +235,10 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b)
  *   The current implementation does not explicitly handle r == a safely
  *   for all nonzero offsets. If aliasing is not supported, document that
  *   here and enforce it in the API.
+ *
+ * @param[out] r Accumulator; receives r + (a << (offset * 64)).
+ * @param[in]  a Value to add.
+ * @param[in]  offset Limb offset at which a is added.
  */
 void bn_add_at_offset(bignum* r, const bignum* a, u64 offset)
 {

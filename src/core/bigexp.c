@@ -32,8 +32,8 @@
 
 #include "../../include/bignum.h"
 
-/*
- * Calculate a^b into r using binary exponentiation.
+/**
+ * @brief Calculate a^b into r using binary exponentiation.
  *
  * Let n = a->size and e = b->size, measured in 64-bit limbs.
  *
@@ -53,6 +53,10 @@
  *         multiply of growing operands
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(e * n) limbs
+ *
+ * @param[out] r Result of a^b.
+ * @param[in]  a Base.
+ * @param[in]  b Exponent.
  */
 void bn_pow(bignum* r, const bignum* a, const bignum* b)
 {
@@ -71,8 +75,8 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-/*
- * Calculate a_bar^d in the Montgomery domain.
+/**
+ * @brief Calculate a_bar^d in the Montgomery domain.
  *
  * Let n = ctx->n.size and e = d->size, measured in 64-bit limbs.
  *
@@ -98,6 +102,11 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b)
  *         precompute for the window table)
  *   Auxiliary memory: O(n) limbs for the window table
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r_bar Result in Montgomery form: a_bar^d (mod n).
+ * @param[in]  a_bar Base in Montgomery form (a * R mod n).
+ * @param[in]  d     Exponent.
+ * @param[in]  ctx   Initialized Montgomery context for the modulus n.
  */
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
                  bn_mont_ctx* ctx)
@@ -165,8 +174,8 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
   for (u64 i = 0; i < 16; i++) bn_free(&tab[i]);
 }
 
-/*
- * Calculate a^b mod m into r using plain (non-Montgomery) arithmetic.
+/**
+ * @brief Calculate a^b mod m into r using plain (non-Montgomery) arithmetic.
  *
  * Let n = m->size and e = b->size, measured in 64-bit limbs.
  *
@@ -187,6 +196,11 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
  *         O(e * n^2) with a large constant
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result of a^b mod m.
+ * @param[in]  a Base.
+ * @param[in]  b Exponent.
+ * @param[in]  m Modulus.
  */
 void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
                      const bignum* m)
@@ -212,8 +226,8 @@ void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
   bn_free_multi(&base, &exp, &res, &tmp, NULL);
 }
 
-/*
- * Calculate a^b mod m into r.
+/**
+ * @brief Calculate a^b mod m into r.
  *
  * Let n = m->size and e = b->size, measured in 64-bit limbs.
  *
@@ -231,6 +245,11 @@ void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
  *         multiply+divide pairs for even m)
  *   Auxiliary memory: O(n) limbs for the context and temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result of a^b mod m.
+ * @param[in]  a Base.
+ * @param[in]  b Exponent.
+ * @param[in]  m Modulus.
  */
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
 {
@@ -246,8 +265,8 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
   bn_mont_ctx_free(&ctx);
 }
 
-/*
- * Calculate a^b mod m into r using a caller-provided Montgomery context.
+/**
+ * @brief Calculate a^b mod m into r using a caller-provided Montgomery context.
  *
  * Let n = m->size and e = b->size, measured in 64-bit limbs.
  *
@@ -266,6 +285,12 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
  *         conversions, each one Montgomery multiplication
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r     Result of a^b mod m.
+ * @param[in]  a     Base.
+ * @param[in]  b     Exponent.
+ * @param[in]  m     Modulus (nonzero and odd).
+ * @param[in]  ctx   Montgomery context initialized for m.
  */
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
                      const bignum* m, bn_mont_ctx* ctx)

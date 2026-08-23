@@ -25,8 +25,8 @@
 
 #include "../../include/bignum.h"
 
-/*
- * Calculate the integer square root of a using Heron's method.
+/**
+ * @brief Calculate the integer square root of a using Heron's method.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -49,6 +49,9 @@
  *         division of an n-limb value by an n-limb value
  *   Auxiliary memory: O(n) limbs for temporaries
  *   Output memory: O(n) limbs (at most n/2 + 1 limbs)
+ *
+ * @param[out] r Result storing floor(sqrt(a)).
+ * @param[in]  a Value to take the square root of.
  */
 void bn_isqrt_heron(bignum* r, bignum* a)
 {
@@ -85,8 +88,8 @@ void bn_isqrt_heron(bignum* r, bignum* a)
   bn_free_multi(&xn, &xnext, &tmp, NULL);
 }
 
-/*
- * Calculate the integer square root of a.
+/**
+ * @brief Calculate the integer square root of a.
  *
  * Let n = a->size, measured in 64-bit limbs.
  *
@@ -100,5 +103,8 @@ void bn_isqrt_heron(bignum* r, bignum* a)
  *   Time: O(n^2 log n), see bn_isqrt_heron()
  *   Auxiliary memory: O(n) limbs
  *   Output memory: O(n) limbs
+ *
+ * @param[out] r Result storing floor(sqrt(a)).
+ * @param[in]  a Value to take the square root of.
  */
 void bn_isqrt(bignum* r, bignum* a) { bn_isqrt_heron(r, a); }
