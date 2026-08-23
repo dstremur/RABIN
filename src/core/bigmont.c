@@ -54,9 +54,8 @@
  * Precondition: n is odd and greater than 1.
  *
  * Complexity:
- *   Time: O(n_l^3) - one_mont is computed with bn_mod_exp_slow(), which
- *         performs a full multiply+divide per exponent bit (64 * n_l
- *         bits); r_square costs one extra multiply+divide
+ *   Time: O(n_l^2) - one_mont = R mod n costs one division, r_square
+ *         costs one multiply plus one division
  *   Auxiliary memory: O(n_l) limbs
  *   Output memory: O(n_l) limbs per context field
  */
@@ -72,22 +71,20 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   // mod_inverse_u64 returns -n^{-1} mod 2^64, exactly what REDC needs
   ctx->n_inv = mod_inverse_u64(n->limbs[0]);
 
-  bignum two, exp_r;
-  bn_init_multi(&two, &exp_r, NULL);
-  bn_set_u64(&two, 2);
+  // one_mont = R mod n where R = 2^(64 * size): build R as a bignum
+  // (a single 1 at limb position size) and reduce it with ONE division
+  bignum r;
+  bn_init(&r);
+  bn_set_u64(&r, 1);
+  bn_lshift(&r, &r, (int)(n->size * 64));
 
-  // Calculate 64 * size as a native u64 first
-  u64 exp_val = (u64)n->size * 64;
-  bn_set_u64(&exp_r, exp_val);
-
-  // one_mont = 2^(64 * size) mod n
-  bn_mod_exp_slow(&ctx->one_mont, &two, &exp_r, n);
+  bn_mod(&ctx->one_mont, &r, n);
 
   // r_square = (one_mont * one_mont) mod n
   bn_mul(&ctx->r_square, &ctx->one_mont, &ctx->one_mont);
   bn_mod(&ctx->r_square, &ctx->r_square, n);
 
-  bn_free_multi(&two, &exp_r, NULL);
+  bn_free(&r);
 
   bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
