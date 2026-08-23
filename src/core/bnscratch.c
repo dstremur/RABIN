@@ -36,8 +36,8 @@
 #include "../../include/bignum.h"
 
 static __thread u64* tls_buf = NULL;
-static __thread u64 tls_cap = 0;  /* capacity in u64 units */
-static __thread u64 tls_off = 0;  /* current bump offset */
+static __thread u64 tls_cap = 0; /* capacity in u64 units */
+static __thread u64 tls_off = 0; /* current bump offset */
 
 /*
  * Reserve n u64s of thread-local scratch space.
@@ -86,7 +86,4 @@ u64* bn_scratch_get(u64 n)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
  */
-void bn_scratch_release(void)
-{
-  tls_off = 0;
-}
+void bn_scratch_release(void) { tls_off = 0; }
