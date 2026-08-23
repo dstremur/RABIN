@@ -62,11 +62,11 @@ void bn_sqr(bignum* r, const bignum* a)
   bn_alloc(r, 2 * a->size);
 
   u64 scratch_size = 8 * a->size + 8;  // conservative heuristic
-  u64* scratch = malloc(scratch_size * sizeof(u64));
+  u64* scratch = bn_scratch_get(scratch_size);
 
   limbs_sqr_karatsuba(r->limbs, a->limbs, a->size, scratch);
 
-  free(scratch);
+  bn_scratch_release();
 
   r->size = 2 * a->size;
   r->is_neg = false;
@@ -122,21 +122,21 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
 
   // use karasuba if both inputs are larger then the limit
   if (a->size >= KARATSUBA_LIMIT && b->size >= KARATSUBA_LIMIT) {
+    // One arena block: pad_a, pad_b, then the Karatsuba scratch
+    uint64_t* buf = bn_scratch_get(10 * max_len);
+    uint64_t* pad_a = buf;
+    uint64_t* pad_b = buf + max_len;
+    uint64_t* scratch = buf + 2 * max_len;
+
     // Normalize asymmetric arrays with zero-padding up front
-    uint64_t* pad_a = calloc(max_len, sizeof(uint64_t));
-    uint64_t* pad_b = calloc(max_len, sizeof(uint64_t));
+    memset(pad_a, 0, max_len * sizeof(uint64_t));
+    memset(pad_b, 0, max_len * sizeof(uint64_t));
     memcpy(pad_a, a->limbs, a->size * sizeof(uint64_t));
     memcpy(pad_b, b->limbs, b->size * sizeof(uint64_t));
 
-    // allocate scratchpad
-    uint64_t scratch_size = 8 * max_len;
-    uint64_t* scratch = malloc(scratch_size * sizeof(uint64_t));
-
     limbs_mul_karatsuba(r->limbs, pad_a, pad_b, max_len, scratch);
 
-    free(scratch);
-    free(pad_a);
-    free(pad_b);
+    bn_scratch_release();
   } else {
     limbs_mul_school(r->limbs, a->limbs, a->size, b->limbs, b->size);
   }

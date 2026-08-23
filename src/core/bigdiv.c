@@ -558,15 +558,20 @@ void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
     unsigned s = (unsigned)__builtin_clzll(b->limbs[vn - 1]);
     u64 need = an + 1 + (s ? vn : 0) + (Q ? 0 : qn);
     u64 stackbuf[BN_DIV_STACK_LIMBS];
-    u64* scratch = (need <= BN_DIV_STACK_LIMBS)
-                       ? stackbuf
-                       : (u64*)malloc(need * sizeof(u64));
+    u64* scratch;
+    bool from_arena = false;
+    if (need <= BN_DIV_STACK_LIMBS) {
+      scratch = stackbuf;
+    } else {
+      scratch = bn_scratch_get(need);
+      from_arena = true;
+    }
     u64* qp = Q ? Q->limbs : scratch + an + 1 + (s ? vn : 0);
 
     bn_divmod_limbs(qp, R ? R->limbs : NULL, a->limbs, an, b->limbs, vn,
                     scratch);
 
-    if (scratch != stackbuf) free(scratch);
+    if (from_arena) bn_scratch_release();
     if (R) R->size = vn;
   }
 
@@ -676,7 +681,7 @@ void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
   assert(an > kl);
 
   u64 dl = bn_size - kl, al = an - kl;
-  u64* buf = (u64*)malloc((dl + al) * sizeof(u64));
+  u64* buf = bn_scratch_get(dl + al);
   u64 *D = buf, *A = buf + dl;
   limbs_rshift(D, b->limbs + kl, dl, kb);
   limbs_rshift(A, a->limbs + kl, al, kb);
@@ -685,7 +690,7 @@ void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
 
   if (al < dl) {
     bn_set_u64(q, 0);
-    free(buf);
+    bn_scratch_release();
     return;
   }
 
@@ -717,5 +722,5 @@ void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
     bn_copy(q, &tq);
     bn_free(&tq);
   }
-  free(buf);
+  bn_scratch_release();
 }

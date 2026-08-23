@@ -47,6 +47,7 @@ u64 compute_mu(u64 q);
 u64 goldilock_red(u128 c);
 
 bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);
+ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k);
 void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
 void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
 void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,

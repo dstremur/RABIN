@@ -62,6 +62,10 @@ extern bignum BN_ZERO;
 
 void bn_init_constants();
 void bn_free_constants();
+
+// bnscratch.c (thread-local bump arena; one get + one release per call)
+u64* bn_scratch_get(u64 n);
+void bn_scratch_release(void);
 void bn_provable_prime(bignum* p, u64 k);
 bool bn_provable_prime_inner(bignum* p, u64 k);
 // bignum.c

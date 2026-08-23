@@ -442,17 +442,18 @@ void bigpoly_mul_ntt(bigpoly* r, const bigpoly* p, const bigpoly* q)
  * with the fast u64 Goldilocks NTT (flat arrays, Montgomery
  * butterflies), and the result limbs are lifted back to bignums.
  *
- * A fresh NTT context is initialized per call.
+ * The Goldilocks NTT context for the transform size is taken from a
+ * shared per-size cache (built once per k, see
+ * ntt_ctx_u64_golden_cached), and the flat u64 arrays come from the
+ * thread-local scratch arena.
  *
  * Complexity:
- *   Time: O(n log n) for the NTTs, plus O(n) for the context tables
- *   Auxiliary memory: O(n) u64s for the flat arrays
+ *   Time: O(n log n) for the NTTs
+ *   Auxiliary memory: O(n) u64s for the flat arrays (scratch arena)
  *   Output memory: O(d) bignums
  */
 void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
 {
-  ntt_ctx_u64 ctx;
-
   u64 required_len = p->deg + q->deg + 1;
   u64 ntt_size = 1;
   u64 k = 0;
@@ -463,17 +464,20 @@ void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
     k++;
   }
 
-  if (!ntt_ctx_u64_init_golden(&ctx, k)) {
+  ntt_ctx_u64* ctx = ntt_ctx_u64_golden_cached(k);
+  if (!ctx) {
     return;
   }
 
-  // 1. Allocate flat u64 arrays for the inputs and outputs
-  u64* p_arr = calloc(ntt_size, sizeof(u64));
-  u64* q_arr = calloc(ntt_size, sizeof(u64));
-  u64* p_hat = calloc(ntt_size, sizeof(u64));
-  u64* q_hat = calloc(ntt_size, sizeof(u64));
-  u64* r_hat = calloc(ntt_size, sizeof(u64));
-  u64* r_arr = calloc(ntt_size, sizeof(u64));
+  // 1. One arena block for all six flat u64 arrays (zeroed, like calloc)
+  u64* buf = bn_scratch_get(6 * ntt_size);
+  memset(buf, 0, 6 * ntt_size * sizeof(u64));
+  u64* p_arr = buf;
+  u64* q_arr = buf + ntt_size;
+  u64* p_hat = buf + 2 * ntt_size;
+  u64* q_hat = buf + 3 * ntt_size;
+  u64* r_hat = buf + 4 * ntt_size;
+  u64* r_arr = buf + 5 * ntt_size;
 
   // 2. Extract u64 values from the bignum polynomials
   for (u64 i = 0; i <= p->deg; i++) {
@@ -484,16 +488,16 @@ void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
   }
 
   // 3. Perform Forward NTTs
-  ntt_u64_cyclic_forward(p_hat, p_arr, &ctx);
-  ntt_u64_cyclic_forward(q_hat, q_arr, &ctx);
+  ntt_u64_cyclic_forward(p_hat, p_arr, ctx);
+  ntt_u64_cyclic_forward(q_hat, q_arr, ctx);
 
   // 4. Pointwise Multiplication
   for (u64 i = 0; i < ntt_size; i++) {
-    r_hat[i] = mont_mul(p_hat[i], q_hat[i], &ctx.mctx);
+    r_hat[i] = mont_mul(p_hat[i], q_hat[i], &ctx->mctx);
   }
 
   // 5. Perform Inverse NTT
-  ntt_u64_cyclic_inverse_montgomery_in(r_arr, r_hat, &ctx);
+  ntt_u64_cyclic_inverse_montgomery_in(r_arr, r_hat, ctx);
 
   bigpoly_free(r);
   bigpoly_init(r);
@@ -507,13 +511,7 @@ void bigpoly_mul_ntt_u64(bigpoly* r, const bigpoly* p, const bigpoly* q)
   bigpoly_trim(r);
 
   // 7. Cleanup
-  free(p_arr);
-  free(q_arr);
-  free(p_hat);
-  free(q_hat);
-  free(r_hat);
-  free(r_arr);
-  ntt_ctx_u64_free(&ctx);
+  bn_scratch_release();
 }
 
 /*

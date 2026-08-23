@@ -28,6 +28,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <pthread.h>
+
 #include "../../include/u64.h"
 
 /*
@@ -132,6 +134,49 @@ bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k)
 
   // Initialize the Montgomery NTT context
   return ntt_ctx_u64_init(ctx, p, k, omega, psi);
+}
+
+/*
+ * Cached Goldilocks NTT contexts, one per transform size k (0..54).
+ *
+ * The omega power tables and bit-reversal indices are pure functions
+ * of k, so each context is built lazily on first use and reused
+ * forever after. Contexts are read-only after initialization, so they
+ * can be shared across threads.
+ */
+static ntt_ctx_u64 golden_ctxs[55];
+static bool golden_ctx_ready[55] = {false};
+static pthread_mutex_t golden_ctx_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+ * Return the shared Goldilocks NTT context for transform length 2^k
+ * (k <= 54), initializing it on first use.
+ *
+ * Returns NULL if k > 54 or initialization fails. The returned context
+ * is owned by the library and must not be freed or modified by the
+ * caller.
+ *
+ * Complexity:
+ *   Time: O(1) after the first call for a given k, O(2^k) the first
+ *         time
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(2^k) u64s per table, once per k
+ */
+ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k)
+{
+  if (k > 54) return NULL;
+
+  pthread_mutex_lock(&golden_ctx_lock);
+  if (!golden_ctx_ready[k]) {
+    if (!ntt_ctx_u64_init_golden(&golden_ctxs[k], k)) {
+      pthread_mutex_unlock(&golden_ctx_lock);
+      return NULL;
+    }
+    golden_ctx_ready[k] = true;
+  }
+  pthread_mutex_unlock(&golden_ctx_lock);
+
+  return &golden_ctxs[k];
 }
 
 /*
