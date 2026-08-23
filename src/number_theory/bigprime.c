@@ -96,6 +96,36 @@ bool bn_gen_prime(bignum* p, int bits)
     }
   }
 }
+/**
+ * @brief Generates a safe prime number p of a specified bit length.
+ *
+ * A prime p is safe if p = 2q + 1, where q is also a prime (a Sophie Germain
+ * prime). This function repeatedly generates a random prime q of length (bits -
+ * 1) until the calculated p passes the BPSW primality test.
+ *
+ * @param[out] p    Pointer to the bignum structure where the generated safe
+ * prime will be stored.
+ * @param[in]  bits The desired total bit length of the safe prime p.
+ *
+ * @return True  If the safe prime was successfully generated.
+ * @return False If prime generation failed (e.g., maximum iterations reached or
+ * invalid bit size).
+ */
+bool bn_gen_safe_prime(bignum* p, int bits)
+{
+  bignum q;
+  bn_init(&q);
+  do {
+    bn_gen_prime(&q, bits - 1);
+
+    // p = 2q + 1
+    bn_lshift(p, &q, 1);
+    bn_add_u64(p, p, 1);
+
+  } while (!bn_bpsw(p));
+
+  return true;
+}
 
 /*
  * Test whether n is a perfect square.

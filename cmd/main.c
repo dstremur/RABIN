@@ -175,6 +175,11 @@ int main()
   //bn_pow(&c, &a, &b);
   bn_println(&c);
 
+  bn_gen_safe_prime(&c, 512); 
+
+  printf("Safe prime: ");
+  bn_println(&c);
+
   bigpoly_test();
 
   printf("factorize a: ");
