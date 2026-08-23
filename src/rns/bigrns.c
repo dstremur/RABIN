@@ -1,3 +1,36 @@
+/*
+ * bigrns.c
+ *
+ * Residue Number System (RNS) arithmetic for bignums.
+ *
+ * This file implements a mixed-radix RNS over a set of 64-bit primes:
+ * context management (CRT weights, Garner weights, per-prime
+ * Montgomery contexts), conversion between bignums and residue
+ * vectors, component-wise addition, and a parallel RNS-based matrix
+ * determinant (determinants mod each prime computed with the u64
+ * matrix routines, then recombined with the CRT).
+ *
+ * A ctx_rns holds the primes, their product M, the CRT weights
+ * w_i = (M / p_i) * (M / p_i)^{-1} mod p_i, the Garner weights, and
+ * one Montgomery context per prime.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "../../include/bigrns.h"
 
 #include <omp.h>
@@ -7,7 +40,20 @@
 
 #include "../../include/u64.h"
 
-// estimate how my primes are needed
+/*
+ * Estimate how many 62-bit primes are needed to represent a bignum.
+ *
+ * Let k = bit length of a.
+ *
+ * Returns ceil(k / 62), i.e. the number of 62-bit primes whose product
+ * has at least k bits. (The header declares this as
+ * bigrns_estimate_primes().)
+ *
+ * Complexity:
+ *   Time: O(n) where n is the size of a in limbs
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 rns_estimate_primes(const bignum* a)
 {
   u64 k = bn_bit_length(a);
@@ -16,6 +62,23 @@ u64 rns_estimate_primes(const bignum* a)
   return res;
 }
 
+/*
+ * Initialize an RNS context from a list of primes.
+ *
+ * Let c = count.
+ *
+ * Stores a copy of the primes, computes their product M, the CRT
+ * weights w_i = (M / p_i) * (M / p_i)^{-1} mod p_i (as bignums), one
+ * Montgomery context per prime, and the Garner weights
+ * g_i = (p_0 * ... * p_{i-1})^{-1} mod p_i.
+ *
+ * Complexity:
+ *   Time: O(c^2 * n) where n is the size of M in limbs (bignum
+ *         multiplications and divisions by small primes)
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(c) bignums for the CRT weights, O(c) u64s for
+ *         the primes and Garner weights, O(c) mont_ctxs
+ */
 void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
 {
   ctx->primes = malloc(sizeof(u64) * count);
@@ -28,13 +91,13 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
   bn_init(&ctx->prod);
   bn_set_u64(&ctx->prod, 1);
 
-  // calculate produt
+  // calculate product M = p_0 * ... * p_{c-1}
   for (u64 i = 0; i < count; i++) {
     bn_set_u64(&tmp, primes[i]);
     bn_mul(&ctx->prod, &ctx->prod, &tmp);
   }
 
-  // calculate crt weights
+  // calculate CRT weights w_i = (M / p_i) * (M / p_i)^{-1} mod p_i
   for (u64 i = 0; i < count; i++) {
     bn_init(&ctx->crt_weights[i]);
 
@@ -44,7 +107,7 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
     bn_set_u64(&tmp, primes[i]);
     bn_div(&M_div_tmp, &ctx->prod, &tmp);
 
-    // find inverse
+    // find inverse of (M / p_i) mod p_i
     u64 m_mod_p = bn_mod_u64(&M_div_tmp, primes[i]);
     u64 inv = mod_inverse_euclid(m_mod_p, primes[i]);
 
@@ -55,12 +118,13 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
     bn_free_multi(&M_div_tmp, &inv_bn, NULL);
   }
 
+  // one Montgomery context per prime
   ctx->m_ctxs = malloc(sizeof(mont_ctx) * count);
   for (u64 i = 0; i < count; i++) {
     mont_init(&ctx->m_ctxs[i], primes[i]);
   }
 
-  // calculate garner weights
+  // calculate Garner weights g_i = (p_0 * ... * p_{i-1})^{-1} mod p_i
   ctx->garner_weights = malloc(sizeof(u64) * count);
   ctx->garner_weights[0] = 1;
 
@@ -79,6 +143,14 @@ void rns_context_init(ctx_rns* ctx, const u64* primes, u64 count)
   bn_free_multi(&tmp, &prev, NULL);
 }
 
+/*
+ * Free all storage owned by an RNS context.
+ *
+ * Complexity:
+ *   Time: O(count)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 void rns_context_free(ctx_rns* ctx)
 {
   if (!ctx) return;
@@ -116,6 +188,19 @@ void rns_context_free(ctx_rns* ctx)
   ctx->count = 0;
 }
 
+/*
+ * Convert a bignum to its RNS residue vector: r_i = a mod p_i.
+ *
+ * Let c = ctx->count.
+ *
+ * Allocates the residue array on first use, then reduces a modulo
+ * each prime.
+ *
+ * Complexity:
+ *   Time: O(c * n) where n is the size of a in limbs
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(c) u64s
+ */
 void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
 {
   if (!r->residues) {
@@ -128,6 +213,19 @@ void bignum_to_rns(rns_num* r, const bignum* a, ctx_rns* ctx)
   }
 }
 
+/*
+ * Component-wise addition of two RNS residue vectors: r = a + b.
+ *
+ * Let c = r->size.
+ *
+ * Adds the residues modulo the corresponding prime for each
+ * component.
+ *
+ * Complexity:
+ *   Time: O(c)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(c) u64s
+ */
 void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
 {
   for (u64 i = 0; i < r->size; i++) {
@@ -135,6 +233,23 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
+/*
+ * Reconstruct a bignum from its RNS residue vector via the CRT.
+ *
+ * Let c = r->size and n = size of the product M in limbs.
+ *
+ * Computes a = sum_i r_i * w_i mod M using the precomputed CRT
+ * weights. The result is the unique value in [0, M) congruent to the
+ * residues.
+ *
+ * Note: the start/end prints are leftover debug output.
+ *
+ * Complexity:
+ *   Time: O(c * n^2) for the bignum multiplications, plus O(n^2) for
+ *         the final reduction
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(n) limbs
+ */
 void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
 {
   printf("start \n");
@@ -157,7 +272,22 @@ void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
   printf("end \n");
 }
 
-// Estimates primes for a matrix determinant
+/*
+ * Estimate the number of primes needed for an RNS matrix determinant.
+ *
+ * Let n = A->r_size.
+ *
+ * Uses the Hadamard bound on |det(A)|, doubles it to cover the range
+ * [-M, M] (so the sign can be recovered from the CRT result), and
+ * returns the number of 62-bit primes whose product exceeds that
+ * bound.
+ *
+ * Complexity:
+ *   Time: O(n^3 * k^2) where k is the size of the entries in limbs
+ *         (Hadamard bound), plus O(n) for the estimate
+ *   Auxiliary memory: O(k) limbs
+ *   Output memory: O(1)
+ */
 u64 rns_estimate_determinant(bigmatrix* A)
 {
   bignum res;
@@ -176,6 +306,27 @@ u64 rns_estimate_determinant(bigmatrix* A)
   return k;
 }
 
+/*
+ * Compute the determinant of a bignum matrix via RNS.
+ *
+ * Let n = A->r_size and c = ctx->count.
+ *
+ * For each prime p_i, reduces the whole matrix mod p_i and computes
+ * the determinant in the u64 Montgomery domain (parallelized over the
+ * primes with OpenMP), then recombines the residue vector with the
+ * CRT. If the result exceeds M / 2 it is interpreted as negative
+ * (two's-complement style) and M is subtracted.
+ *
+ * The primes must be chosen so that 2 * |det(A)| < M (see
+ * rns_estimate_determinant()).
+ *
+ * Complexity:
+ *   Time: O(c * n^3) for the u64 determinants (parallel over c), plus
+ *         O(c * n^2) for the reductions and O(c * n_b^2) for the CRT
+ *         where n_b is the size of M in limbs
+ *   Auxiliary memory: O(n^2) u64s per thread for the reduced matrix
+ *   Output memory: O(n_b) limbs
+ */
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx)
 {
   // create array of n matrices mod p_i

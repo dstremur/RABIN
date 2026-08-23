@@ -1,3 +1,30 @@
+/*
+ * u64.c
+ *
+ * 64-bit modular arithmetic primitives.
+ *
+ * This file implements the single-limb (u64) building blocks used by
+ * the NTT and RNS code paths: modular add/subtract/multiply, modular
+ * exponentiation, modular inverses, Barrett reduction, and the
+ * Goldilocks field (p = 2^64 - 2^32 + 1) reduction.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "../include/u64.h"
 
 #include <math.h>
@@ -9,6 +36,17 @@
 
 typedef unsigned __int128 u128;
 
+/*
+ * Modular addition: (a + b) mod p, with 0 <= a, b < p.
+ *
+ * Adds in u64 and conditionally subtracts p, using a branch-free
+ * overflow/carry mask.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 inline u64 mod_add(u64 a, u64 b, u64 p)
 {
   u64 res = a + b;
@@ -17,6 +55,17 @@ inline u64 mod_add(u64 a, u64 b, u64 p)
   return res - (p & mask);
 }
 
+/*
+ * Modular subtraction: (a - b) mod p, with 0 <= a, b < p.
+ *
+ * Subtracts in u64 and conditionally adds p when a borrow occurred,
+ * using a branch-free mask.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 mod_sub(u64 a, u64 b, u64 p)
 {
   u64 res = a - b;
@@ -27,12 +76,32 @@ u64 mod_sub(u64 a, u64 b, u64 p)
   return res + (p & mask);
 }
 
+/*
+ * Modular multiplication: (a * b) mod p, with 0 <= a, b < p.
+ *
+ * Multiplies in 128 bits and reduces with a hardware 128/64 division.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 inline u64 mod_mul(u64 a, u64 b, u64 p)
 {
   unsigned __int128 res = (unsigned __int128)a * b;
   return (u64)(res % p);
 }
 
+/*
+ * Modular exponentiation: base^exp mod p.
+ *
+ * Right-to-left binary exponentiation (square-and-multiply).
+ *
+ * Complexity:
+ *   Time: O(log exp) modular multiplications
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 mod_pow(u64 base, u64 exp, u64 p)
 {
   u64 res = 1;
@@ -45,7 +114,18 @@ u64 mod_pow(u64 base, u64 exp, u64 p)
   return res;
 }
 
-// p needs to be prime
+/*
+ * Modular inverse via the extended Euclidean algorithm:
+ * a^(-1) mod p.
+ *
+ * p needs to be prime (more generally, gcd(a, p) must be 1). Returns
+ * 0 if a is 0 (should not happen with primes).
+ *
+ * Complexity:
+ *   Time: O(log p)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 mod_inverse_euclid(u64 a, u64 p)
 {
   if (a == 0) return 0;  // Should not happen with primes
@@ -70,15 +150,44 @@ u64 mod_inverse_euclid(u64 a, u64 p)
   return (u64)t;
 }
 
-// p needs to be prime
+/*
+ * Modular inverse via Fermat's little theorem: a^(-1) = a^(p-2) mod p.
+ *
+ * p needs to be prime.
+ *
+ * Complexity:
+ *   Time: O(log p) modular multiplications
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 mod_inverse(u64 n, u64 p) { return mod_pow(n, p - 2, p); }
 
+/*
+ * Compute the Barrett reduction constant mu = floor((2^128 - 1) / q).
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 compute_mu(u64 q)
 {
   u128 dividend = ~((u128)0);
   return (u64)(dividend / q);
 }
 
+/*
+ * Barrett reduction: c mod q, where mu = floor((2^128 - 1) / q).
+ *
+ * Estimates the quotient as q_est = floor(c * mu / 2^128) using the
+ * high 128 bits of the 192-bit product, computes r = c - q_est * q,
+ * and subtracts q at most twice to correct the (rare) overestimate.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 barrett_reduction(u128 c, u64 q, u64 mu)
 {
   unsigned __int128 q_est = (unsigned __int128)((c * mu) >> 128);
@@ -92,7 +201,18 @@ u64 barrett_reduction(u128 c, u64 q, u64 mu)
   return r;
 }
 
-// q = 2^64 - 2^32 + 1
+/*
+ * Goldilocks field reduction: c mod p with p = 2^64 - 2^32 + 1.
+ *
+ * Splits the 128-bit value c into 32-bit chunks and uses the field
+ * relation 2^32 = 1 (mod p) to fold the upper chunks down, followed by
+ * a single conditional subtraction.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 u64 goldilock_red(u128 c)
 {
   u128 X_3 = c >> 96;

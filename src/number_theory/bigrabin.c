@@ -1,3 +1,29 @@
+/*
+ * bigrabin.c
+ *
+ * Miller-Rabin primality test.
+ *
+ * This file implements the Miller-Rabin (Rabin) probabilistic
+ * primality test for a single base a, both in plain modular arithmetic
+ * and in the Montgomery domain.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -5,6 +31,29 @@
 
 #include "../include/bignum.h"
 
+/*
+ * Miller-Rabin test of n to base a (plain modular arithmetic).
+ *
+ * Let n_l = n->size, measured in 64-bit limbs.
+ *
+ * Writes n - 1 = d * 2^s with d odd, computes x = a^d mod n, and
+ * checks:
+ *
+ *   - x == 1 or x == n - 1: probably prime,
+ *   - otherwise square x up to s - 1 times; if x becomes n - 1 it is
+ *     probably prime, if it becomes 1 (a nontrivial square root of 1)
+ *     or never reaches n - 1 it is composite.
+ *
+ * Returns true if n passes the test (probably prime), false if n is
+ * even, n <= 1, or a witness for compositeness was found. n == 2 and
+ * n == 3 are reported prime.
+ *
+ * Complexity:
+ *   Time: O(s * n_l^2) - one modular exponentiation plus O(s)
+ *         squarings
+ *   Auxiliary memory: O(n_l) limbs for temporaries
+ *   Output memory: O(1)
+ */
 bool bn_rabin(const bignum* n, const bignum* a)
 {
   if (bn_is_even(n)) return false;
@@ -80,6 +129,26 @@ cleanup:
   return !composite;
 }
 
+/*
+ * Miller-Rabin test of n to base a (Montgomery domain).
+ *
+ * Let n_l = n->size, measured in 64-bit limbs.
+ *
+ * Same test as bn_rabin(), but all modular squarings are Montgomery
+ * multiplications, which avoids the division in each reduction. The
+ * comparisons are done against one_mont (the Montgomery form of 1) and
+ * the Montgomery form of n - 1.
+ *
+ * Returns true if n passes the test (probably prime), false if n is
+ * even, n <= 1, or a witness for compositeness was found. Small
+ * single-limb n are handled directly (2 and 3 are prime).
+ *
+ * Complexity:
+ *   Time: O(n_l^3) for the context initialization (see
+ *         bn_mont_ctx_init), then O(s * n_l^2) for the test itself
+ *   Auxiliary memory: O(n_l) limbs for the context and temporaries
+ *   Output memory: O(1)
+ */
 bool bn_rabin_mont(const bignum* n, const bignum* a)
 {
   if (bn_is_even(n)) return false;

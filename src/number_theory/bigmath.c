@@ -1,3 +1,28 @@
+/*
+ * bigmath.c
+ *
+ * Classical number-theory routines.
+ *
+ * This file implements the Jacobi symbol, the Tonelli-Shanks square
+ * root algorithm modulo a prime, and the binary (Stein) GCD.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -5,8 +30,25 @@
 
 #include "../include/bignum.h"
 
-// based on wikipedia implementation
-// return the Jacobi symbol
+/*
+ * Compute the Jacobi symbol (a / m).
+ *
+ * Let n = m->size, measured in 64-bit limbs.
+ *
+ * Returns 1 if a is a quadratic residue mod m, -1 if it is a
+ * nonresidue, and 0 if gcd(a, m) > 1. m must be positive and odd;
+ * otherwise 0 is returned and a message is printed.
+ *
+ * Uses the binary algorithm: repeatedly strip factors of 2 from a
+ * (flipping the sign when both the stripped power and m mod 8 are
+ * odd), apply the mutual-reciprocity rule when both a and m are 3
+ * mod 4, and reduce m mod a.
+ *
+ * Complexity:
+ *   Time: O(n^2) - O(n) iterations of O(n) modular reductions
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(1)
+ */
 i64 bn_jacobi(const bignum* a, const bignum* m)
 {
   if (bn_is_zero(m) || bn_is_even(m)) {
@@ -69,11 +111,32 @@ i64 bn_jacobi(const bignum* a, const bignum* m)
   return res;
 }
 
-/* Inputs:
-p, a prime
-n, an element of Z / p Z such that solutions to the congruence r^2 = n exist;
-when this is so we say that n is a quadratic residue mod p.
-*/
+/*
+ * Tonelli-Shanks: square root of n modulo the prime p.
+ *
+ * Let n_l = p->size, measured in 64-bit limbs.
+ *
+ * Inputs:
+ * p, a prime
+ * n, an element of Z / p Z such that solutions to the congruence
+ * r^2 = n exist; when this is so we say that n is a quadratic
+ * residue mod p.
+ *
+ * Computes r with r^2 = n (mod p) and stores it in r. The algorithm
+ * factors p - 1 = Q * 2^S with Q odd, finds a quadratic nonresidue z,
+ * and iteratively refines the candidate root R until t = n^Q * c^2
+ * reaches 1.
+ *
+ * If n is zero, r is set to 0. If n is not a quadratic residue mod p
+ * (Jacobi symbol != 1), a message is printed and r is left unchanged.
+ *
+ * Complexity:
+ *   Time: O(n_l^2 * S^2) worst case - O(S) iterations, each with O(S)
+ *         modular squarings, plus O(n_l^2) for the initial
+ *         exponentiations and the nonresidue search
+ *   Auxiliary memory: O(n_l) limbs for temporaries
+ *   Output memory: O(n_l) limbs
+ */
 void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
 {
   if (bn_is_zero(n)) {
@@ -191,7 +254,23 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
   bn_free(&tmp2);
   bn_free(&b2);
 }
-// binary gcd algo
+
+/*
+ * Greatest common divisor via the binary (Stein) algorithm:
+ * d = gcd(a, b).
+ *
+ * Let n = max(a->size, b->size), measured in 64-bit limbs.
+ *
+ * Strips the common power of two from both operands, then repeatedly
+ * removes factors of 2 and replaces the larger operand by half the
+ * difference, until one operand is zero. The common power of two is
+ * restored at the end. The result is always nonnegative.
+ *
+ * Complexity:
+ *   Time: O(n^2) - O(n) iterations of O(n) subtractions/shifts
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(n) limbs
+ */
 void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 {
   if (bn_is_zero(a)) {

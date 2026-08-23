@@ -1,6 +1,53 @@
+/*
+ * u64_matrix.c
+ *
+ * Determinant of a u64 matrix over a prime field.
+ *
+ * This file computes the determinant of a square matrix whose entries
+ * are u64 values modulo a prime p, using Gaussian elimination with
+ * partial pivoting. Two variants are provided: a plain version using
+ * 128-bit modular multiplication, and an optimized version that works
+ * in the Montgomery domain with tiled row updates.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include "../../include/u64.h"
 #define TILE_SIZE 64
 
+/*
+ * Determinant of a square u64 matrix modulo the prime M->modulus.
+ *
+ * Let n = M->r_size = M->c_size.
+ *
+ * Performs Gaussian elimination with partial pivoting on a copy of the
+ * matrix: for each column a nonzero pivot is searched for (rows are
+ * swapped if needed, negating the determinant), the determinant is
+ * accumulated as the product of the pivots, and the rows below are
+ * eliminated. Returns 0 if the matrix is singular.
+ *
+ * The matrix must be square; a message is printed otherwise (the
+ * computation still proceeds with n = r_size).
+ *
+ * Complexity:
+ *   Time: O(n^3)
+ *   Auxiliary memory: O(n^2) for the working copy
+ *   Output memory: O(1)
+ */
 u64 matrix_u64_det(matrix_u64* M)
 {
   if (M->r_size != M->c_size) {
@@ -54,7 +101,23 @@ u64 matrix_u64_det(matrix_u64* M)
   return det;
 }
 
-// works in place, need to pass copy
+/*
+ * Determinant of a u64 matrix modulo ctx->p, in the Montgomery domain.
+ *
+ * Let n = matrix dimension.
+ *
+ * Same Gaussian elimination as matrix_u64_det(), but all entries are
+ * converted to the Montgomery domain up front so that the inner loop
+ * uses fast Montgomery multiplication. The row updates are processed
+ * in TILE_SIZE-wide blocks to improve cache behaviour.
+ *
+ * Works in place: the input matrix is destroyed, so pass a copy.
+ *
+ * Complexity:
+ *   Time: O(n^3)
+ *   Auxiliary memory: O(1) (in place)
+ *   Output memory: O(1)
+ */
 u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
 {
   u64 det = mont_in(1, ctx);

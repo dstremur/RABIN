@@ -1,3 +1,29 @@
+/*
+ * bigrand.c
+ *
+ * Random bignum generation.
+ *
+ * This file implements random bignum generation from /dev/urandom:
+ * random odd numbers of an exact bit length, and random numbers in a
+ * closed interval [low, high].
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <ctype.h>
 #include <fcntl.h>
 #include <math.h>
@@ -10,7 +36,20 @@
 
 #include "../../include/bignum.h"
 
-// generates a random bits long odd number
+/*
+ * Generate a random bits-long odd number.
+ *
+ * Opens /dev/urandom, delegates to bn_gen_random_with_fd(), and
+ * closes the descriptor.
+ *
+ * Returns true on success, false if /dev/urandom cannot be opened or
+ * the read fails.
+ *
+ * Complexity:
+ *   Time: O(bits / 64)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(bits / 64) limbs
+ */
 bool bn_gen_random(bignum* r, u64 bits)
 {
   int fd = open("/dev/urandom", O_RDONLY);
@@ -22,7 +61,20 @@ bool bn_gen_random(bignum* r, u64 bits)
   return true;
 }
 
-// generate random bits long odd number with given dev/urandom
+/*
+ * Generate a random bits-long odd number using a given urandom fd.
+ *
+ * Reads ceil(bits / 64) random limbs from fd, masks the top limb to
+ * the exact bit length, sets the MSB so the number is exactly
+ * bits long, and sets the LSB so it is odd.
+ *
+ * Returns true on success, false on allocation or read failure.
+ *
+ * Complexity:
+ *   Time: O(bits / 64)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(bits / 64) limbs
+ */
 bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
 {
   int limbs_needed = (bits + 63) / 64;
@@ -52,7 +104,20 @@ bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
   return true;
 }
 
-// Helper to generate a random number in range [low, high]
+/*
+ * Generate a random number in the closed range [low, high].
+ *
+ * Let b = bit length of (high - low).
+ *
+ * Rejection sampling: draws random b-bit numbers until one is <=
+ * (high - low), then adds low. If low == high, copies low directly.
+ *
+ * Complexity:
+ *   Time: O(b / 64) per draw, expected O(b / 64) overall (geometric
+ *         number of draws), plus O(b) for the range computation
+ *   Auxiliary memory: O(b) limbs for the range
+ *   Output memory: O(b) limbs
+ */
 void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high)
 {
   bignum range;

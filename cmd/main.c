@@ -1,4 +1,33 @@
-// main.c
+/*
+ * main.c
+ *
+ * Interactive demo driver for the bignum library.
+ *
+ * Reads two bignums from stdin and exercises the library: basic
+ * arithmetic (add, sub, mul, fast mul, div, mod, shifts), square
+ * root and natural log, polynomial self-tests, factorization,
+ * Pollard rho / p-1, BPSW primality, Jacobi symbol, Tonelli-Shanks
+ * square roots, and 2048-bit prime generation. Also prints a debug
+ * dump of a bignum NTT context.
+ *
+ * This is a manual playground, not part of the library API.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include <assert.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -18,6 +47,19 @@ typedef struct {
   const char* description;
 } test_case;
 
+/*
+ * Print a debug dump of a bignum NTT context.
+ *
+ * Shows the transform length, modulus, n inverse, selected omega /
+ * omega_inv / psi powers (with expected values annotated), and the
+ * first 8 bit-reversal indices. Intended for manual verification of
+ * context initialization.
+ *
+ * Complexity:
+ *   Time: O(n) where n is the transform length (printing the tables)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(n) characters written
+ */
 void bigntt_ctx_print_debug(const ntt_ctx *ctx)
 {
     if (!ctx) {
@@ -58,6 +100,22 @@ void bigntt_ctx_print_debug(const ntt_ctx *ctx)
     printf("=========================================\n");
 }
 
+/*
+ * Demo entry point.
+ *
+ * Reads two bignums a and b from stdin, then runs a sequence of
+ * library calls printing each result. Also initializes a Goldilocks
+ * NTT context (size 2^8) for the debug dump, factorizes a, runs
+ * Pollard rho and p-1 on a, tests a with BPSW, computes the Jacobi
+ * symbol (a, b), a Tonelli-Shanks square root of a mod b, and
+ * generates a 2048-bit prime.
+ *
+ * Complexity:
+ *   Time: dominated by the 2048-bit prime generation and the
+ *         factorization attempts on a
+ *   Auxiliary memory: O(size of a and b) limbs
+ *   Output memory: O(1)
+ */
 int main()
 {
   bn_init_constants();

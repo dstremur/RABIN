@@ -1,8 +1,48 @@
+/*
+ * bigshift.c
+ *
+ * bignum shift routines.
+ *
+ * This file implements bit-level and limb-level left and right shifts
+ * for bignums, both in place (single-bit shifts) and out of place
+ * (arbitrary shift amounts).
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <stddef.h>
 #include <string.h>
 
 #include "../include/bignum.h"
 
+/*
+ * Shift r left by one bit, in place: r = r * 2.
+ *
+ * Let n = r->size, measured in 64-bit limbs.
+ *
+ * The bits are propagated from the least significant limb to the most
+ * significant one; if the top bit overflows, a new limb is appended.
+ * The sign is preserved.
+ *
+ * Complexity:
+ *   Time: O(n)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
+ */
 void bn_lshift1(bignum* r)
 {
   if (r->size == 0) return;
@@ -21,6 +61,20 @@ void bn_lshift1(bignum* r)
   }
 }
 
+/*
+ * Shift r right by one bit, in place: r = r / 2 (truncated).
+ *
+ * Let n = r->size, measured in 64-bit limbs.
+ *
+ * The bits are propagated from the most significant limb to the least
+ * significant one; leading zero limbs are trimmed afterwards. The sign
+ * is preserved.
+ *
+ * Complexity:
+ *   Time: O(n)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(n) limbs
+ */
 void bn_rshift1(bignum* r)
 {
   if (r->size == 0) return;
@@ -34,6 +88,24 @@ void bn_rshift1(bignum* r)
   bn_trim(r);
 }
 
+/*
+ * Shift a left by shift bits into r: r = a << shift.
+ *
+ * Let n = a->size, measured in 64-bit limbs.
+ * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
+ *
+ * Each limb of a is shifted left by b bits and placed w limbs higher
+ * in r, with the overflow bits carried into the next limb. The sign is
+ * preserved.
+ *
+ * r may alias a.
+ *
+ * Complexity:
+ *   Time: O(n)
+ *   Auxiliary memory: O(1) in the normal case,
+ *                     O(n) if r aliases a and a temporary is used
+ *   Output memory: O(n) limbs, at most n + w + 1 limbs
+ */
 void bn_lshift(bignum* r, const bignum* a, int shift)
 {
   // aliasing
@@ -98,6 +170,25 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
+/*
+ * Shift a right by shift bits into r: r = a >> shift (truncated).
+ *
+ * Let n = a->size, measured in 64-bit limbs.
+ * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
+ *
+ * The top w limbs are dropped and the remaining limbs are shifted
+ * right by b bits, pulling in the low bits of the next limb. If the
+ * shift is at least the size of a, the result is zero. The sign is
+ * preserved.
+ *
+ * r may alias a.
+ *
+ * Complexity:
+ *   Time: O(n)
+ *   Auxiliary memory: O(1) in the normal case,
+ *                     O(n) if r aliases a and a temporary is used
+ *   Output memory: O(n) limbs, at most n - w limbs
+ */
 void bn_rshift(bignum* r, const bignum* a, int shift)
 {
   // aliasing
@@ -157,7 +248,23 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-// Shift r left by 1 and add 0 or 1
+/*
+ * Shift r left by one bit and add bit (0 or 1), in place:
+ * r = (r << 1) + bit.
+ *
+ * Let n = r->size, measured in 64-bit limbs.
+ *
+ * This is the primitive used when building numbers bit by bit (e.g.
+ * during parsing or in exponentiation loops). The added bit enters at
+ * the least significant position and the carry propagates upward; if
+ * the top bit overflows, a new limb is appended. The sign is
+ * preserved.
+ *
+ * Complexity:
+ *   Time: O(n)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
+ */
 void bn_lshift1_add(bignum* r, int bit)
 {
   u64 carry = (bit != 0);

@@ -1,3 +1,33 @@
+/*
+ * bigmont.c
+ *
+ * Montgomery multiplication for bignums.
+ *
+ * This file implements the Montgomery context (modulus, R mod n, R^2
+ * mod n, and -n^{-1} mod 2^64), the REDC reduction, and the
+ * conversion/multiplication operations of the Montgomery domain.
+ *
+ * The modulus n must be odd and greater than 1. With R = 2^(64 * n->size),
+ * a value A_bar in the Montgomery domain represents A = A_bar * R^{-1}
+ * mod n.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
@@ -7,6 +37,29 @@
 #include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
+/*
+ * Initialize a Montgomery context for the modulus n.
+ *
+ * Let n_l = n->size, measured in 64-bit limbs.
+ *
+ * Computes the context fields:
+ *
+ *   ctx->n        = n
+ *   ctx->n_inv    = -n^{-1} mod 2^64   (from the low limb of n)
+ *   ctx->one_mont = R mod n            (R = 2^(64 * n_l))
+ *   ctx->r_square = R^2 mod n
+ *
+ * and preallocates ctx->tmp with 2 * n_l + 1 limbs of scratch space.
+ *
+ * Precondition: n is odd and greater than 1.
+ *
+ * Complexity:
+ *   Time: O(n_l^3) - one_mont is computed with bn_mod_exp_slow(), which
+ *         performs a full multiply+divide per exponent bit (64 * n_l
+ *         bits); r_square costs one extra multiply+divide
+ *   Auxiliary memory: O(n_l) limbs
+ *   Output memory: O(n_l) limbs per context field
+ */
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 {
   bn_init(&ctx->n);
@@ -16,7 +69,7 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 
   bn_copy(&ctx->n, n);
 
-  // Your mod_inverse_u64 already returns -inv, so use it directly
+  // mod_inverse_u64 returns -n^{-1} mod 2^64, exactly what REDC needs
   ctx->n_inv = mod_inverse_u64(n->limbs[0]);
 
   bignum two, exp_r;
@@ -39,6 +92,16 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
 
+/*
+ * Free all bignum storage held by a Montgomery context.
+ *
+ * After this call the context must not be used until re-initialized.
+ *
+ * Complexity:
+ *   Time: O(1)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ */
 void bn_mont_ctx_free(bn_mont_ctx* ctx)
 {
   bn_free(&ctx->one_mont);
@@ -47,6 +110,30 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx)
   bn_free(&ctx->tmp);
 }
 
+/*
+ * Montgomery reduction (REDC).
+ *
+ * Let n_l = ctx->n.size, measured in 64-bit limbs.
+ *
+ * Given t with 0 <= t < n * 2^(64 * n_l), this computes:
+ *
+ *   r = t * R^{-1} mod n
+ *
+ * in O(n_l^2) time. For each limb i it forms the multiple
+ * m = t[i] * (-n^{-1} mod 2^64) and adds m * n shifted by i limbs to
+ * t, which zeroes out limb i (mod 2^64). After n_l steps the lower
+ * half of t is zero, so the result is the upper half, followed by a
+ * final conditional subtraction of n to bring r into [0, n).
+ *
+ * t is destroyed (overwritten) and must have at least 2 * n_l + 1
+ * limbs of capacity.
+ *
+ * Complexity:
+ *   Time: O(n_l^2) for the reduction loop, plus O(n_l) for the final
+ *         correction
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(n_l) limbs
+ */
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 {
   u64 size = ctx->n.size;
@@ -92,10 +179,44 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   }
 }
 
+/*
+ * Convert a value from the normal domain into the Montgomery domain.
+ *
+ * Let n_l = ctx->n.size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   A_bar = A * R mod n
+ *
+ * as one Montgomery multiplication of A by R^2 mod n:
+ * REDC(A * R^2) = A * R mod n.
+ *
+ * Complexity:
+ *   Time: O(n_l^2)
+ *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
+ *   Output memory: O(n_l) limbs
+ */
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {
   bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
+
+/*
+ * Convert a value from the Montgomery domain back to the normal domain.
+ *
+ * Let n_l = ctx->n.size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   A = A_bar * R^{-1} mod n
+ *
+ * as one Montgomery multiplication of A_bar by 1.
+ *
+ * Complexity:
+ *   Time: O(n_l^2)
+ *   Auxiliary memory: O(n_l) limbs (ctx->tmp and a temporary for 1)
+ *   Output memory: O(n_l) limbs
+ */
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
   bignum one;
@@ -107,12 +228,52 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
   bn_free(&one);
 }
 
+/*
+ * Montgomery multiplication of two values in the Montgomery domain.
+ *
+ * Let n_l = ctx->n.size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r = a_bar * b_bar * R^{-1} mod n
+ *
+ * so that if a_bar = A * R mod n and b_bar = B * R mod n, then
+ * r = A * B * R mod n (the Montgomery form of A * B).
+ *
+ * Thin wrapper around bn_mont_mul_raw().
+ *
+ * Complexity:
+ *   Time: O(n_l^2)
+ *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
+ *   Output memory: O(n_l) limbs
+ */
 void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
                  bn_mont_ctx* ctx)
 {
   bn_mont_mul_raw(r, a_bar, b_bar, ctx);
 }
 
+/*
+ * Montgomery multiplication using the context's scratch buffer.
+ *
+ * Let n_l = ctx->n.size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   result = A_bar * B_bar * R^{-1} mod n
+ *
+ * by first forming the full product T = A_bar * B_bar (at most
+ * 2 * n_l limbs) in ctx->tmp, zero-padding it to 2 * n_l + 1 limbs,
+ * and applying bn_mont_redc().
+ *
+ * Note: uses ctx->tmp as scratch, so it is not reentrant and must not
+ * be called with A_bar or B_bar aliasing ctx->tmp.
+ *
+ * Complexity:
+ *   Time: O(n_l^2) - one bignum multiply plus one REDC
+ *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
+ *   Output memory: O(n_l) limbs
+ */
 void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
                      bn_mont_ctx* ctx)
 {

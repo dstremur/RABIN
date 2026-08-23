@@ -1,3 +1,29 @@
+/*
+ * bigexp.c
+ *
+ * bignum exponentiation routines.
+ *
+ * This file implements integer exponentiation (a^b) and modular
+ * exponentiation (a^b mod m), both in plain form and in the Montgomery
+ * domain. The modular paths use left-to-right binary exponentiation.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
@@ -6,8 +32,28 @@
 
 #include "../../include/bignum.h"
 
-// calculates a^b into r
-// binary exponentiation
+/*
+ * Calculate a^b into r using binary exponentiation.
+ *
+ * Let n = a->size and e = b->size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r = a^b
+ *
+ * using left-to-right square-and-multiply over the bits of b. The
+ * result has roughly e * n limbs, so this is only practical for small
+ * exponents; use bn_mod_exp() for large ones.
+ *
+ * If b is zero, r is set to 1 (including 0^0).
+ *
+ * Complexity:
+ *   Time: O(e * n^2) - one squaring per exponent bit (64*e of them)
+ *         plus one multiplication per set bit, each an O(n^2) bignum
+ *         multiply of growing operands
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(e * n) limbs
+ */
 void bn_pow(bignum* r, const bignum* a, const bignum* b)
 {
   if (bn_is_zero(b)) {
@@ -25,7 +71,26 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-// calculates a^d int r in the montgomery context
+/*
+ * Calculate a_bar^d in the Montgomery domain.
+ *
+ * Let n = ctx->n.size and e = d->size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r_bar = a_bar^d (mod n)
+ *
+ * where a_bar is already in Montgomery form (a_bar = a * R mod n) and
+ * r_bar is returned in Montgomery form. It uses left-to-right
+ * square-and-multiply with bn_mont_mul(), starting from one_mont
+ * (the Montgomery form of 1).
+ *
+ * Complexity:
+ *   Time: O(e * n^2) - one Montgomery squaring per exponent bit plus
+ *         one Montgomery multiplication per set bit
+ *   Auxiliary memory: O(1) limbs (works in place on r_bar)
+ *   Output memory: O(n) limbs
+ */
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
                  bn_mont_ctx* ctx)
 {
@@ -40,6 +105,29 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
   }
 }
 
+/*
+ * Calculate a^b mod m into r using plain (non-Montgomery) arithmetic.
+ *
+ * Let n = m->size and e = b->size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r = a^b mod m
+ *
+ * using right-to-left binary exponentiation: the base is squared and
+ * reduced modulo m for every bit of b, and the accumulator is
+ * multiplied by the base and reduced for every set bit.
+ *
+ * This is the slow path: every step costs a full bignum multiplication
+ * plus a full Knuth division. bn_mod_exp() uses Montgomery arithmetic
+ * for odd moduli and is much faster.
+ *
+ * Complexity:
+ *   Time: O(e * n^2) multiplications plus O(e * n^2) divisions, i.e.
+ *         O(e * n^2) with a large constant
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(n) limbs
+ */
 void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
                      const bignum* m)
 {
@@ -64,7 +152,26 @@ void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
   bn_free_multi(&base, &exp, &res, &tmp, NULL);
 }
 
-// calculates a^b mod m into r
+/*
+ * Calculate a^b mod m into r.
+ *
+ * Let n = m->size and e = b->size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r = a^b mod m
+ *
+ * For odd m it uses the fast Montgomery path (bn_mod_exp_mont) with a
+ * freshly initialized context. For even m it falls back to
+ * bn_mod_exp_slow(), since Montgomery reduction requires an odd
+ * modulus.
+ *
+ * Complexity:
+ *   Time: O(e * n^2) - O(e) Montgomery multiplications (or plain
+ *         multiply+divide pairs for even m)
+ *   Auxiliary memory: O(n) limbs for the context and temporaries
+ *   Output memory: O(n) limbs
+ */
 void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
 {
   if (bn_is_even(m)) {
@@ -79,7 +186,27 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
   bn_mont_ctx_free(&ctx);
 }
 
-// calculates a^b mod m into r in the montgomery domain
+/*
+ * Calculate a^b mod m into r using a caller-provided Montgomery context.
+ *
+ * Let n = m->size and e = b->size, measured in 64-bit limbs.
+ *
+ * This computes:
+ *
+ *   r = a^b mod m
+ *
+ * by converting a into the Montgomery domain (bn_mont_in), exponentiating
+ * with bn_mont_exp(), and converting the result back (bn_mont_out).
+ *
+ * Precondition: m is nonzero and odd, and ctx was initialized with
+ * bn_mont_ctx_init() for this m.
+ *
+ * Complexity:
+ *   Time: O(e * n^2) - O(e) Montgomery multiplications plus two
+ *         conversions, each one Montgomery multiplication
+ *   Auxiliary memory: O(n) limbs for temporaries
+ *   Output memory: O(n) limbs
+ */
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
                      const bignum* m, bn_mont_ctx* ctx)
 {
