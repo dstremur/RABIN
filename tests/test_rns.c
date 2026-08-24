@@ -24,7 +24,7 @@ int main()
   bignum reconstructed;
   bn_init(&reconstructed);
 
-  rns_to_bignum(&reconstructed, &r, &ctx);
+  rns_to_bignum_garner(&reconstructed, &r, &ctx);
 
   // Now: reconstructed == my_big
 

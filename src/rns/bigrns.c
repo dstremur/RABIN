@@ -273,29 +273,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
  * @param[in]  r   Residue vector.
  * @param[in]  ctx RNS context.
  */
-void rns_to_bignum(bignum* a, const rns_num* r, ctx_rns* ctx)
-{
-  printf("start \n");
-  bignum sum, tmp;
-  bn_init_multi(&sum, &tmp, NULL);
-
-  bn_set_u64(a, 0);
-
-  for (u64 i = 0; i < r->size; i++) {
-    bn_set_u64(&tmp, r->residues[i]);
-    bn_mul(&sum, &ctx->crt_weights[i], &tmp);
-
-    bn_add(a, a, &sum);
-  }
-
-  bn_mod(a, a, &ctx->prod);
-
-  bn_free_multi(&sum, &tmp, NULL);
-
-  printf("end \n");
-}
-
-void rns_to_bignum_garner(bignum* a, const rns_num* v, ctx_rns* ctx)
+void rns_to_bignum(bignum* a, const rns_num* v, ctx_rns* ctx)
 {
   u64 t = ctx->count;
   if (t == 0) {

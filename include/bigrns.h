@@ -54,5 +54,5 @@ void rns_mul(rns_num* r, const rns_num* a, const rns_num* b,
 void bigmatrix_det_rns(bignum* det, const bigmatrix* A, const ctx_rns* ctx);
 u64 rns_estimate_determinant(bigmatrix* A);
 u64 bigrns_estimate_primes(const bignum* a);
-
+void rns_to_bignum_garner(bignum* a, const rns_num* v, ctx_rns* ctx);
 #endif
