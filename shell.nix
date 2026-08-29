@@ -6,6 +6,7 @@ pkgs.mkShell {
     gmp
 	flint
 	doxygen
+	openssl
   ];
 
 }

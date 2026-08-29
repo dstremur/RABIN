@@ -847,7 +847,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
   bn_init(&F);
   bool found_prime = false;
 
-  gen_provable_primes_arithmetic(&F, (n / 2) + 1);
+  gen_provable_primes_arithmetic(&F, (n / 2) + 2);
 
   u64 s = optimal_table_len(n, 64);
 
@@ -889,7 +889,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
     bool tab[s + 1];
     memset(tab, 0, sizeof(tab));
 
-    u64 T_bound = 10 * n;
+    u64 T_bound = MAX(10 * n, 1000);
 
     for (u64 i = 0; i < 70000; i++) {
       u64 p = primes[i];
