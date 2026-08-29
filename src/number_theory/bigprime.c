@@ -752,28 +752,111 @@ u64 optimal_table_len(u64 n, u64 B)
   return (u64)(k * n * m) / log(n * n * m);
 }
 
+/**
+ * @brief  Generates a provable prime of approximately @p n bits.
+ *
+ * @details
+ * This function recursively constructs a prime number @p p with roughly @p n
+ * bits using a Pocklington-style primality proof.
+ *
+ * For small values of @p n, the function delegates directly to bn_gen_prime().
+ *
+ * For larger values of @p n, the function performs the following steps:
+ *
+ *  1. Recursively generates a smaller provable prime @c F with approximately
+ *     @p n / 2 bits.
+ *  2. Chooses a random integer @c t such that:
+ *
+ *         2^(n-2) / F < t < 2^(n-1) / F - s*n
+ *
+ *     where @c s is the sieve/table length returned by optimal_table_len().
+ *
+ *  3. Constructs an arithmetic progression of candidate integers:
+ *
+ *         N_i = N_0 + i*a
+ *
+ *     where:
+ *
+ *         a  = 2F
+ *         N_0 = t*a + 1
+ *         0 <= i <= s
+ *
+ *  4. Sieves candidates using small primes up to a bound proportional to @p n.
+ *
+ *  5. Applies a Rabin-Miller test, currently with base 2, as a fast
+ *     compositeness filter.
+ *
+ *  6. For candidates that pass the probable-prime test, attempts to prove
+ *     primality using Pocklington's lemma with the known large factor @c F
+ *     of @c N-1.
+ *
+ * The function returns by storing the first verified prime found in @p p.
+ *
+ * @param[out] p  Destination bignum receiving the generated provable prime.
+ *                The caller is responsible for managing its lifetime according
+ *                to the conventions of the bignum library.
+ *
+ * @param[in]  n  Desired approximate bit length of the output prime.
+ *
+ * @pre The bignum library must be initialized.
+ *
+ * @pre The global small-prime table used by this function must be valid and
+ *      must contain enough primes to support the trial-division bound used
+ *      internally.
+ *
+ * @pre The random-number subsystem must be initialized if the internal
+ *      bn_gen_random_range() function depends on it.
+ *
+ * @post On successful completion, @p p contains a prime number of approximately
+ *       @p n bits.
+ *
+ * @note This function is recursive. Its stack usage and runtime grow with @p n.
+ *
+ * @note The primality proof relies on @c F satisfying the Pocklington condition
+ *       @c F > sqrt(N - 1), or an equivalent sufficient condition. If this
+ *       condition is not guaranteed by the caller or by the size bounds,
+ *       the generated number may be probable-prime but not formally proven
+ *       prime by this routine.
+ *
+ * @warning The current implementation may use variable-length array allocations
+ *          and repeated temporary bignum allocations. For large @p n, this may
+ *          lead to high stack usage or degraded performance.
+ *
+ * @warning If no suitable prime is found in the generated arithmetic
+ *          progression, the function retries with a new random @c t. It has
+ *          no explicit iteration limit and may therefore run for an unbounded
+ *          amount of time.
+ *
+ * @see optimal_table_len
+ * @see bn_gen_prime
+ * @see bn_rabin
+ * @see bn_mod_exp
+ */
 void gen_provable_primes_arithmetic(bignum* p, u64 n)
 {
-  u64 b = 25;
-  double k = 0.4;
-  u64 m = n / 64;
-  u64 s = optimal_table_len(n, 64);
-  // printf("s: %llu \n", s);
-  if (n < b) {
+  const u64 base_prime_limit = 100000;
+  const u64 num_bases = 20;
+
+  if (n < 25) {
     bn_gen_prime(p, n);
     return;
   }
 
-  // Step 2: produce integer F with 2^(en) < F < 2^(cen), completely factored
-  // using this algo
+  // F is a proven prime roughly of size 2^(n/2)
   bignum F;
   bn_init(&F);
   bool found_prime = false;
 
   gen_provable_primes_arithmetic(&F, (n / 2) + 1);
 
+  u64 s = optimal_table_len(n, 64);
+
   bignum t, A, B, exp, temp;
   bn_init_multi(&t, &A, &B, &exp, &temp, NULL);
+
+  bignum a, N0, N, N_minus_1, test_val, gcd_val, pock_pow, X;
+  bn_init_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
+                NULL);
 
   while (!found_prime) {
     // Step 3: draw random number t in (2^(n-2) / F, 2^(n-1) / F - sn)
@@ -792,9 +875,6 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
 
     // Step 4: Find a prime in the arithmetic progression
     // P = {N | N = N_0 + ia; N_0 = ta + 1; a = 2F; i <= i <= s}
-    bignum a, N0, N, N_minus_1, test_val, gcd_val, pock_pow, X;
-    bn_init_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
-                  NULL);
 
     // a = 2F
     bn_mul(&a, &F, &BN_TWO);
@@ -811,7 +891,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
 
     u64 T_bound = 10 * n;
 
-    for (int i = 0; i < 70000; i++) {
+    for (u64 i = 0; i < 70000; i++) {
       u64 p = primes[i];
       if (p >= T_bound) break;
 
@@ -883,11 +963,12 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
       }
     }
 
-    bn_free_multi(&t, &A, &B, &exp, &temp, NULL);
-    bn_free_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
-                  NULL);
     bn_free_multi(&term, &I, &alpha, NULL);
   }
+
+  bn_free_multi(&t, &A, &B, &exp, &temp, NULL);
+  bn_free_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
+                NULL);
 
   bn_free(&F);
 }

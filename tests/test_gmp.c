@@ -404,12 +404,18 @@ int main()
   benchmark_bpsw(8192, time_per_test, state);
   benchmark_bpsw(10000, time_per_test, state);
   benchmark_bpsw(16384, time_per_test, state);
+  benchmark_bpsw(32768, time_per_test, state);
+  benchmark_bpsw(65536, time_per_test, state);
+  benchmark_bpsw(250000, time_per_test, state);
 
   benchmark_gcd(2048, time_per_test, state);
   benchmark_gcd(8192, time_per_test, state);
   benchmark_gcd(32768, time_per_test, state);
   benchmark_gcd(65536, time_per_test, state);
   benchmark_gcd(65539, time_per_test, state);
+  benchmark_gcd(100000, time_per_test, state);
+  benchmark_gcd(200000, time_per_test, state);
+  benchmark_gcd(500000, time_per_test, state);
 
   print_table_footer();
 
