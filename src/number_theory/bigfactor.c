@@ -52,7 +52,7 @@ bool trialdiv(bignum* n, u64 g)
 {
   u64 i = 0;
 
-  while (i < 50000 && primes[i] < g) {
+  while (i < 50000 && primes[i] <= g) {
     if (bn_mod_u64(n, primes[i]) == 0) {
       return false;
     }

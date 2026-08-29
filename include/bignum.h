@@ -148,6 +148,7 @@ bool bn_rabin_mont(const bignum* n, const bignum* a);
 // bigrand.c
 bool bn_gen_random(bignum* r, u64 bits);
 bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd);
+bool bn_gen_random_odd_with_fd(bignum* r, u64 bits, int fd);
 void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high);
 
 // bigpseudo.c
@@ -195,6 +196,8 @@ void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
 
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
+
+void gen_provable_primes_arithmetic(bignum* p, u64 n);
 
 void bn_find_gen_fp(bignum* g, bignum* p);
 void bn_find_gen_proth(bignum* g, bignum* p, bignum* c);

@@ -31,10 +31,12 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "../../include/bignum.h"
 #include "../../include/primes.h"
+#include "../../include/u64.h"
 
 /**
  * @brief Generate a random prime of the given bit length into p.
@@ -431,6 +433,7 @@ bool bn_bpsw(const bignum* n)
 bool checkLemma1(bignum* n, bignum* n_min1, bignum* a, bignum* q)
 {
   bignum tmp, exp, X, gcd;
+
   bn_init_multi(&tmp, &exp, &X, &gcd, NULL);
 
   bool result = false;
@@ -464,14 +467,14 @@ cleanup:
 
 /**
  * @brief Draw a relative size for Maurer's algorithm: 2^u with u uniform in
- * [0, 1), i.e. a value in [1/2, 1) biased toward 1.
+ * [0, 1), i.e. a value in [1/2, 1] biased toward 1.
  *
  * Complexity:
  *   Time: O(1)
  *   Auxiliary memory: O(1)
  *   Output memory: O(1)
  *
- * @return The relative size, a value in [1/2, 1).
+ * @return The relative size, a value in [1/2, 1].
  */
 double gen_rel_size()
 {
@@ -516,10 +519,10 @@ void bn_provable_prime(bignum* p, u64 k)
  *
  *   - base case k <= 20: accept a random k-bit candidate that passes
  *     BPSW (treated as proven at this size),
- *   - otherwise: pick a relative size rel_size in [1/2, 1) with
+ *   - otherwise: pick a relative size rel_size in [1/2, 1] with
  *     rel_size * k < k - k/6, recursively generate a provable prime q
- *     of that size, then search for n = 2 R q + 1 with R in
- *     [2^(k-1)/(2q), 2^k/(2q)) that survives trial division up to
+ *     of that size, then search for n = 2 * R q + 1 with R in
+ *     [2^(k-1)/(2q), 2^k/(2q)] that survives trial division up to
  *     0.1 k^2 + 1 and passes the Lemma 1 check for some random base a
  *     (up to 200 bases).
  *
@@ -740,4 +743,151 @@ void gen_rns_primes(u64 count)
   }
 
   printf("}; \n");
+}
+
+u64 optimal_table_len(u64 n, u64 B)
+{
+  double k = 0.4;
+  u64 m = n / B;
+  return (u64)(k * n * m) / log(n * n * m);
+}
+
+void gen_provable_primes_arithmetic(bignum* p, u64 n)
+{
+  u64 b = 25;
+  double k = 0.4;
+  u64 m = n / 64;
+  u64 s = optimal_table_len(n, 64);
+  // printf("s: %llu \n", s);
+  if (n < b) {
+    bn_gen_prime(p, n);
+    return;
+  }
+
+  // Step 2: produce integer F with 2^(en) < F < 2^(cen), completely factored
+  // using this algo
+  bignum F;
+  bn_init(&F);
+  bool found_prime = false;
+
+  gen_provable_primes_arithmetic(&F, (n / 2) + 1);
+
+  bignum t, A, B, exp, temp;
+  bn_init_multi(&t, &A, &B, &exp, &temp, NULL);
+
+  while (!found_prime) {
+    // Step 3: draw random number t in (2^(n-2) / F, 2^(n-1) / F - sn)
+
+    bn_set_u64(&exp, n - 2);
+    // A = 2^(n - 2) / F
+    bn_pow(&A, &BN_TWO, &exp);
+    bn_div(&A, &A, &F);
+
+    // B = 2^(n - 1) / F - sn
+    bn_mul(&B, &A, &BN_TWO);
+    bn_set_u64(&temp, s * n);
+    bn_sub(&B, &B, &temp);
+
+    bn_gen_random_range(&t, &A, &B);
+
+    // Step 4: Find a prime in the arithmetic progression
+    // P = {N | N = N_0 + ia; N_0 = ta + 1; a = 2F; i <= i <= s}
+    bignum a, N0, N, N_minus_1, test_val, gcd_val, pock_pow, X;
+    bn_init_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
+                  NULL);
+
+    // a = 2F
+    bn_mul(&a, &F, &BN_TWO);
+
+    // N0 = t * a + 1
+    bn_mul(&N0, &t, &a);
+    bn_add_u64(&N0, &N0, 1);
+
+    // Part 1: Trial division by primes < T_bound
+
+    // tab[i] = 1 iff N'_p + ia'_p = 0 mod p forall p < T_bound
+    bool tab[s + 1];
+    memset(tab, 0, sizeof(tab));
+
+    u64 T_bound = 10 * n;
+
+    for (int i = 0; i < 70000; i++) {
+      u64 p = primes[i];
+      if (p >= T_bound) break;
+
+      u64 a_prime = bn_mod_u64(&a, p);
+      u64 N0_prime = bn_mod_u64(&N0, p);
+
+      // Mark solutions to N0_prime + i * a_prime == 0 (mod p)
+      for (u64 j = 0; j <= s; j++) {
+        if (tab[j]) continue;
+        if ((N0_prime + j * a_prime) % p == 0) {
+          tab[j] = true;
+        }
+      }
+    }
+
+    bignum term, I;
+    bn_init_multi(&term, &I, NULL);
+    bignum alpha;
+    bn_init(&alpha);
+
+    // Part II & III: Compositeness Test and Primality Proof
+
+    u64 num_bases = 20;
+
+    for (u64 i = 0; i <= s; i++) {
+      if (found_prime || tab[i]) continue;  // Skip sieved candidates
+
+      // N = N0 + i * a
+      bn_set_u64(&I, i);
+      bn_mul(&term, &a, &I);
+      bn_add(&N, &N0, &term);
+
+      bn_sub(&N_minus_1, &N, &BN_ONE);
+
+      // Part II: Rabin-Miller test with base 2
+      if (!bn_rabin(&N, &BN_TWO)) {
+        continue;
+      }
+
+      // Part III: Primality proof using Pocklington lemma
+      // Since F is a prime from Step 2, q = F. We seek a base alpha_q.
+      bn_div(&pock_pow, &N_minus_1, &F);
+
+      for (u64 b = 0; b < num_bases; b++) {
+        bn_set_u64(&alpha, primes[b]);
+
+        // X = alpha^((N- 1)/ F) mod N
+        bn_mod_exp(&X, &alpha, &pock_pow, &N);
+
+        // alpha^(N-1) = X^F == 1 mod N (Little Fermat)
+        bn_mod_exp(&test_val, &X, &F, &N);
+        if (bn_cmp(&test_val, &BN_ONE) != 0) {
+          break;
+        }
+
+        // gcd(alpha^((N-1)/F) - 1, N) = gcd(X - 1, N) == 1
+        bn_sub(&test_val, &X, &BN_ONE);
+        bn_gcd(&gcd_val, &test_val, &N);
+
+        if (bn_cmp(&gcd_val, &BN_ONE) == 0) {
+          found_prime = true;
+          break;  // Base found, N is verified prime
+        }
+      }
+
+      if (found_prime) {
+        bn_copy(p, &N);
+        break;
+      }
+    }
+
+    bn_free_multi(&t, &A, &B, &exp, &temp, NULL);
+    bn_free_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
+                  NULL);
+    bn_free_multi(&term, &I, &alpha, NULL);
+  }
+
+  bn_free(&F);
 }

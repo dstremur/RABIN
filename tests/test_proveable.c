@@ -7,8 +7,10 @@
 
 int main()
 {
-  int num_to_generate = 1;
-  int bits = 400;
+  bn_init_constants();
+
+  int num_to_generate = 100;
+  int bits = 4096;
 
   bignum p;
   bn_init(&p);
@@ -23,7 +25,7 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    bn_provable_prime(&p, bits);
+    gen_provable_primes_arithmetic(&p, bits);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed =
@@ -40,5 +42,7 @@ int main()
          total_time / num_to_generate);
 
   bn_free(&p);
+
+  bn_free_constants();
   return 0;
 }

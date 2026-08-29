@@ -37,7 +37,7 @@
 #include "../../include/bignum.h"
 
 /**
- * @brief Generate a random bits-long odd number.
+ * @brief Generate a random bits-long number.
  *
  * Opens /dev/urandom, delegates to bn_gen_random_with_fd(), and
  * closes the descriptor.
@@ -50,7 +50,7 @@
  *   Auxiliary memory: O(1)
  *   Output memory: O(bits / 64) limbs
  *
- * @param[out] r    Result storing the random odd number.
+ * @param[out] r    Result storing the random number.
  * @param[in]  bits Desired bit length of the number.
  *
  * @return true  On success.
@@ -88,7 +88,7 @@ bool bn_gen_random(bignum* r, u64 bits)
  * @return true  On success.
  * @return false On allocation or read failure.
  */
-bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
+bool bn_gen_random_odd_with_fd(bignum* r, u64 bits, int fd)
 {
   int limbs_needed = (bits + 63) / 64;
 
@@ -114,6 +114,53 @@ bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
   // Ensure it's odd by setting the LSB
   r->limbs[0] |= 1;
 
+  bn_trim(r);
+  return true;
+}
+
+/**
+ * @brief Generate a random bits-long number using a given urandom fd.
+ *
+ * Returns true on success, false on allocation or read failure.
+ *
+ * Complexity:
+ *   Time: O(bits / 64)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(bits / 64) limbs
+ *
+ * @param[out] r    Result storing the random number.
+ * @param[in]  bits Desired bit length of the number.
+ * @param[in]  fd   Open file descriptor for /dev/urandom.
+ *
+ * @return true  On success.
+ * @return false On allocation or read failure.
+ */
+bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd)
+{
+  if (bits == 0) {
+    r->size = 0;
+    return true;
+  }
+
+  int limbs_needed = (bits + 63) / 64;
+
+  if (!bn_alloc(r, limbs_needed)) return false;
+  r->size = limbs_needed;
+
+  // Read random bytes directly using the open file descriptor
+  if (read(fd, r->limbs, limbs_needed * sizeof(u64)) !=
+      (ssize_t)(limbs_needed * sizeof(u64))) {
+    return false;
+  }
+
+  // Mask the top limb to fit the exact bit length
+  int top_bits = bits % 64;
+  if (top_bits != 0) {
+    u64 mask = ((u64)1 << top_bits) - 1;
+    r->limbs[r->size - 1] &= mask;
+  }
+
+  bn_trim(r);
   return true;
 }
 
