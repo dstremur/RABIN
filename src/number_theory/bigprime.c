@@ -34,6 +34,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../../include/bigcert.h"
 #include "../../include/bignum.h"
 #include "../../include/primes.h"
 #include "../../include/u64.h"
@@ -832,13 +833,21 @@ u64 optimal_table_len(u64 n, u64 B)
  * @see bn_rabin
  * @see bn_mod_exp
  */
-void gen_provable_primes_arithmetic(bignum* p, u64 n)
+void gen_provable_primes_arithmetic(bignum* p, u64 n,
+                                    pocklington_cert** cert_out)
 {
   const u64 base_prime_limit = 100000;
   const u64 num_bases = 20;
 
   if (n < 25) {
     bn_gen_prime(p, n);
+
+    *cert_out = malloc(sizeof(pocklington_cert));
+    bn_init(&(*cert_out)->N);
+    bn_copy(&(*cert_out)->N, p);
+    (*cert_out)->size = 0;
+    (*cert_out)->capacity = 0;
+    (*cert_out)->data = NULL;
     return;
   }
 
@@ -847,7 +856,9 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
   bn_init(&F);
   bool found_prime = false;
 
-  gen_provable_primes_arithmetic(&F, (n / 2) + 2);
+  pocklington_cert* F_cert = NULL;
+
+  gen_provable_primes_arithmetic(&F, (n / 2) + 2, &F_cert);
 
   u64 s = optimal_table_len(n, 64);
 
@@ -907,10 +918,8 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
       }
     }
 
-    bignum term, I;
-    bn_init_multi(&term, &I, NULL);
-    bignum alpha;
-    bn_init(&alpha);
+    bignum term, I, alpha;
+    bn_init_multi(&term, &I, &alpha, NULL);
 
     // Part II & III: Compositeness Test and Primality Proof
 
@@ -959,6 +968,25 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n)
 
       if (found_prime) {
         bn_copy(p, &N);
+
+        // Build the certificate for current N
+        *cert_out = malloc(sizeof(pocklington_cert));
+        bn_init(&(*cert_out)->N);
+        bn_copy(&(*cert_out)->N, &N);
+
+        // Allocate space for the single factor F we are proving against
+        (*cert_out)->size = 1;
+        (*cert_out)->capacity = 1;
+        (*cert_out)->data = malloc(sizeof(pocklington_cert_elem));
+
+        bn_init(&(*cert_out)->data[0].q);
+        bn_copy(&(*cert_out)->data[0].q, &F);
+
+        bn_init(&(*cert_out)->data[0].alpha_q);
+        bn_copy(&(*cert_out)->data[0].alpha_q, &alpha);
+
+        // Link the recursive proof for F
+        (*cert_out)->data[0].q_cert = F_cert;
         break;
       }
     }

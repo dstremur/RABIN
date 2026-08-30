@@ -3,6 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "../include/bigcert.h"
 #include "../include/bignum.h"
 
 int main()
@@ -10,7 +11,7 @@ int main()
   bn_init_constants();
 
   int num_to_generate = 20;
-  int bits = 2048;
+  int bits = 4000;
 
   bignum p;
   bn_init(&p);
@@ -22,10 +23,11 @@ int main()
   struct timespec start, end;
   double total_time = 0;
 
+  pocklington_cert* cert = NULL;
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    gen_provable_primes_arithmetic(&p, bits);
+    gen_provable_primes_arithmetic(&p, bits, &cert);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed =
@@ -34,6 +36,8 @@ int main()
 
     bn_println(&p);
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
+
+    // print_pocklington_cert(cert);
   }
 
   printf("--------------------------------------------------\n");
