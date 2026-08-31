@@ -10,8 +10,8 @@ int main()
 {
   bn_init_constants();
 
-  int num_to_generate = 20;
-  int bits = 4000;
+  int num_to_generate = 10;
+  int bits = 1000;
 
   bignum p;
   bn_init(&p);

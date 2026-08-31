@@ -3,20 +3,26 @@
 
 #include "bignum.h"
 
-typedef struct pocklington_cert_t pocklington_cert;  // Forward declaration
+typedef struct pocklington_cert pocklington_cert;
+typedef struct pocklington_cert_elem pocklington_cert_elem;
 
-typedef struct {
-  bignum q;
-  bignum alpha_q;
-  pocklington_cert* q_cert;
-} pocklington_cert_elem;
+typedef struct pocklington_cert_elem {
+  bignum q;        // prime
+  bignum alpha_q;  // base for pocklington theorem
+  pocklington_cert*
+      q_cert;  // certificate for q's primality, if NULL then q is leaf
+};
 
-struct pocklington_cert_t {  // Defined using the forward-declared tag
-  bignum N;
-  pocklington_cert_elem* data;
+// todo add enum for bpsw, trial div, ECPP
+struct pocklington_cert {
+  bignum N;  // prime number
+  pocklington_cert_elem*
+      data;  // pointer to start node of pocklington certificates
   u64 size;
   u64 capacity;
 };
+
+// base_case bound = 2^64
 
 void gen_provable_primes_arithmetic(bignum* p, u64 n,
                                     pocklington_cert** cert_out);

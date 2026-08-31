@@ -90,6 +90,11 @@ bool bn_gen_prime(bignum* p, int bits)
       continue;
 
     for (int i = 0; i < 1500; i++) {
+      if (p->limbs[0] == primes[i]) {
+        close(fd);
+        return true;
+      }
+
       if (bn_mod_u64(p, primes[i]) == 0) {
         composite = true;
         break;
@@ -836,10 +841,9 @@ u64 optimal_table_len(u64 n, u64 B)
 void gen_provable_primes_arithmetic(bignum* p, u64 n,
                                     pocklington_cert** cert_out)
 {
-  const u64 base_prime_limit = 100000;
   const u64 num_bases = 20;
 
-  if (n < 25) {
+  if (n < 64) {
     bn_gen_prime(p, n);
 
     *cert_out = malloc(sizeof(pocklington_cert));
@@ -848,6 +852,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
     (*cert_out)->size = 0;
     (*cert_out)->capacity = 0;
     (*cert_out)->data = NULL;
+
     return;
   }
 
@@ -868,6 +873,9 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
   bignum a, N0, N, N_minus_1, test_val, gcd_val, pock_pow, X;
   bn_init_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
                 NULL);
+
+  bignum term, I, alpha;
+  bn_init_multi(&term, &I, &alpha, NULL);
 
   while (!found_prime) {
     // Step 3: draw random number t in (2^(n-2) / F, 2^(n-1) / F - sn)
@@ -918,12 +926,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
       }
     }
 
-    bignum term, I, alpha;
-    bn_init_multi(&term, &I, &alpha, NULL);
-
     // Part II & III: Compositeness Test and Primality Proof
-
-    u64 num_bases = 20;
 
     for (u64 i = 0; i <= s; i++) {
       if (found_prime || tab[i]) continue;  // Skip sieved candidates
@@ -990,10 +993,9 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
         break;
       }
     }
-
-    bn_free_multi(&term, &I, &alpha, NULL);
   }
 
+  bn_free_multi(&term, &I, &alpha, NULL);
   bn_free_multi(&t, &A, &B, &exp, &temp, NULL);
   bn_free_multi(&a, &N0, &N, &N_minus_1, &test_val, &gcd_val, &pock_pow, &X,
                 NULL);
