@@ -11,7 +11,7 @@ int main()
   bn_init_constants();
 
   int num_to_generate = 10;
-  int bits = 1000;
+  int bits = 2048;
 
   bignum p;
   bn_init(&p);

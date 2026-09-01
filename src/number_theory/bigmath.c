@@ -267,24 +267,67 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p)
 }
 
 /**
- * @brief Greatest common divisor via the binary (Stein) algorithm:
- * d = gcd(a, b).
+ * @brief  Computes the greatest common divisor (GCD) of two bignums.
  *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
+ * @details Uses the classic Euclidean algorithm,
+ *          @c gcd(a, b) == gcd(b, a % b), iterating until the remainder
+ *          is zero; the last non-zero value is the GCD. The loop rotates
+ *          three internal buffers by pointer swap, so no temporary
+ *          bignums are allocated per iteration.
  *
- * Strips the common power of two from both operands, then repeatedly
- * removes factors of 2 and replaces the larger operand by half the
- * difference, until one operand is zero. The common power of two is
- * restored at the end. The result is always nonnegative.
+ *          Zero handling follows the standard conventions:
+ *          - @p a is zero  -> result is @p b
+ *          - @p b is zero  -> result is @p a
+ *          - both zero     -> result is zero, i.e. `gcd(0, 0) == 0`
  *
- * Complexity:
- *   Time: O(n^2) - O(n) iterations of O(n) subtractions/shifts
- *   Auxiliary memory: O(n) limbs for temporaries
- *   Output memory: O(n) limbs
+ *          The result is the principal (non-negative) GCD; the sign of the
+ *          inputs is ignored, so `bn_gcd(d, &a, &b) == bn_gcd(d, &a, &nb)`.
  *
- * @param[out] d Result storing gcd(a, b).
- * @param[in]  a First operand.
- * @param[in]  b Second operand.
+ * @param[out] d  Receives `gcd(a, b)`. Must be initialized before the call.
+ *                May alias @p a or @p b — both operands are copied into
+ *                temporaries before any work is done — so
+ *                `bn_gcd(&a, &a, &b)` is valid.
+ * @param[in]  a  First operand. Not modified. Must not be @c NULL.
+ * @param[in]  b  Second operand. Not modified. Must not be @c NULL.
+ *
+ * @pre @p d, @p a and @p b are initialized (e.g. via bn_init() /
+ *      bn_init_multi()) and have valid size fields.
+ *
+ * @note The three temporaries created here are freed before returning;
+ *       the caller only has to manage the lifetime of @p d.
+ * @note bn_mod() is only called with a non-zero divisor, which is
+ *       guaranteed by the `while (!bn_is_zero(v))` loop condition.
+ *
+ * @par Memory
+ * Allocates 3 temporary bignums (each up to `max(size(a), size(b))`),
+ * peak extra memory ≈ 3 operands. Fails silently on allocation error
+ * if the underlying allocator does, so check @p d if that matters to you.
+ *
+ * @par Complexity
+ * O(log min(a, b)) modulo operations; each modulo is O(n·m) word
+ * divisions for n- and m-word operands.
+ *
+ * @warning <b>Not constant-time.</b> The number and shape of divisions
+ *          depend on the operand values, which leaks information through
+ *          execution time. Do not use on secret inputs (e.g. private keys
+ *          in `invmod`/key-derivation paths) without a constant-time
+ *          variant such as binary GCD.
+ *
+ * @par Example
+ * @code
+ * bignum a, b, g;
+ * bn_init_multi(&a, &b, &g, NULL);
+ *
+ * bn_set_str(&a, "1071", 10);   // 1071 = 3 * 3 * 7 * 17
+ * bn_set_str(&b, "462",  10);   //  462 = 2 * 3 * 7 * 11
+ * bn_gcd(&g, &a, &b);           // g == 21
+ *
+ * bn_gcd(&a, &a, &b);           // also fine: a == 21, b unchanged
+ *
+ * bn_free_multi(&a, &b, &g, NULL);
+ * @endcode
+ *
+ * @see bn_mod(), bn_copy(), bn_is_zero()
  */
 void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 {
@@ -297,42 +340,29 @@ void bn_gcd(bignum* d, const bignum* a, const bignum* b)
     return;
   }
 
-  bn_set_u64(d, 1);
-  bignum t, tmp_a, tmp_b;
-  bn_init_multi(&t, &tmp_a, &tmp_b, NULL);
+  bignum tmp_a, tmp_b, rem;
+  bn_init_multi(&tmp_a, &tmp_b, &rem, NULL);
   bn_copy(&tmp_a, a);
   bn_copy(&tmp_b, b);
 
-  u64 shifts = 0;
+  bignum* u = &tmp_a;
+  bignum* v = &tmp_b;
+  bignum* r = &rem;
 
-  while (bn_is_even(&tmp_a) && bn_is_even(&tmp_b)) {
-    bn_rshift1(&tmp_a);
-    bn_rshift1(&tmp_b);
-    shifts++;
+  while (!bn_is_zero(v)) {
+    // r = u % v
+    bn_mod(r, u, v);
+
+    bignum* temp = u;
+    u = v;
+    v = r;
+    r = temp;
   }
 
-  while (!bn_is_zero(&tmp_a)) {
-    while (bn_is_even(&tmp_a)) {
-      bn_rshift1(&tmp_a);
-    }
-    while (bn_is_even(&tmp_b)) {
-      bn_rshift1(&tmp_b);
-    }
-
-    if (bn_cmp(&tmp_a, &tmp_b) < 0) {
-      bn_sub(&t, &tmp_b, &tmp_a);
-      bn_rshift1(&t);
-      bn_copy(&tmp_b, &t);
-    } else {
-      bn_sub(&t, &tmp_a, &tmp_b);
-      bn_rshift1(&t);
-      bn_copy(&tmp_a, &t);
-    }
-  }
-
-  bn_lshift(d, &tmp_b, shifts);
+  // The GCD is left in 'u'
+  bn_copy(d, u);
 
   bn_free(&tmp_a);
   bn_free(&tmp_b);
-  bn_free(&t);
+  bn_free(&rem);
 }
