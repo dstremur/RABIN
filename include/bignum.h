@@ -144,6 +144,8 @@ void bn_rshift1(bignum* r);
 // bigrabin.c
 bool bn_rabin(const bignum* n, const bignum* a);
 bool bn_rabin_mont(const bignum* n, const bignum* a);
+bool bn_rabin_mont_ctx(const bignum* n, const bignum* a,
+                       const bn_mont_ctx* ctx);
 
 // bigrand.c
 bool bn_gen_random(bignum* r, u64 bits);

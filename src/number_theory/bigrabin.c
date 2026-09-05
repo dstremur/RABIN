@@ -248,3 +248,83 @@ cleanup:
 
   return !composite;
 }
+bool bn_rabin_mont_ctx(const bignum* n, const bignum* a, const bn_mont_ctx* ctx)
+{
+  if (bn_is_even(n)) return false;
+
+  // Fast handling for small numbers
+  if (n->size == 1 && n->limbs[0] <= 3) {
+    return n->limbs[0] == 2 || n->limbs[0] == 3;
+  }
+
+  // Step 1: Find d and s such that n-1 = d * 2^s
+  bignum d, n_minus_1, one;
+  bn_init(&d);
+  bn_init(&n_minus_1);
+  bn_init(&one);
+  bn_set_u64(&one, 1);
+
+  bn_sub(&n_minus_1, n, &one);  // n-1
+  bn_copy(&d, &n_minus_1);
+
+  u64 s = 0;
+  while (bn_is_even(&d) && !bn_is_zero(&d)) {
+    bn_rshift1(&d);
+    s++;
+  }
+
+  // Step 2: Precompute Montgomery representations
+  bignum a_bar, x_bar, n_minus_1_mont, tmp;
+  bn_init(&a_bar);
+  bn_init(&x_bar);
+  bn_init(&n_minus_1_mont);
+  bn_init(&tmp);
+
+  bn_alloc(&tmp, n->size);
+  bn_alloc(&a_bar, n->size);
+  bn_alloc(&x_bar, n->size);
+  bn_alloc(&n_minus_1_mont, n->size);
+
+  bn_mont_in(&a_bar, a, ctx);                    // a in Montgomery
+  bn_mont_in(&n_minus_1_mont, &n_minus_1, ctx);  // (n-1) in Montgomery
+
+  // Step 3: x = a^d mod n (Montgomery)
+  bn_mont_exp(&x_bar, &a_bar, &d, ctx);
+
+  bool composite = true;
+
+  // Step 4: Rabin-Miller checks
+  if (bn_cmp(&x_bar, &ctx->one_mont) == 0 ||
+      bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
+    composite = false;
+    goto cleanup;
+  }
+
+  // #pragma GCC unroll 4
+  for (u64 r = 1; r < s; r++) {
+    bn_mont_mul(&x_bar, &x_bar, &x_bar, ctx);  // x = x^2 mod n
+    // bn_copy(&x_bar, &tmp);
+
+    if (bn_cmp(&x_bar, &ctx->one_mont) == 0) {
+      composite = true;  // Non-trivial square root of 1
+      break;
+    }
+
+    if (bn_cmp(&x_bar, &n_minus_1_mont) == 0) {
+      composite = false;  // Probably prime
+      break;
+    }
+  }
+
+cleanup:
+  // Free all temporaries
+  bn_free(&d);
+  bn_free(&n_minus_1);
+  bn_free(&one);
+  bn_free(&a_bar);
+  bn_free(&x_bar);
+  bn_free(&n_minus_1_mont);
+  bn_free(&tmp);
+
+  return !composite;
+}

@@ -846,12 +846,14 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
   if (n < 64) {
     bn_gen_prime(p, n);
 
-    *cert_out = malloc(sizeof(pocklington_cert));
-    bn_init(&(*cert_out)->N);
-    bn_copy(&(*cert_out)->N, p);
-    (*cert_out)->size = 0;
-    (*cert_out)->capacity = 0;
-    (*cert_out)->data = NULL;
+    if (cert_out) {
+      *cert_out = malloc(sizeof(pocklington_cert));
+      bn_init(&(*cert_out)->N);
+      bn_copy(&(*cert_out)->N, p);
+      (*cert_out)->size = 0;
+      (*cert_out)->capacity = 0;
+      (*cert_out)->data = NULL;
+    }
 
     return;
   }
@@ -866,6 +868,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
   gen_provable_primes_arithmetic(&F, (n / 2) + 2, &F_cert);
 
   u64 s = optimal_table_len(n, 64);
+  // printf("Table length: %llu \n", s);
 
   bignum t, A, B, exp, temp;
   bn_init_multi(&t, &A, &B, &exp, &temp, NULL);
@@ -912,7 +915,10 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
 
     for (u64 i = 0; i < 70000; i++) {
       u64 p = primes[i];
-      if (p >= T_bound) break;
+      if (p >= T_bound) {
+        // printf("i: %llu \n", i);
+        break;
+      }
 
       u64 a_prime = bn_mod_u64(&a, p);
       u64 N0_prime = bn_mod_u64(&N0, p);
@@ -927,7 +933,6 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
     }
 
     // Part II & III: Compositeness Test and Primality Proof
-
     for (u64 i = 0; i <= s; i++) {
       if (found_prime || tab[i]) continue;  // Skip sieved candidates
 
@@ -935,11 +940,15 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
       bn_set_u64(&I, i);
       bn_mul(&term, &a, &I);
       bn_add(&N, &N0, &term);
-
       bn_sub(&N_minus_1, &N, &BN_ONE);
 
+      // Initialize the ctx once
+      bn_mont_ctx ctx;
+      bn_mont_ctx_init(&ctx, &N);
+
       // Part II: Rabin-Miller test with base 2
-      if (!bn_rabin(&N, &BN_TWO)) {
+      if (!bn_rabin_mont_ctx(&N, &BN_TWO, &ctx)) {
+        bn_mont_ctx_free(&ctx);
         continue;
       }
 
@@ -951,10 +960,10 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
         bn_set_u64(&alpha, primes[b]);
 
         // X = alpha^((N- 1)/ F) mod N
-        bn_mod_exp(&X, &alpha, &pock_pow, &N);
+        bn_mod_exp_mont(&X, &alpha, &pock_pow, &N, &ctx);
 
         // alpha^(N-1) = X^F == 1 mod N (Little Fermat)
-        bn_mod_exp(&test_val, &X, &F, &N);
+        bn_mod_exp_mont(&test_val, &X, &F, &N, &ctx);
         if (bn_cmp(&test_val, &BN_ONE) != 0) {
           break;
         }
@@ -968,28 +977,34 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
           break;  // Base found, N is verified prime
         }
       }
+      bn_mont_ctx_free(&ctx);
 
       if (found_prime) {
         bn_copy(p, &N);
 
-        // Build the certificate for current N
-        *cert_out = malloc(sizeof(pocklington_cert));
-        bn_init(&(*cert_out)->N);
-        bn_copy(&(*cert_out)->N, &N);
+        if (cert_out) {
+          // Build the certificate for current N
+          *cert_out = malloc(sizeof(pocklington_cert));
+          bn_init(&(*cert_out)->N);
+          bn_copy(&(*cert_out)->N, &N);
 
-        // Allocate space for the single factor F we are proving against
-        (*cert_out)->size = 1;
-        (*cert_out)->capacity = 1;
-        (*cert_out)->data = malloc(sizeof(pocklington_cert_elem));
+          // Allocate space for the single factor F we are proving against
+          (*cert_out)->size = 1;
+          (*cert_out)->capacity = 1;
+          (*cert_out)->data = malloc(sizeof(pocklington_cert_elem));
 
-        bn_init(&(*cert_out)->data[0].q);
-        bn_copy(&(*cert_out)->data[0].q, &F);
+          bn_init(&(*cert_out)->data[0].q);
+          bn_copy(&(*cert_out)->data[0].q, &F);
 
-        bn_init(&(*cert_out)->data[0].alpha_q);
-        bn_copy(&(*cert_out)->data[0].alpha_q, &alpha);
+          bn_init(&(*cert_out)->data[0].alpha_q);
+          bn_copy(&(*cert_out)->data[0].alpha_q, &alpha);
 
-        // Link the recursive proof for F
-        (*cert_out)->data[0].q_cert = F_cert;
+          // Link the recursive proof for F
+          (*cert_out)->data[0].q_cert = F_cert;
+        } else {
+          pocklington_cert_free(F_cert);
+        }
+
         break;
       }
     }

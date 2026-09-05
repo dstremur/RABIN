@@ -27,7 +27,7 @@ void print_pocklington_cert(pocklington_cert* cert)
   }
 }
 
-void free_pocklington_cert(pocklington_cert* cert)
+void pocklington_cert_free(pocklington_cert* cert)
 {
   if (!cert) return;
 
@@ -37,7 +37,7 @@ void free_pocklington_cert(pocklington_cert* cert)
     for (u64 i = 0; i < cert->size; i++) {
       bn_free(&cert->data[i].q);
       bn_free(&cert->data[i].alpha_q);
-      free_pocklington_cert(cert->data[i].q_cert);
+      pocklington_cert_free(cert->data[i].q_cert);
     }
     free(cert->data);
   }

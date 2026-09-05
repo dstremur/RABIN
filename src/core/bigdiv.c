@@ -62,10 +62,6 @@
 /* limbs of scratch we are willing to put on the stack (4 KiB) */
 #define BN_DIV_STACK_LIMBS 512
 
-/*===========================================================================
- *  1. Newton division
- *=========================================================================*/
-
 /**
  * @brief Number of Newton iterations needed to refine the reciprocal of a
  * d_bits-bit divisor.
@@ -93,7 +89,8 @@ static u64 estimate_iterations(u64 bits)
 }
 
 /**
- * @brief Divide a by d using a Newton-iterated reciprocal: q = a / d.
+ * @brief Computes the division a / d using a Newton-iterated reciprocal: q = a
+ * / d.
  *
  * Let n = a->size and m = d->size, measured in 64-bit limbs.
  *
@@ -176,14 +173,6 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
   bn_free_multi(&x, &tmp, &two_p, &r, &error, NULL);
 }
 
-/*===========================================================================
- *  2. Invariant divisor reciprocals  (Moeller & Granlund, TC 2011)
- *
- *  Instead of dividing to estimate each quotient digit, a fixed
- *  "reciprocal" of the top limbs of the divisor is precomputed once,
- *  turning the per-digit estimate into a few multiplications.
- *=========================================================================*/
-
 /**
  * @brief v = floor((2^128 - 1) / d) - 2^64 ; requires d >= 2^63.
  *
@@ -201,14 +190,7 @@ void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
  */
 static inline u64 bn_invert_limb(u64 d)
 {
-#if defined(__x86_64__) && defined(__GNUC__)
-  /* (2^64*(2^64-1-d) + (2^64-1)) / d  fits in one limb because d >= 2^63 */
-  u64 q, r;
-  __asm__("divq %4" : "=a"(q), "=d"(r) : "0"(~(u64)0), "1"(~d), "r"(d));
-  return q;
-#else
   return (u64)(((((u128)~d) << 64) | ~(u64)0) / d);
-#endif
 }
 
 /**
@@ -249,10 +231,6 @@ static u64 bn_invert_3by2(u64 d1, u64 d0)
   }
   return v;
 }
-
-/*===========================================================================
- *  3. Quotient digit computation
- *=========================================================================*/
 
 /**
  * @brief {n1,n0} / d, requires d >= 2^63 and n1 < d.

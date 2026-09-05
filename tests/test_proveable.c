@@ -10,7 +10,7 @@ int main()
 {
   bn_init_constants();
 
-  int num_to_generate = 10;
+  int num_to_generate = 20;
   int bits = 2048;
 
   bignum p;
@@ -27,7 +27,7 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    gen_provable_primes_arithmetic(&p, bits, &cert);
+    gen_provable_primes_arithmetic(&p, bits, NULL);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed =
@@ -38,6 +38,7 @@ int main()
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
 
     // print_pocklington_cert(cert);
+    pocklington_cert_free(cert);
   }
 
   printf("--------------------------------------------------\n");
