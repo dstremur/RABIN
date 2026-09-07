@@ -88,4 +88,14 @@ void pocklington_cert_free(pocklington_cert* cert);
  */
 bool pocklington_cert_verify(const pocklington_cert* cert, u64 base_case_bound);
 
+// TODO: implement these
+
+bool pocklington_cert_add_elem(pocklington_cert* cert, const bignum* q,
+                               const bignum* alpha_q, pocklington_cert* q_cert);
+
+bool pocklington_cert_is_base_case(const pocklington_cert* cert);
+u64 pocklington_cert_get_depth(const pocklington_cert* cert);
+u64 pocklington_cert_get_node_count(const pocklington_cert* cert);
+size_t pocklington_cert_get_byte_size(const pocklington_cert* cert);
+
 #endif

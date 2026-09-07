@@ -5,12 +5,7 @@ AR = ar
 # Flags 
 CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -funroll-loops -fopenmp 
 LDFLAGS = -fopenmp -lm -flto -lgmp
-
-# Extra libraries needed only by specific test benchmarks.
-# (The library itself in src/ has no gmp/flint dependency.)
-EXTRA_test_gmp = -lgmp
-EXTRA_test_field = -lgmp
-EXTRA_test_flint = -lflint
+ASFLAGS = -f elf64
 
 # directories 
 SRC_DIR = src
