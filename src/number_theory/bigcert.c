@@ -116,5 +116,3 @@ bool pocklington_cert_verify(const pocklington_cert* cert, u64 base_case_bound)
 
 //   return true;  // All conditions met, N is prime!
 // }
-
-bool pocklington_cert_verify_step(const pocklington_cert* cert);

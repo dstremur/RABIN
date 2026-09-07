@@ -1,23 +1,6 @@
 #ifndef BIGNTT_H
 #define BIGNTT_H
 
-/*===========================================================================
- *  bigntt.h
- *
- *  Number-theoretic transforms over NTT-friendly primes: context
- *  construction, Montgomerized forward/inverse transforms, and
- *  multiplicative-generator / Proth-prime construction.
- *
- *  Layout:
- *    - ntt_ctx and lifecycle     (bigntt_ctx_init_simple, bigntt_ctx_init,
- *                                bigntt_ctx_init_golden, bigntt_ctx_free)
- *    - safety / sizing           (bn_check_ntt_safety)
- *    - transforms                (bigntt_cyclic_forward, bigntt_cyclic_inverse,
- *                                bigntt_cyclic_inverse_mont_in)
- *    - generators (factors known)  (bn_find_gen, bn_find_gen_fp,
- *                                bn_find_gen_proth, bn_gen_proth_ntt)
- *===========================================================================*/
-
 #include "bigcore.h"
 #include "bigpoly.h"
 #include "bigvector.h"

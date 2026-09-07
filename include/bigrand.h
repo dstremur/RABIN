@@ -1,18 +1,6 @@
 #ifndef BIGRAND_H
 #define BIGRAND_H
 
-/*===========================================================================
- *  bigrand.h
- *
- *  Random bignum generation, seeded from /dev/urandom or a caller-
- *  supplied file descriptor.
- *
- *  Layout:
- *    - random limb generation (bn_gen_random, bn_gen_random_with_fd,
- *                             bn_gen_random_odd_with_fd)
- *    - range generation       (bn_gen_random_range)
- *===========================================================================*/
-
 #include <stdio.h>
 
 #include "bigcore.h"

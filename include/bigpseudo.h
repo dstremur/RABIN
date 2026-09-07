@@ -1,15 +1,6 @@
 #ifndef BIGPSEUDO_H
 #define BIGPSEUDO_H
 
-/*===========================================================================
- *  bigpseudo.h
- *
- *  Generation of strong pseudoprimes to base 2.
- *
- *  Layout:
- *    - strong pseudoprime generator (bn_gen_strps)
- *===========================================================================*/
-
 #include "bigcore.h"
 
 /**

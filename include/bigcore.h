@@ -709,8 +709,6 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
  * @param[in]  b Second operand.
  */
 void bn_mul(bignum* r, const bignum* a, const bignum* b);
-void bn_mul_raw(bignum* r, const bignum* a, const bignum* b);
-void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b);
 
 /**
  * @brief Multiply two signed bignums with the schoolbook (grade-school)

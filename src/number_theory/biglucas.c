@@ -31,13 +31,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "../include/biglucas.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/bignum.h"
 #include "alloca.h"
 
 void bn_lucas_solve(bignum* u, bignum* v, const bignum* p, const bignum* q,

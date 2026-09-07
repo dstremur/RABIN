@@ -1,18 +1,6 @@
 #ifndef BIGMATH_H
 #define BIGMATH_H
 
-/*===========================================================================
- *  bigmath.h
- *
- *  Classical number-theoretic arithmetic: Jacobi symbol, square roots
- *  via Tonelli-Shanks, and bignum gcd.
- *
- *  Layout:
- *    - Jacobi symbol         (bn_jacobi)
- *    - square roots          (tonelli_shanks)
- *    - gcd                   (bn_gcd)
- *===========================================================================*/
-
 #include "bigcore.h"
 
 /**

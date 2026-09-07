@@ -1,17 +1,6 @@
 #ifndef BIGRABIN_H
 #define BIGRABIN_H
 
-/*===========================================================================
- *  bigrabin.h
- *
- *  Miller-Rabin (Rabin) probabilistic primality test for a single base,
- *  in plain modular arithmetic and in the Montgomery domain.
- *
- *  Layout:
- *    - classic test          (bn_rabin)
- *    - Montgomery variants   (bn_rabin_mont, bn_rabin_mont_ctx)
- *===========================================================================*/
-
 #include "bigcore.h"
 
 /**

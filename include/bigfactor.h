@@ -1,19 +1,6 @@
 #ifndef BIGFACTOR_H
 #define BIGFACTOR_H
 
-/*===========================================================================
- *  bigfactor.h
- *
- *  Integer factorisation: trial division, Pollard rho, Pollard p-1.
- *
- *  Layout:
- *    - trial division          (trialdiv, trialdiv_factor)
- *    - Pollard rho             (bn_pollard_rho, bn_pollard_rho_inner)
- *    - Pollard p-1             (bn_pollard_p_minus_one,
- *                               bn_pollard_p_minus_one_stage_1)
- *    - full factorisation      (bn_factorize)
- *===========================================================================*/
-
 #include "bigcore.h"
 #include "bigvector.h"
 

@@ -1,20 +1,6 @@
 #ifndef BIGVECTOR_H
 #define BIGVECTOR_H
 
-/*===========================================================================
- *  bigvector.h
- *
- *  Vectors of bignums (fixed and dynamic) with elementwise arithmetic.
- *
- *  Layout:
- *    - construction & lifetime (bigvector_init, bigvector_init_dynamic,
- *                               bigvector_append, bigvector_free)
- *    - element access          (bigvector_set)
- *    - arithmetic              (bigvector_add, bigvector_sub,
- *                               bigvector_dot, bigvector_norm)
- *    - printing                (bigvector_print, bigvector_println)
- *===========================================================================*/
-
 #include "bigcore.h"
 
 typedef struct {

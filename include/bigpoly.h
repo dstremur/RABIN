@@ -1,28 +1,6 @@
 #ifndef BIGPOLY_H
 #define BIGPOLY_H
 
-/*===========================================================================
- *  bigpoly.h
- *
- *  Big coefficient polynomials over the integers: construction,
- *  arithmetic, schoolbook/NTT multiplication, and base-2^w bit-slicing
- *  (decompose / recompose) helpers.
- *
- *  Layout:
- *    - bigpoly type             (struct bigpoly)
- *    - construction & lifetime  (bigpoly_init, bigpoly_set,
- *                               bigpoly_set_i64, bigpoly_alloc,
- *                               bigpoly_copy, bigpoly_trim, bigpoly_free)
- *    - queries                  (bigpoly_equal, bigpoly_print)
- *    - arithmetic               (bigpoly_add, bigpoly_sub, bigpoly_mul,
- *                               bigpoly_mul_ntt, bigpoly_mul_ntt_u64,
- *                               bigpoly_mul_school)
- *    - bit-slicing              (bn_decompose, poly_carry_propagation,
- *                               bn_recompose)
- *    - bignum helpers           (bn_and)
- *    - testing                  (bigpoly_test)
- *===========================================================================*/
-
 #include "bigcore.h"
 
 typedef struct {

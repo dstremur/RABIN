@@ -1,31 +1,6 @@
 #ifndef BIGHELPER_H
 #define BIGHELPER_H
 
-/*===========================================================================
- *  bighelper.h
- *
- *  Low-level helpers that operate directly on raw limb arrays (u64*),
- *  in contrast to the bignum API in bignum.h.
- *
- *  Nothing in here allocates memory, trims, or handles signs: every
- *  function works on plain u64 buffers of a given length, so callers
- *  are responsible for sizing the buffers correctly.
- *
- *  Layout:
- *    - carry / borrow primitives        (adc64, sbb64)
- *    - normalisation & comparison       (limbs_norm, limbs_cmp)
- *    - bit shifts                       (limbs_lshift, limbs_rshift)
- *    - add / subtract                   (limbs_add_n, limbs_sub_1,
- *                                        limbs_submul_1, limbs_add_raw)
- *    - multiplication                   (limbs_mul_school,
- *                                        limbs_mul_karatsuba,
- *                                        limbs_sqr_karatsuba)
- *    - assembly kernels                 (bn_add_inner, bn_sub_inner,
- *                                        bn_mul_add_inner,
- *                                        bn_sub_mul_digit)
- *    - single-limb helpers              (mod_inverse_u64)
- *===========================================================================*/
-
 #include <stddef.h>
 #include <string.h>
 

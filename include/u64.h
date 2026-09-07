@@ -1,29 +1,6 @@
 #ifndef BIGU64_H
 #define BIGU64_H
 
-/*===========================================================================
- *  bigu64.h
- *
- *  64-bit single-limb number theory: modular arithmetic, Montgomery
- *  reduction, Barrett / Goldilocks reductions, the 64-bit NTT stack,
- *  and u64 matrix determinants.
- *
- *  Layout:
- *    - context structs           (mont_ctx, ntt_ctx_u64, matrix_u64)
- *    - u64.c                     (mod_add, mod_sub, mod_mul, mod_pow,
- *                                mod_inverse_euclid, mod_inverse,
- *                                compute_mu, barrett_reduction,
- *                                goldilock_red)
- *    - u64_mont.c                (mont_init, mont_redc, mont_mul,
- *                                mont_in, mont_out, mont_inverse)
- *    - u64_ntt.c                 (ntt_ctx_u64_init, ntt_ctx_u64_init_golden,
- *                                ntt_ctx_u64_golden_cached, ntt_ctx_u64_free,
- *                                ntt_u64_cyclic_forward,
- *                                ntt_u64_cyclic_inverse,
- *                                ntt_u64_cyclic_inverse_montgomery_in)
- *    - u64_matrix.c              (matrix_u64_det, matrix_u64_det_optimized)
- *===========================================================================*/
-
 #include <stdio.h>
 #include <string.h>
 

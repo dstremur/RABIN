@@ -1,24 +1,6 @@
 #ifndef BIGPRIME_H
 #define BIGPRIME_H
 
-/*===========================================================================
- *  bigprime.h
- *
- *  Prime generation and proving: BPSW / strong Lucas tests, proven
- *  primes with Pocklington certificates, Proth primes, and RNS
- *  prime-table construction.
- *
- *  Layout:
- *    - tests                   (bn_is_perfect_square, bn_stronglucas,
- *                               bn_bpsw, checkLemma1)
- *    - generation              (bn_gen_prime, bn_gen_safe_prime,
- *                               gen_rel_size, bn_gen_proth_primes,
- *                               gen_rns_primes)
- *    - proving                 (bn_provable_prime, bn_provable_prime_inner,
- *                               optimal_table_len,
- *                               gen_provable_primes_arithmetic)
- *===========================================================================*/
-
 #include "bigcert.h"
 #include "bigcore.h"
 

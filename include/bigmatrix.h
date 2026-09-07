@@ -1,23 +1,6 @@
 #ifndef BIGMATRIX_H
 #define BIGMATRIX_H
 
-/*===========================================================================
- *  bigmatrix.h
- *
- *  Dense bignum matrices stored as flat row-major arrays
- *  (index = (row * nr_cols) + col).
- *
- *  Layout:
- *    - construction & lifetime  (bigmatrix_init, bigmatrix_free,
- *                               bigmatrix_copy)
- *    - element access           (bigmatrix_get, bigmatrix_set,
- *                               bigmatrix_get_row, bigmatrix_get_col)
- *    - arithmetic               (bigmatrix_add, bigmatrix_mul)
- *    - linear algebra           (bigmatrix_det, bigmatrix_hadamard,
- *                               bigmatrix_mv, bigmatrix_vm)
- *    - printing                 (bigmatrix_print, bigmatrix_print_python)
- *===========================================================================*/
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

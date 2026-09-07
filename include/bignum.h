@@ -1,13 +1,7 @@
 #ifndef BIGNUM_H
 #define BIGNUM_H
 
-/*===========================================================================
- *  bignum.h
- *
- *  Umbrella header: pulls in every module of the library. Existing code
- *  keeps working unchanged; new code should include the specific module
- *  header it needs instead.
- *
+/*
  *  Modules:
  *    bigcore.h    bignum type + core arithmetic      (src/core)
  *    bighelper.h  raw-limb helpers                   (src/utils)
@@ -26,7 +20,7 @@
  *    bigfield.h   Z_m and Z_m[x]/(q) arithmetic      (src/number_theory)
  *    bigvector.h  bignum vectors                     (src/vector)
  *    bigcert.h    Pocklington certificates           (src/number_theory)
- *===========================================================================*/
+ */
 
 #include "bigcert.h"
 #include "bigcore.h"

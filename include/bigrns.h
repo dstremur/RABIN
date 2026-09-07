@@ -1,23 +1,6 @@
 #ifndef BIGRNS_H
 #define BIGRNS_H
 
-/*===========================================================================
- *  bigrns.h
- *
- *  Residue number systems over small 64-bit primes: context management,
- *  conversion to/from bignum, residue arithmetic, and RNS matrix
- *  determinants.
- *
- *  Layout:
- *    - contexts                 (ctx_rns, rns_num, rns_context_init,
- *                               rns_context_free)
- *    - conversion               (bignum_to_rns, rns_to_bignum)
- *    - arithmetic               (rns_add)
- *    - sizing / determinants    (rns_estimate_primes,
- *                               rns_estimate_determinant,
- *                               bigmatrix_det_rns)
- *===========================================================================*/
-
 #include "bigcore.h"
 #include "bigmatrix.h"
 #include "u64.h"

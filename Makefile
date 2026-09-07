@@ -3,9 +3,8 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -funroll-loops -fopenmp
-ASFLAGS = -f elf64
-LDFLAGS = -fopenmp -lm -flto
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -funroll-loops -fopenmp 
+LDFLAGS = -fopenmp -lm -flto -lgmp
 
 # Extra libraries needed only by specific test benchmarks.
 # (The library itself in src/ has no gmp/flint dependency.)

@@ -1,17 +1,6 @@
 #ifndef BIGLUCAS_H
 #define BIGLUCAS_H
 
-/*===========================================================================
- *  biglucas.h
- *
- *  Lucas sequences and Lucas primality tests.
- *
- *  Layout:
- *    - sequence computation   (bn_lucas, bn_lucas_mod)
- *    - exponentiation of the   (bn_lucas_solve, bn_lucas_solve_mod)
- *      sequence pair
- *===========================================================================*/
-
 #include "bigcore.h"
 
 /**
