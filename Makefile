@@ -3,9 +3,15 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -lgmp -lflint -funroll-loops -fopenmp 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp -march=native -funroll-loops -fopenmp
 ASFLAGS = -f elf64
-LDFLAGS = -fopenmp -lm -flto -lgmp -lflint
+LDFLAGS = -fopenmp -lm -flto
+
+# Extra libraries needed only by specific test benchmarks.
+# (The library itself in src/ has no gmp/flint dependency.)
+EXTRA_test_gmp = -lgmp
+EXTRA_test_field = -lgmp
+EXTRA_test_flint = -lflint
 
 # directories 
 SRC_DIR = src
@@ -67,12 +73,12 @@ $(BUILD_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/%: $(BUILD_DIR)/$(TEST_DIR)/test_%.o $(LIB)
+$(BUILD_DIR)/test_%: $(BUILD_DIR)/$(TEST_DIR)/test_%.o $(LIB)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*)
 
 # 5. Convenience targets to run individual tests (e.g., `make test_mul`)
-test_%: $(BUILD_DIR)/%
+test_%: $(BUILD_DIR)/test_%
 	./$<
 
 # 6. Build all tests without running them

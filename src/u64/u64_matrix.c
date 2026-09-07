@@ -29,29 +29,6 @@
 #include "../../include/u64.h"
 #define TILE_SIZE 64
 
-/**
- * @brief Determinant of a square u64 matrix modulo the prime M->modulus.
- *
- * Let n = M->r_size = M->c_size.
- *
- * Performs Gaussian elimination with partial pivoting on a copy of the
- * matrix: for each column a nonzero pivot is searched for (rows are
- * swapped if needed, negating the determinant), the determinant is
- * accumulated as the product of the pivots, and the rows below are
- * eliminated. Returns 0 if the matrix is singular.
- *
- * The matrix must be square; a message is printed otherwise (the
- * computation still proceeds with n = r_size).
- *
- * Complexity:
- *   Time: O(n^3)
- *   Auxiliary memory: O(n^2) for the working copy
- *   Output memory: O(1)
- *
- * @param[in] M Square matrix (entries modulo M->modulus).
- *
- * @return The determinant modulo M->modulus, or 0 if singular.
- */
 u64 matrix_u64_det(matrix_u64* M)
 {
   if (M->r_size != M->c_size) {
@@ -105,29 +82,6 @@ u64 matrix_u64_det(matrix_u64* M)
   return det;
 }
 
-/**
- * @brief Determinant of a u64 matrix modulo ctx->p, in the Montgomery domain.
- *
- * Let n = matrix dimension.
- *
- * Same Gaussian elimination as matrix_u64_det(), but all entries are
- * converted to the Montgomery domain up front so that the inner loop
- * uses fast Montgomery multiplication. The row updates are processed
- * in TILE_SIZE-wide blocks to improve cache behaviour.
- *
- * Works in place: the input matrix is destroyed, so pass a copy.
- *
- * Complexity:
- *   Time: O(n^3)
- *   Auxiliary memory: O(1) (in place)
- *   Output memory: O(1)
- *
- * @param[in,out] mat Matrix (destroyed in place).
- * @param[in]      n  Matrix dimension.
- * @param[in]    ctx  Montgomery context.
- *
- * @return The determinant modulo ctx->p, or 0 if singular.
- */
 u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
 {
   u64 det = mont_in(1, ctx);

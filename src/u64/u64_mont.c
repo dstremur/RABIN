@@ -30,25 +30,6 @@
 #include "../../include/bighelper.h"
 #include "../../include/u64.h"
 
-/**
- * @brief Initialize a single-limb Montgomery context for the prime p.
- *
- * Computes:
- *
- *   ctx->p        = p
- *   ctx->p_inv    = -p^{-1} mod 2^64
- *   ctx->r2_mod_p = R^2 mod p, with R = 2^64
- *
- * Precondition: p is odd (in practice, prime).
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[out] ctx Montgomery context to initialize.
- * @param[in]  p   Prime modulus (odd).
- */
 void mont_init(mont_ctx* ctx, u64 p)
 {
   ctx->p = p;
@@ -61,27 +42,6 @@ void mont_init(mont_ctx* ctx, u64 p)
   ctx->r2_mod_p = (u64)r2;
 }
 
-/**
- * @brief Single-limb Montgomery reduction (REDC).
- *
- * Given T with 0 <= T < p * 2^64, this computes:
- *
- *   t = T * R^{-1} mod p,   R = 2^64
- *
- * by choosing m = (T mod 2^64) * (-p^{-1} mod 2^64) so that
- * T + m*p is divisible by 2^64, shifting right by 64 bits, and
- * applying one final conditional subtraction of p.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] T   Value to reduce (128-bit, 0 <= T < p * 2^64).
- * @param[in] ctx Montgomery context.
- *
- * @return T * R^{-1} mod p.
- */
 u64 mont_redc(unsigned __int128 T, mont_ctx* ctx)
 {
   u64 p = ctx->p;
@@ -97,23 +57,6 @@ u64 mont_redc(unsigned __int128 T, mont_ctx* ctx)
   return (t >= p) ? (t - p) : t;
 }
 
-/**
- * @brief Montgomery multiplication: (a * b * R^{-1}) mod p.
- *
- * If a and b are in the Montgomery domain, the result is the
- * Montgomery form of their represented values' product.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] a   First operand.
- * @param[in] b   Second operand.
- * @param[in] ctx Montgomery context.
- *
- * @return (a * b * R^{-1}) mod p.
- */
 u64 mont_mul(u64 a, u64 b, mont_ctx* ctx)
 {
   unsigned __int128 R = (unsigned __int128)a * b;
@@ -121,58 +64,10 @@ u64 mont_mul(u64 a, u64 b, mont_ctx* ctx)
   return mont_redc(R, ctx);
 }
 
-/**
- * @brief Convert a value from the normal domain into the Montgomery domain:
- * a_hat = a * R mod p.
- *
- * Implemented as one Montgomery multiplication by R^2 mod p.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] a   Value in the normal domain.
- * @param[in] ctx Montgomery context.
- *
- * @return a * R mod p (Montgomery form).
- */
 u64 mont_in(u64 a, mont_ctx* ctx) { return mont_mul(a, ctx->r2_mod_p, ctx); }
 
-/**
- * @brief Convert a value from the Montgomery domain back to the normal
- * domain: a = a_hat * R^{-1} mod p.
- *
- * Implemented as one Montgomery multiplication by 1.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] a_hat Value in the Montgomery domain.
- * @param[in]   ctx Montgomery context.
- *
- * @return a_hat * R^{-1} mod p (normal domain).
- */
 u64 mont_out(u64 a_hat, mont_ctx* ctx) { return mont_mul(a_hat, 1, ctx); }
 
-/**
- * @brief Modular inverse of a value given in the Montgomery domain.
- *
- * Converts out of the Montgomery domain, inverts with the extended
- * Euclidean algorithm, and converts the result back in.
- *
- * Complexity:
- *   Time: O(log p)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] a_mont Value in the Montgomery domain to invert.
- * @param[in]    ctx Montgomery context.
- *
- * @return The modular inverse, in the Montgomery domain.
- */
 u64 mont_inverse(u64 a_mont, const mont_ctx* ctx)
 {
   u64 a = mont_out(a_mont, ctx);

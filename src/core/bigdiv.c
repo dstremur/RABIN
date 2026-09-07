@@ -88,34 +88,6 @@ static u64 estimate_iterations(u64 bits)
   return its + 1;
 }
 
-/**
- * @brief Computes the division a / d using a Newton-iterated reciprocal: q = a
- * / d.
- *
- * Let n = a->size and m = d->size, measured in 64-bit limbs.
- *
- * Works with P = bit_length(a) + 32 bits of precision. The reciprocal
- * x = 2^P / d is seeded with one real division, then refined with the
- * Newton iteration
- *
- *   x <- x + (x * (2^P - d*x)) >> P
- *
- * which roughly doubles the correct bits each step. The quotient is
- * then q = (a * x) >> P, followed by a rare off-by-one fix-up using
- * the remainder r = a - q*d.
- *
- * If d is zero, q is left unchanged. If |a| < |d|, q is set to 0.
- *
- * Complexity:
- *   Time: O(n^2) - O(log m) Newton iterations of n-limb multiplications
- *         plus one seeding division
- *   Auxiliary memory: O(n) limbs for temporaries
- *   Output memory: O(n) limbs
- *
- * @param[out] q Quotient a / d.
- * @param[in]  a Dividend.
- * @param[in]  d Divisor.
- */
 void bn_newton_div(bignum* q, const bignum* a, const bignum* d)
 {
   if (bn_is_zero(d)) return;
@@ -326,10 +298,6 @@ static inline u64 bn_div3by2(u64* r1p, u64* r0p, u64 n2, u64 n1, u64 n0, u64 d1,
   return q1;
 }
 
-/*===========================================================================
- *  4. Single-limb divisor
- *=========================================================================*/
-
 /**
  * @brief qp[0..un-1] = up/d, returns up % d.  qp may be NULL.
  *
@@ -395,10 +363,6 @@ static u64 limbs_divrem_1(u64* qp, const u64* up, u64 un, u64 d)
   }
   return r >> s; /* undo the normalisation of the remainder */
 }
-
-/*===========================================================================
- *  5. Algorithm D core (multi-limb divisor)
- *=========================================================================*/
 
 /**
  * @brief qp[0 .. un-vn]  = up/vp          (un >= vn >= 2, vp[vn-1] != 0)
@@ -500,10 +464,6 @@ static void bn_divmod_limbs(u64* qp, u64* rp, const u64* up, u64 un,
   if (rp) limbs_rshift(rp, nu, vn, s); /* undo normalisation */
 }
 
-/*===========================================================================
- *  6. Public API
- *=========================================================================*/
-
 /**
  * @brief Number of significant limbs of a bignum (skips trailing zeros).
  *
@@ -521,34 +481,6 @@ static inline u64 bn_nsize(const bignum* x)
   return limbs_norm(x->limbs, x->size);
 }
 
-/**
- * @brief q = a / b, r = a % b  (either result may be NULL).
- *
- * Let n = a->size and m = b->size, measured in 64-bit limbs.
- *
- * Truncated division (C semantics): q truncates toward 0 and
- * sign(r) == sign(a).
- *
- * If |a| < |b| the result is q = 0, r = a. Otherwise the magnitude
- * division dispatches to the single-limb path (limbs_divrem_1) or to
- * Knuth's Algorithm D (bn_divmod_limbs). q and r may each alias a or
- * b (handled via temporaries); q and r must not alias each other.
- *
- * Scratch for the multi-limb path is taken from the stack when it fits
- * in BN_DIV_STACK_LIMBS limbs, otherwise from the heap.
- *
- * Complexity:
- *   Time: O(n) for a single-limb divisor, O((n - m + 1) * m) for a
- *         multi-limb divisor
- *   Auxiliary memory: O(n + m) limbs of scratch (stack or heap), plus
- *                     O(n) if q or r aliases an operand
- *   Output memory: O(n - m + 1) limbs for q, O(m) for r
- *
- * @param[out] q Quotient a / b (may be NULL).
- * @param[out] r Remainder a % b (may be NULL).
- * @param[in]  a Dividend.
- * @param[in]  b Divisor (must be nonzero).
- */
 void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
 {
   assert(q == NULL || q != r);
@@ -639,85 +571,16 @@ void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-/**
- * @brief q = a / b (truncated division, C semantics).
- *
- * Let n = a->size and m = b->size, measured in 64-bit limbs.
- *
- * Thin wrapper around bn_divmod() that discards the remainder.
- *
- * Complexity:
- *   Time: O(n) for a single-limb divisor, O((n - m + 1) * m) otherwise
- *   Auxiliary memory: O(n + m) limbs
- *   Output memory: O(n - m + 1) limbs
- *
- * @param[out] q Quotient a / b.
- * @param[in]  a Dividend.
- * @param[in]  b Divisor (must be nonzero).
- */
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   bn_divmod(q, NULL, a, b);
 }
 
-/**
- * @brief r = a % b (truncated remainder, C semantics: sign(r) == sign(a)).
- *
- * Let n = a->size and m = b->size, measured in 64-bit limbs.
- *
- * Thin wrapper around bn_divmod() that discards the quotient.
- *
- * Complexity:
- *   Time: O(n) for a single-limb divisor, O((n - m + 1) * m) otherwise
- *   Auxiliary memory: O(n + m) limbs
- *   Output memory: O(m) limbs
- *
- * @param[out] r Remainder a % b.
- * @param[in]  a Dividend.
- * @param[in]  b Divisor (must be nonzero).
- */
 void bn_mod(bignum* r, const bignum* a, const bignum* b)
 {
   bn_divmod(NULL, r, a, b);
 }
 
-/*===========================================================================
- *  7. Exact division (Jebelean)
- *
- *  Only valid when b | a, but ~2x faster than a real division and no
- *  normalisation / correction steps at all.
- *
- *  Idea: strip the common power of two from a and b, then compute the
- *  quotient from the bottom up. Since b[0] is odd, each quotient limb
- *  qi = Ai * b[0]^{-1} mod 2^64 is forced (it must cancel limb i of
- *  the running remainder), so no estimation or correction is needed.
- *=========================================================================*/
-
-/**
- * @brief q = a / b, assuming b divides a exactly (Jebelean's exact division).
- *
- * Let n = a->size and m = b->size, measured in 64-bit limbs.
- *
- * Strips the common power of two from a and b (so the low limb of the
- * divisor becomes odd), then computes the quotient limbs from the
- * bottom up: with D[0] odd, each quotient limb qi = A[i] * D[0]^{-1}
- * (mod 2^64) is forced, because it must cancel limb i of the running
- * remainder. No estimation or correction steps are needed, which makes
- * this about 2x faster than a real division.
- *
- * The behaviour is undefined if b does not divide a. If b is zero, q
- * is left unchanged (asserts in debug builds). If a is zero, q is set
- * to 0. q may alias a or b.
- *
- * Complexity:
- *   Time: O(n * m) - one O(m) submul per quotient limb
- *   Auxiliary memory: O(n + m) limbs for the shifted copies
- *   Output memory: O(n - m + 1) limbs
- *
- * @param[out] q Quotient a / b (requires b | a).
- * @param[in]  a Dividend.
- * @param[in]  b Divisor (must divide a exactly).
- */
 void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
 {
   u64 an = bn_nsize(a), bn_size = bn_nsize(b);

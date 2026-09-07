@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "../include/bigmatrix.h"
+#include "../include/bigrand.h"
 #include "../include/bigrns.h"
 #include "../include/primes.h"
 #include "../include/u64.h"

@@ -37,31 +37,6 @@
 #include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
-/**
- * @brief Initialize a Montgomery context for the modulus n.
- *
- * Let n_l = n->size, measured in 64-bit limbs.
- *
- * Computes the context fields:
- *
- *   ctx->n        = n
- *   ctx->n_inv    = -n^{-1} mod 2^64   (from the low limb of n)
- *   ctx->one_mont = R mod n            (R = 2^(64 * n_l))
- *   ctx->r_square = R^2 mod n
- *
- * and preallocates ctx->tmp with 2 * n_l + 1 limbs of scratch space.
- *
- * Precondition: n is odd and greater than 1.
- *
- * Complexity:
- *   Time: O(n_l^2) - one_mont = R mod n costs one division, r_square
- *         costs one multiply plus one division
- *   Auxiliary memory: O(n_l) limbs
- *   Output memory: O(n_l) limbs per context field
- *
- * @param[out] ctx Context to initialize.
- * @param[in]  n   Modulus (odd and greater than 1).
- */
 void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
 {
   bn_init(&ctx->n);
@@ -92,18 +67,6 @@ void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n)
   bn_alloc(&ctx->tmp, 2 * n->size + 1);
 }
 
-/**
- * @brief Free all bignum storage held by a Montgomery context.
- *
- * After this call the context must not be used until re-initialized.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in,out] ctx Context to free.
- */
 void bn_mont_ctx_free(bn_mont_ctx* ctx)
 {
   bn_free(&ctx->one_mont);
@@ -112,34 +75,6 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx)
   bn_free(&ctx->tmp);
 }
 
-/**
- * @brief Montgomery reduction (REDC).
- *
- * Let n_l = ctx->n.size, measured in 64-bit limbs.
- *
- * Given t with 0 <= t < n * 2^(64 * n_l), this computes:
- *
- *   r = t * R^{-1} mod n
- *
- * in O(n_l^2) time. For each limb i it forms the multiple
- * m = t[i] * (-n^{-1} mod 2^64) and adds m * n shifted by i limbs to
- * t, which zeroes out limb i (mod 2^64). After n_l steps the lower
- * half of t is zero, so the result is the upper half, followed by a
- * final conditional subtraction of n to bring r into [0, n).
- *
- * t is destroyed (overwritten) and must have at least 2 * n_l + 1
- * limbs of capacity.
- *
- * Complexity:
- *   Time: O(n_l^2) for the reduction loop, plus O(n_l) for the final
- *         correction
- *   Auxiliary memory: O(1)
- *   Output memory: O(n_l) limbs
- *
- * @param[out]    r   Result t * R^{-1} mod n, in [0, n).
- * @param[in,out] t   Value to reduce (destroyed; needs 2 * n_l + 1 limbs).
- * @param[in]     ctx Initialized Montgomery context.
- */
 void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
 {
   u64 size = ctx->n.size;
@@ -185,52 +120,11 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   }
 }
 
-/**
- * @brief Convert a value from the normal domain into the Montgomery domain.
- *
- * Let n_l = ctx->n.size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   A_bar = A * R mod n
- *
- * as one Montgomery multiplication of A by R^2 mod n:
- * REDC(A * R^2) = A * R mod n.
- *
- * Complexity:
- *   Time: O(n_l^2)
- *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
- *   Output memory: O(n_l) limbs
- *
- * @param[out] A_bar Result in Montgomery form: A * R mod n.
- * @param[in]  A     Value in the normal domain.
- * @param[in]  ctx   Initialized Montgomery context.
- */
 void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
 {
   bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
 
-/**
- * @brief Convert a value from the Montgomery domain back to the normal domain.
- *
- * Let n_l = ctx->n.size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   A = A_bar * R^{-1} mod n
- *
- * as one Montgomery multiplication of A_bar by 1.
- *
- * Complexity:
- *   Time: O(n_l^2)
- *   Auxiliary memory: O(n_l) limbs (ctx->tmp and a temporary for 1)
- *   Output memory: O(n_l) limbs
- *
- * @param[out] A     Result in the normal domain: A_bar * R^{-1} mod n.
- * @param[in]  A_bar Value in the Montgomery domain.
- * @param[in]  ctx   Initialized Montgomery context.
- */
 void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 {
   bignum one;
@@ -242,62 +136,12 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
   bn_free(&one);
 }
 
-/**
- * @brief Montgomery multiplication of two values in the Montgomery domain.
- *
- * Let n_l = ctx->n.size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   r = a_bar * b_bar * R^{-1} mod n
- *
- * so that if a_bar = A * R mod n and b_bar = B * R mod n, then
- * r = A * B * R mod n (the Montgomery form of A * B).
- *
- * Thin wrapper around bn_mont_mul_raw().
- *
- * Complexity:
- *   Time: O(n_l^2)
- *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
- *   Output memory: O(n_l) limbs
- *
- * @param[out] r     Result a_bar * b_bar * R^{-1} mod n.
- * @param[in]  a_bar First operand in Montgomery form.
- * @param[in]  b_bar Second operand in Montgomery form.
- * @param[in]  ctx   Initialized Montgomery context.
- */
 void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
                  bn_mont_ctx* ctx)
 {
   bn_mont_mul_raw(r, a_bar, b_bar, ctx);
 }
 
-/**
- * @brief Montgomery multiplication using the context's scratch buffer.
- *
- * Let n_l = ctx->n.size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   result = A_bar * B_bar * R^{-1} mod n
- *
- * by first forming the full product T = A_bar * B_bar (at most
- * 2 * n_l limbs) in ctx->tmp, zero-padding it to 2 * n_l + 1 limbs,
- * and applying bn_mont_redc().
- *
- * Note: uses ctx->tmp as scratch, so it is not reentrant and must not
- * be called with A_bar or B_bar aliasing ctx->tmp.
- *
- * Complexity:
- *   Time: O(n_l^2) - one bignum multiply plus one REDC
- *   Auxiliary memory: O(n_l) limbs (ctx->tmp)
- *   Output memory: O(n_l) limbs
- *
- * @param[out] result  Result A_bar * B_bar * R^{-1} mod n.
- * @param[in]  A_bar   First operand in Montgomery form.
- * @param[in]  B_bar   Second operand in Montgomery form.
- * @param[in]  ctx     Initialized Montgomery context (provides scratch).
- */
 void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
                      bn_mont_ctx* ctx)
 {

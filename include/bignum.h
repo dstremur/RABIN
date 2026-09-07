@@ -1,211 +1,66 @@
 #ifndef BIGNUM_H
 #define BIGNUM_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
+/*===========================================================================
+ *  bignum.h
+ *
+ *  Umbrella header: pulls in every module of the library. Existing code
+ *  keeps working unchanged; new code should include the specific module
+ *  header it needs instead.
+ *
+ *  Modules:
+ *    bigcore.h    bignum type + core arithmetic      (src/core)
+ *    bighelper.h  raw-limb helpers                   (src/utils)
+ *    u64.h        64-bit single-limb number theory   (src/u64)
+ *    bigmatrix.h  dense bignum matrices              (src/matrix)
+ *    bigrns.h     residue number systems             (src/rns)
+ *    bigprime.h   prime tests, generation, proving   (src/number_theory)
+ *    bigrabin.h   Miller-Rabin tests                 (src/number_theory)
+ *    bigrand.h    random bignum generation           (src/number_theory)
+ *    bigpseudo.h  strong pseudoprime generation      (src/number_theory)
+ *    bigfactor.h  factorization (rho, p-1, trial)    (src/number_theory)
+ *    bigmath.h    Jacobi / Tonelli-Shanks / gcd      (src/number_theory)
+ *    biglucas.h   Lucas sequences                    (src/number_theory)
+ *    bigpoly.h    integer polynomials                (src/poly)
+ *    bigntt.h     bignum NTT                         (src/number_theory)
+ *    bigfield.h   Z_m and Z_m[x]/(q) arithmetic      (src/number_theory)
+ *    bigvector.h  bignum vectors                     (src/vector)
+ *    bigcert.h    Pocklington certificates           (src/number_theory)
+ *===========================================================================*/
+
+#include "bigcert.h"
+#include "bigcore.h"
+#include "bigfactor.h"
+#include "bigfield.h"
+#include "bighelper.h"
+#include "biglucas.h"
+#include "bigmath.h"
+#include "bigmatrix.h"
+#include "bigntt.h"
+#include "bigpoly.h"
+#include "bigprime.h"
+#include "bigpseudo.h"
+#include "bigrabin.h"
+#include "bigrand.h"
+#include "bigrns.h"
+#include "bigvector.h"
+#include "u64.h"
 
 /* Ideas
  Catalan pseudoprime
 
-Hensel lifting
+ Hensel lifting
 
-berlenkamp algo
+ berlenkamp algo
 
-LLL
+ LLL
 
-Discrete log problem
+ Discrete log problem
 
-suntherlands algorithm
+ suntherlands algorithm
 
-smith normal form
+ smith normal form
 
- */
-
-typedef uint64_t u64;
-typedef int64_t i64;
-
-typedef struct bignum {
-  uint64_t* limbs;  // 64-bit limbs (Base 2^64)
-  size_t size;
-  size_t capacity;
-  bool is_neg;
-} bignum;
-
-typedef struct {
-  bignum n;        /* modulus (odd, > 1)               */
-  uint64_t n_inv;  /* -n^{-1} mod 2^64                  */
-  bignum r_square; /* R^2 mod N   (R = 2^{64 * n.limbs})*/
-  bignum one_mont; /* R   mod N   (representation of 1) */
-  bignum tmp;      // scratchpad
-} bn_mont_ctx;
-
-typedef struct {
-  u64 p;
-  u64 p_inv;
-  u64 r2_mod_p;  // 2^128 mod p, R = 2^64
-} mont_ctx;
-
-typedef struct {
-  bignum* data;
-  u64 size;
-  u64 capacity;
-  bool dynamic;
-} bigvector;
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b));
-#define MIN(a, b) ((a) < (b) ? (a) : (b));
-
-extern bignum BN_ONE;
-extern bignum BN_TWO;
-extern bignum BN_ZERO;
-
-void bn_init_constants();
-void bn_free_constants();
-
-// bnscratch.c (thread-local bump arena; one get + one release per call)
-u64* bn_scratch_get(u64 n);
-void bn_scratch_release(void);
-void bn_provable_prime(bignum* p, u64 k);
-bool bn_provable_prime_inner(bignum* p, u64 k);
-// bignum.c
-void bn_init(bignum* r);
-void bn_init_multi(bignum* first, ...);
-int bn_is_even(const bignum* a);
-bool bn_alloc(bignum* r, u64 capacity);
-void bn_init_val(bignum* n, const char* str);
-char* bn_to_string(const bignum* n);
-void bn_print(const bignum* n);
-void bn_println(const bignum* n);
-void bn_free(bignum* r);
-void bn_free_multi(bignum* r, ...);
-void bn_trim(bignum* r);
-void bn_swap(bignum* a, bignum* b);
-int bn_get_bit(const bignum* a, int i);
-bool bn_is_eq_i64(const bignum* n, i64 a);
-void bn_copy(bignum* dest, const bignum* src);
-void bn_set_u64(bignum* r, uint64_t val);
-void bn_set_i64(bignum* r, int64_t val);
-void bn_set_bit(bignum* a, int i);
-void bn_clear_bit(bignum* a, int i);
-int bn_bitlen(const bignum* a);
-bool bn_is_zero(const bignum* a);
-int bn_cmp(const bignum* a, const bignum* b);
-int bn_cmp_abs(const bignum* a, const bignum* b);
-int bn_bit_length(const bignum* a);
-
-bool bn_gen_prime(bignum* p, int bits);
-bool bn_gen_safe_prime(bignum* p, int bits);
-void bn_gen_proth_primes(u64 count, u64 k, u64 c);
-void gen_rns_primes(u64 count);
-u64 bn_cnt_trailing_zeros(const bignum* a);
-// bigadd.c
-void bn_add(bignum* r, const bignum* a, const bignum* b);
-void bn_add_abs(bignum* r, const bignum* a, const bignum* b);
-void bn_add_u64(bignum* r, const bignum* a, u64 b);
-void bn_add_at_offset(bignum* r, const bignum* a, u64 offset);
-// bigsub.c
-void bn_sub(bignum* r, const bignum* a, const bignum* b);
-void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
-
-// bigmul.c
-void bn_mul(bignum* r, const bignum* a, const bignum* b);
-void bn_mul_raw(bignum* r, const bignum* a, const bignum* b);
-void bn_mul_karatsuba(bignum* r, const bignum* a, const bignum* b);
-void bn_mul_school(bignum* r, const bignum* a, const bignum* b);
-
-// bigdiv.c
-void bn_div(bignum* q, const bignum* a, const bignum* b);
-void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b);
-void bn_newton_div(bignum* q, const bignum* a, const bignum* d);
-void bn_div_exact(bignum* q, const bignum* a, const bignum* b);
-// bigmod.c
-void bn_mod(bignum* r, const bignum* a, const bignum* b);
-uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
-uint64_t bn_mod_u64(const bignum* a, uint64_t d);
-bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m);
-// bigexp.c
-void bn_pow(bignum* r, const bignum* a, const bignum* b);
-void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
-void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
-                 bn_mont_ctx* ctx);
-void bn_mod_exp_slow(bignum* r, const bignum* a, const bignum* b,
-                     const bignum* m);
-void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
-                     const bignum* m, bn_mont_ctx* ctx);
-
-// bigshift.c
-void bn_lshift1(bignum* r);
-void bn_lshift1_add(bignum* r, int bit);
-void bn_lshift(bignum* r, const bignum* a, int shift);
-void bn_rshift(bignum* r, const bignum* a, int shift);
-void bn_rshift1(bignum* r);
-
-// bigrabin.c
-bool bn_rabin(const bignum* n, const bignum* a);
-bool bn_rabin_mont(const bignum* n, const bignum* a);
-bool bn_rabin_mont_ctx(const bignum* n, const bignum* a,
-                       const bn_mont_ctx* ctx);
-
-// bigrand.c
-bool bn_gen_random(bignum* r, u64 bits);
-bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd);
-bool bn_gen_random_odd_with_fd(bignum* r, u64 bits, int fd);
-void bn_gen_random_range(bignum* r, const bignum* low, const bignum* high);
-
-// bigpseudo.c
-bool bn_gen_strps(bignum* p, u64 k);
-
-// bigmath.c
-i64 bn_jacobi(const bignum* a, const bignum* m);
-void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
-void bn_gcd(bignum* d, const bignum* a, const bignum* b);
-
-// biglucas.c
-void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q,
-              const bignum* n);
-void bn_lucas_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
-                  const bignum* n, const bignum* m);
-void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
-                        bignum* qn, const bignum* n, const bignum* m);
-
-// bigfactor.ctx
-bool bn_pollard_rho(bignum* f, const bignum* n);
-bool bn_pollard_p_minus_one(bignum* f, bignum* n);
-void bn_factorize(bigvector* v, bignum* n);
-bool trialdiv(bignum* n, u64 g);
-// bigprime.c
-bool bn_bpsw(const bignum* n);
-
-// bigsqrt.c
-void bn_isqrt_heron(bignum* r, bignum* a);
-void bn_isqrt(bignum* r, bignum* a);
-
-void bn_ln(bignum* r, bignum* a);
-void bn_log_2(bignum* r, bignum* a);
-
-void bn_mont_ctx_init(bn_mont_ctx* ctx, const bignum* n);
-
-void bn_mont_ctx_free(bn_mont_ctx* ctx);
-
-void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
-
-void bn_mont_mul(bignum* result, const bignum* A_bar, const bignum* B_bar,
-                 bn_mont_ctx* ctx);
-void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
-                     bn_mont_ctx* ctx);
-
-void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
-
-void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
-
-void bn_find_gen_fp(bignum* g, bignum* p);
-void bn_find_gen_proth(bignum* g, bignum* p, bignum* c);
-void bn_gen_proth_ntt(bignum* g, bignum* p, bignum* omega, bignum* psi, u64 k,
-                      u64 c);
-
-void bn_mul_fast(bignum* res, const bignum* a, const bignum* b);
-
-void avxtest();
+  */
 
 #endif

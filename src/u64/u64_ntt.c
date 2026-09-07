@@ -32,34 +32,6 @@
 
 #include "../../include/u64.h"
 
-/**
- * @brief Forward cyclic NTT: a_hat = NTT(a).
- *
- * Let n = ctx->n = 2^k.
- *
- * Iterative Cooley-Tukey (decimation in time):
- *
- *   1. bit-reversal permutation of the input, converting each entry
- *      into the Montgomery domain on the fly,
- *   2. log2(n) stages of butterflies, each using precomputed twiddle
- *      factors (omega powers, already in Montgomery form) and
- *      Montgomery multiplication.
- *
- * The output a_hat is in the Montgomery domain; pair it with
- * ntt_u64_cyclic_inverse() (or the montgomery_in variant) to recover
- * standard integers.
- *
- * a_hat must not alias a.
- *
- * Complexity:
- *   Time: O(n log n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n)
- *
- * @param[out] a_hat Result storing the forward NTT (Montgomery domain).
- * @param[in]      a Input array.
- * @param[in]    ctx NTT context.
- */
 void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
 {
   u64 n = ctx->n;
@@ -98,32 +70,6 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
   }
 }
 
-/**
- * @brief Initialize an NTT context for the Goldilocks field p = 5 * 2^55 + 1.
- *
- * Let k = log2 of the transform length (n = 2^k, k <= 54).
- *
- * Derives the roots of unity from the primitive root g = 3:
- *
- *   psi   = g^(5 * 2^(54-k)) mod p   (primitive (k+1)-th root)
- *   omega = psi^2 mod p              (primitive k-th root)
- *
- * and delegates to ntt_ctx_u64_init().
- *
- * Returns false (and leaves ctx unchanged) if k > 54.
- *
- * Complexity:
- *   Time: O(n) for the precomputed tables, plus O(log p) for the root
- *         derivation
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) per precomputed table (3 tables)
- *
- * @param[out] ctx NTT context to initialize.
- * @param[in]    k log2 of the transform length (n = 2^k, k <= 54).
- *
- * @return true  On success.
- * @return false If k > 54.
- */
 bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k)
 {
   if (k > 54) return false;
@@ -158,24 +104,6 @@ static ntt_ctx_u64 golden_ctxs[55];
 static bool golden_ctx_ready[55] = {false};
 static pthread_mutex_t golden_ctx_lock = PTHREAD_MUTEX_INITIALIZER;
 
-/**
- * @brief Return the shared Goldilocks NTT context for transform length 2^k
- * (k <= 54), initializing it on first use.
- *
- * Returns NULL if k > 54 or initialization fails. The returned context
- * is owned by the library and must not be freed or modified by the
- * caller.
- *
- * Complexity:
- *   Time: O(1) after the first call for a given k, O(2^k) the first
- *         time
- *   Auxiliary memory: O(1)
- *   Output memory: O(2^k) u64s per table, once per k
- *
- * @param[in] k log2 of the transform length (n = 2^k, k <= 54).
- *
- * @return The shared context, or NULL if k > 54 or initialization fails.
- */
 ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k)
 {
   if (k > 54) return NULL;
@@ -193,37 +121,6 @@ ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k)
   return &golden_ctxs[k];
 }
 
-/**
- * @brief Initialize a u64 NTT context for a prime p and transform length
- * n = 2^k.
- *
- * Precomputes:
- *
- *   - the Montgomery context for p,
- *   - n_inv = n^{-1} mod p in Montgomery form (for the inverse
- *     transform scaling),
- *   - the omega and omega^{-1} power tables (in Montgomery form),
- *   - the bit-reversal index table.
- *
- * The caller must supply omega, a primitive k-th root of unity mod p
- * (psi is accepted for interface compatibility but only omega is used
- * for the tables).
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) per precomputed table (3 tables)
- *
- * @param[out]  ctx   NTT context to initialize.
- * @param[in]     p   Prime modulus.
- * @param[in]     k   log2 of the transform length (n = 2^k).
- * @param[in] omega Primitive k-th root of unity mod p.
- * @param[in]   psi   (Accepted for interface compatibility; unused for
- *                    tables.)
- *
- * @return true  On success.
- * @return false On allocation failure.
- */
 bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi)
 {
   u64 n = (1ULL << k);
@@ -270,16 +167,6 @@ bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi)
   return true;
 }
 
-/**
- * @brief Free the precomputed tables of a u64 NTT context.
- *
- * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in,out] ctx NTT context to free.
- */
 void ntt_ctx_u64_free(ntt_ctx_u64* ctx)
 {
   if (ctx->omega_powers) free(ctx->omega_powers);
@@ -287,27 +174,6 @@ void ntt_ctx_u64_free(ntt_ctx_u64* ctx)
   if (ctx->bit_rev_indices) free(ctx->bit_rev_indices);
 }
 
-/**
- * @brief Inverse cyclic NTT: a_hat = NTT^{-1}(a).
- *
- * Let n = ctx->n = 2^k.
- *
- * Same structure as the forward transform, but with the inverse
- * twiddle factors, followed by scaling with n^{-1} mod p and
- * conversion out of the Montgomery domain. The output a_hat contains
- * standard (non-Montgomery) integers.
- *
- * a_hat must not alias a.
- *
- * Complexity:
- *   Time: O(n log n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n)
- *
- * @param[out] a_hat Result storing the inverse NTT (normal domain).
- * @param[in]      a Input array.
- * @param[in]    ctx NTT context.
- */
 void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
 {
   u64 n = ctx->n;
@@ -351,29 +217,6 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
   }
 }
 
-/**
- * @brief Inverse cyclic NTT with Montgomery-domain input:
- * a_hat = NTT^{-1}(a), where a is already in the Montgomery domain.
- *
- * Let n = ctx->n = 2^k.
- *
- * Identical to ntt_u64_cyclic_inverse() except that step 1 performs
- * only the bit-reversal permutation (no mont_in), so the input must
- * already be in the Montgomery domain. This saves one Montgomery
- * multiplication per entry when chaining forward and inverse
- * transforms. The output contains standard (non-Montgomery) integers.
- *
- * a_hat must not alias a.
- *
- * Complexity:
- *   Time: O(n log n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n)
- *
- * @param[out] a_hat Result storing the inverse NTT (normal domain).
- * @param[in]      a Input array (Montgomery domain).
- * @param[in]    ctx NTT context.
- */
 void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
                                           ntt_ctx_u64* ctx)
 {

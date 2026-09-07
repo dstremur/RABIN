@@ -1,7 +1,7 @@
 #ifndef BIGFIELD_H
 #define BIGFIELD_H
 
-#include "bignum.h"
+#include "bigcore.h"
 #include "bigpoly.h"
 
 /*

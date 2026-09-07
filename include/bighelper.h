@@ -29,7 +29,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "bignum.h"
+#include "bigcore.h"
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>

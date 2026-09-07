@@ -34,26 +34,6 @@
 #include "../../include/bignum.h"
 #include "../../include/u64.h"
 
-/**
- * @brief Square a bignum: r = a * a.
- *
- * Let n = a->size, measured in 64-bit limbs.
- *
- * This computes the square of the magnitude of a using the Karatsuba
- * squaring kernel (limbs_sqr_karatsuba), which exploits the symmetry
- * of squaring to save about a quarter of the multiplications. The
- * result is always nonnegative.
- *
- * If a is zero, r is set to zero.
- *
- * Complexity:
- *   Time: O(n^1.585) for n >= KARATSUBA_LIMIT, O(n^2) below it
- *   Auxiliary memory: O(n) limbs of scratch
- *   Output memory: O(n) limbs (at most 2n)
- *
- * @param[out] r Result storing a * a.
- * @param[in]  a Value to square.
- */
 void bn_sqr(bignum* r, const bignum* a)
 {
   if (a->size == 0) {
@@ -76,32 +56,6 @@ void bn_sqr(bignum* r, const bignum* a)
   bn_trim(r);
 }
 
-/**
- * @brief Multiply two signed bignums: r = a * b.
- *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
- *
- * This computes the signed product of a and b. The sign of the result
- * is the xor of the operand signs; the magnitude is computed with:
- *
- *   - the squaring path (bn_sqr) when a == b
- *   - Karatsuba (O(n^1.585)) when both operands have at least
- *     KARATSUBA_LIMIT limbs
- *   - schoolbook (O(n^2)) otherwise
- *
- * r may alias a or b.
- *
- * Complexity:
- *   Time: O(n^1.585) for large operands, O(n^2) for small ones
- *   Auxiliary memory: O(n) limbs of scratch, plus O(n) for the
- *                     zero-padding buffers on the Karatsuba path and
- *                     O(n) if r aliases an operand
- *   Output memory: O(n) limbs (at most a->size + b->size)
- *
- * @param[out] r Result of the signed product a * b.
- * @param[in]  a First operand.
- * @param[in]  b Second operand.
- */
 void bn_mul(bignum* r, const bignum* a, const bignum* b)
 {
   if (a->size == 0 || b->size == 0) {
@@ -153,25 +107,6 @@ void bn_mul(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-/**
- * @brief Multiply two signed bignums with the schoolbook (grade-school)
- * algorithm: r = a * b.
- *
- * Let n = a->size and m = b->size, measured in 64-bit limbs.
- *
- * Each limb of a is multiplied by the whole of b and accumulated into
- * r at the corresponding offset (bn_mul_add_inner), skipping zero
- * limbs. The sign of the result is the xor of the operand signs.
- *
- * Complexity:
- *   Time: O(n * m)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n + m) limbs
- *
- * @param[out] r Result of the schoolbook product a * b.
- * @param[in]  a First operand.
- * @param[in]  b Second operand.
- */
 void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
 {
   u64 max = a->size + b->size;
@@ -190,33 +125,6 @@ void bn_mul_school(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-/**
- * @brief Multiply two bignums with the NTT-based fast path: res = a * b.
- *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
- *
- * This computes the product of the magnitudes of a and b by:
- *
- *   1. decomposing each operand into a polynomial whose coefficients
- *      are 16-bit chunks (base 2^16),
- *   2. multiplying the polynomials with a cyclic NTT
- *      (bigpoly_mul_ntt),
- *   3. propagating carries between the 16-bit coefficient slots,
- *   4. recomposing the coefficients back into a bignum.
- *
- * Unlike bn_mul() this path is not wired into the general dispatch;
- * it is a standalone fast path for very large operands.
- *
- * Complexity:
- *   Time: O(n log n) for the NTT, plus O(n) for decompose/carry/
- *         recompose
- *   Auxiliary memory: O(n) limbs for the polynomial arrays
- *   Output memory: O(n) limbs (at most a->size + b->size)
- *
- * @param[out] res Result of the NTT-based product a * b.
- * @param[in]  a   First operand.
- * @param[in]  b   Second operand.
- */
 void bn_mul_fast(bignum* res, const bignum* a, const bignum* b)
 {
   if (bn_is_zero(a) || bn_is_zero(b)) {

@@ -31,27 +31,6 @@
 #include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
-/**
- * @brief Add the absolute values of a and b into r.
- *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
- *
- * This function only adds magnitudes. It does not interpret or modify
- * the sign of the operands or the result. The caller is responsible for
- * setting r->is_neg.
- *
- * r may alias a or b.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1) in the normal case,
- *                     O(n) if r aliases a or b and a temporary is used
- *   Output memory: O(n) limbs, at most n + 1 limbs
- *
- * @param[out] r Result storing the magnitude sum |a| + |b|.
- * @param[in]  a First operand (magnitude only).
- * @param[in]  b Second operand (magnitude only).
- */
 void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
@@ -81,29 +60,6 @@ void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
   r->size = a->size + carry;
 }
 
-/**
- * @brief Add two signed bignums.
- *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
- *
- * If a and b have the same sign, their magnitudes are added.
- *
- * If a and b have different signs, the smaller magnitude is subtracted
- * from the larger magnitude, and the result takes the sign of the operand
- * with the larger magnitude.
- *
- * If the magnitudes are equal, the result is normalized to positive zero.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1), except for any temporary storage used by
- *                     bn_add_abs(), bn_sub_abs(), bn_copy(), or bn_alloc()
- *   Output memory: O(n) limbs
- *
- * @param[out] r Result of the signed addition a + b.
- * @param[in]  a First operand.
- * @param[in]  b Second operand.
- */
 void bn_add(bignum* r, const bignum* a, const bignum* b)
 {
   if (a->is_neg == b->is_neg) {
@@ -129,40 +85,6 @@ void bn_add(bignum* r, const bignum* a, const bignum* b)
   }
 }
 
-/**
- * @brief Add an unsigned 64-bit value to a signed bignum.
- *
- * Let n = a->size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   r = a + b
- *
- * where b is a nonnegative u64.
- *
- * If a is positive, this is ordinary magnitude addition.
- *
- * If a is negative, this is magnitude subtraction:
- *
- *   r = -|a| + b
- *
- * which is equivalent to subtracting b from |a| and preserving the
- * correct sign.
- *
- * r may alias a, assuming bn_copy() supports aliasing.
- *
- * Complexity:
- *   Time: O(n) worst case.
- *         The carry/borrow loop may stop early if propagation ends
- *         before reaching the most significant limb.
- *   Auxiliary memory: O(1), except for any temporary storage used by
- *                     bn_copy() or bn_alloc()
- *   Output memory: O(n) limbs, or O(n + 1) if a new carry limb is created
- *
- * @param[out] r Result of the addition a + b.
- * @param[in]  a Signed bignum operand.
- * @param[in]  b Nonnegative 64-bit value to add.
- */
 void bn_add_u64(bignum* r, const bignum* a, u64 b)
 {
   if (b == 0) {
@@ -208,38 +130,6 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b)
   }
 }
 
-/**
- * @brief Add a to r at the given limb offset.
- *
- * Let n = a->size, measured in 64-bit limbs.
- * Let o = offset.
- * Let m = o + n + 1 be the maximum resulting size in limbs.
- *
- * This effectively performs:
- *
- *   r = r + (a << (offset * 64))
- *
- * for unsigned magnitudes.
- *
- * The addition loop itself only touches about n + 1 limbs, but allocation
- * and trimming may need to consider the full output range up to m limbs.
- *
- * Complexity:
- *   Time: O(m) worst case, where m = offset + a->size + 1.
- *         The inner addition loop is O(n), but bn_alloc() and bn_trim()
- *         may make the total worst case proportional to the output size.
- *   Auxiliary memory: O(1)
- *   Output memory: O(m) limbs
- *
- * Note:
- *   The current implementation does not explicitly handle r == a safely
- *   for all nonzero offsets. If aliasing is not supported, document that
- *   here and enforce it in the API.
- *
- * @param[out] r Accumulator; receives r + (a << (offset * 64)).
- * @param[in]  a Value to add.
- * @param[in]  offset Limb offset at which a is added.
- */
 void bn_add_at_offset(bignum* r, const bignum* a, u64 offset)
 {
   if (a->size == 0) return;

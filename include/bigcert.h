@@ -1,19 +1,20 @@
 #ifndef BIGCERT_H
 #define BIGCERT_H
 
-#include "bignum.h"
+#include <stdlib.h>
+
+#include "bigcore.h"
 
 typedef struct pocklington_cert pocklington_cert;
 typedef struct pocklington_cert_elem pocklington_cert_elem;
 
-typedef struct pocklington_cert_elem {
+struct pocklington_cert_elem {
   bignum q;        // prime
   bignum alpha_q;  // base for pocklington theorem
   pocklington_cert*
       q_cert;  // certificate for q's primality, if NULL then q is leaf
 };
 
-// todo add enum for bpsw, trial div, ECPP
 struct pocklington_cert {
   bignum N;  // prime number
   pocklington_cert_elem*
@@ -21,11 +22,6 @@ struct pocklington_cert {
   u64 size;
   u64 capacity;
 };
-
-// base_case bound = 2^64
-
-void gen_provable_primes_arithmetic(bignum* p, u64 n,
-                                    pocklington_cert** cert_out);
 
 void pocklington_cert_init(pocklington_cert* cert, const bignum* N);
 void pocklington_cert_free(pocklington_cert* cert);

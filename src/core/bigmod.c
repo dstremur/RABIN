@@ -29,36 +29,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/bigcore.h"
 #include "../../include/bighelper.h"
-#include "../../include/bignum.h"
 
-/**
- * @brief Reduce a modulo a 64-bit divisor d.
- *
- * Let n = a->size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   a mod d
- *
- * by processing the limbs of a most-significant-first with a running
- * 128-bit remainder: rem = (rem * 2^64 + limb) mod d. The result is
- * returned in [0, d).
- *
- * For negative a the result is the nonnegative residue: if a < 0 and
- * the magnitude remainder is nonzero, d - rem is returned (C-style
- * truncating remainder mapped into [0, d)).
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
- *
- * @param[in] a Bignum to reduce.
- * @param[in] d 64-bit divisor (must be nonzero).
- *
- * @return The residue a mod d, in the range [0, d).
- */
 uint64_t bn_mod_u64(const bignum* a, uint64_t d)
 {
   unsigned __int128 rem = 0;
@@ -78,35 +51,6 @@ uint64_t bn_mod_u64(const bignum* a, uint64_t d)
   return res;
 }
 
-/**
- * @brief Divide a by a 64-bit divisor d, storing the quotient in q and
- * returning the remainder.
- *
- * Let n = a->size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   q = a / d,  return value = a mod d
- *
- * by processing the limbs of a most-significant-first with a running
- * 128-bit dividend: each step yields one quotient limb and the new
- * remainder. The quotient is truncated toward zero (C semantics) for
- * negative a.
- *
- * q may alias a.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1) in the normal case,
- *                     O(n) if q aliases a and a temporary is used
- *   Output memory: O(n) limbs for q
- *
- * @param[out] q Quotient a / d (truncated toward zero).
- * @param[in]  a Dividend.
- * @param[in]  d 64-bit divisor (must be nonzero).
- *
- * @return The remainder a mod d.
- */
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
 {
   // aliasing
@@ -134,38 +78,6 @@ uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d)
   return (u64)rem;
 }
 
-/**
- * @brief Compute the modular multiplicative inverse of a modulo m.
- *
- * Let n = m->size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   res = a^(-1) mod m
- *
- * i.e. the value in [0, m) such that (a * res) mod m == 1, using the
- * binary extended GCD (Stein's algorithm) with coefficient tracking.
- * The coefficients are kept reduced modulo m at every step so they
- * never grow beyond n limbs.
- *
- * Returns true and stores the inverse in res if it exists (i.e. gcd(a,
- * m) == 1). Returns false and leaves res unchanged if a is zero, m is
- * zero or one, or a and m are not coprime.
- *
- * Complexity:
- *   Time: O(n^2) - O(n) iterations of shifts and subtractions of
- *         n-limb values (binary GCD), each O(n)
- *   Auxiliary memory: O(n) limbs for temporaries
- *   Output memory: O(n) limbs
- *
- * @param[out] res Receives a^(-1) mod m if the inverse exists.
- * @param[in]  a   Value to invert.
- * @param[in]  m   Modulus.
- *
- * @return true  If the inverse exists (gcd(a, m) == 1); res is set.
- * @return false If a is zero, m is zero or one, or a and m are not
- *               coprime; res is left unchanged.
- */
 bool bn_mod_inverse(bignum* res, const bignum* a, const bignum* m)
 {
   // If a is 0 or modulus is <= 1, no inverse exists

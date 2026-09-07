@@ -39,31 +39,6 @@
  *  add
  *-------------------------------------------------------------------------*/
 
-/**
- * @brief Add two raw limb arrays: r = a + b.
- *
- * Let n = max(a_len, b_len), measured in 64-bit limbs.
- *
- * Adds the unsigned magnitudes a and b into r and returns the number
- * of significant limbs in the result: max(a_len, b_len), or one more
- * if a carry out of the top limb occurred. The longer operand is passed
- * first to bn_add_inner(), which requires that ordering.
- *
- * r must have room for n + 1 limbs and must not alias a or b.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) limbs, at most n + 1
- *
- * @param[out] r     Result buffer (needs n + 1 limbs; must not alias a or b).
- * @param[in]  a     First operand limbs.
- * @param[in]  a_len Number of limbs in a.
- * @param[in]  b     Second operand limbs.
- * @param[in]  b_len Number of limbs in b.
- *
- * @return The number of significant limbs in the result.
- */
 u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len)
 {
   u64 carry;
@@ -90,27 +65,6 @@ u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len)
  *  multiplication
  *-------------------------------------------------------------------------*/
 
-/**
- * @brief Schoolbook (grade-school) multiplication of raw limb arrays:
- * r = a * b.
- *
- * Let n = a_size and m = b_size, measured in 64-bit limbs.
- *
- * Each limb of a is multiplied by the whole of b and accumulated into
- * r at the corresponding offset (bn_mul_add_inner), skipping zero
- * limbs. r is zeroed first and must have room for n + m limbs.
- *
- * Complexity:
- *   Time: O(n * m)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n + m) limbs
- *
- * @param[out] r      Result buffer (needs n + m limbs).
- * @param[in]  a      First operand limbs.
- * @param[in]  a_size Number of limbs in a.
- * @param[in]  b      Second operand limbs.
- * @param[in]  b_size Number of limbs in b.
- */
 void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
                       u64 b_size)
 {
@@ -121,36 +75,6 @@ void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
   }
 }
 
-/**
- * @brief Karatsuba multiplication of two raw limb arrays of n limbs each:
- * r = a * b.
- *
- * Let n = number of limbs per operand.
- *
- * Splits each operand into low and high halves (a = a0 + a1 * B^m,
- * b = b0 + b1 * B^m, m = n/2) and uses the Karatsuba identity:
- *
- *   a * b = z0 + (z1 - z0 - z2) * B^m + z2 * B^(2m)
- *
- * where z0 = a0 * b0, z2 = a1 * b1, and z1 = (a0 + a1) * (b0 + b1),
- * so only three half-size multiplications are needed instead of four.
- * Below KARATSUBA_LIMIT limbs it falls back to schoolbook.
- *
- * r must have room for 2n limbs. scratch must have room for
- * 8 * n + 8 limbs (partitioned into the sum buffers, the z1 product,
- * and the scratch for the recursive calls).
- *
- * Complexity:
- *   Time: O(n^log2(3)) ~ O(n^1.585)
- *   Auxiliary memory: O(n) limbs of scratch
- *   Output memory: O(n) limbs (2n)
- *
- * @param[out] r       Result buffer (needs 2n limbs).
- * @param[in]  a       First operand limbs (n of them).
- * @param[in]  b       Second operand limbs (n of them).
- * @param[in]  n       Number of limbs per operand.
- * @param[in]  scratch Scratch buffer (needs 8 * n + 8 limbs).
- */
 void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
                          u64* scratch)
 {
@@ -213,34 +137,6 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
   bn_add_inner(r + m, r + m, 2 * n - m, z1, 2 * max_len);
 }
 
-/**
- * @brief Karatsuba squaring of a raw limb array: r = a * a.
- *
- * Let n = a_len, measured in 64-bit limbs.
- *
- * Splits a into low and high halves (a = a0 + a1 * B^m) and uses the
- * squaring variant of the Karatsuba identity:
- *
- *   a^2 = z0 + (z1 - z0 - z2) * B^m + z2 * B^(2m)
- *
- * where z0 = a0^2, z2 = a1^2, and z1 = (a0 + a1)^2, so only three
- * half-size multiplications are needed (two of them squarings). Below
- * KARATSUBA_LIMIT limbs it falls back to schoolbook multiplication.
- *
- * r must have room for 2 * a_len limbs. scratch must have room for
- * 8 * a_len + 8 limbs (partitioned into the sum buffer, the z1
- * product, and the scratch for the recursive calls).
- *
- * Complexity:
- *   Time: O(n^log2(3)) ~ O(n^1.585)
- *   Auxiliary memory: O(n) limbs of scratch
- *   Output memory: O(n) limbs (2 * a_len)
- *
- * @param[out] r       Result buffer (needs 2 * a_len limbs).
- * @param[in]  a       Operand limbs.
- * @param[in]  a_len   Number of limbs in a.
- * @param[in]  scratch Scratch buffer (needs 8 * a_len + 8 limbs).
- */
 void limbs_sqr_karatsuba(u64* r, const u64* a, u64 a_len, u64* scratch)
 {
   if (a_len < KARATSUBA_LIMIT) {

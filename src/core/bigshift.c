@@ -29,22 +29,6 @@
 
 #include "../include/bignum.h"
 
-/**
- * @brief Shift r left by one bit, in place: r = r * 2.
- *
- * Let n = r->size, measured in 64-bit limbs.
- *
- * The bits are propagated from the least significant limb to the most
- * significant one; if the top bit overflows, a new limb is appended.
- * The sign is preserved.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
- *
- * @param[in,out] r Value to shift left by one bit (modified in place).
- */
 void bn_lshift1(bignum* r)
 {
   if (r->size == 0) return;
@@ -63,22 +47,6 @@ void bn_lshift1(bignum* r)
   }
 }
 
-/**
- * @brief Shift r right by one bit, in place: r = r / 2 (truncated).
- *
- * Let n = r->size, measured in 64-bit limbs.
- *
- * The bits are propagated from the most significant limb to the least
- * significant one; leading zero limbs are trimmed afterwards. The sign
- * is preserved.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) limbs
- *
- * @param[in,out] r Value to shift right by one bit (modified in place).
- */
 void bn_rshift1(bignum* r)
 {
   if (r->size == 0) return;
@@ -92,28 +60,6 @@ void bn_rshift1(bignum* r)
   bn_trim(r);
 }
 
-/**
- * @brief Shift a left by shift bits into r: r = a << shift.
- *
- * Let n = a->size, measured in 64-bit limbs.
- * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
- *
- * Each limb of a is shifted left by b bits and placed w limbs higher
- * in r, with the overflow bits carried into the next limb. The sign is
- * preserved.
- *
- * r may alias a.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1) in the normal case,
- *                     O(n) if r aliases a and a temporary is used
- *   Output memory: O(n) limbs, at most n + w + 1 limbs
- *
- * @param[out] r     Result of a << shift.
- * @param[in]  a     Value to shift.
- * @param[in]  shift Number of bits to shift left.
- */
 void bn_lshift(bignum* r, const bignum* a, int shift)
 {
   // aliasing
@@ -178,29 +124,6 @@ void bn_lshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-/**
- * @brief Shift a right by shift bits into r: r = a >> shift (truncated).
- *
- * Let n = a->size, measured in 64-bit limbs.
- * Let w = shift / 64 (whole limbs) and b = shift % 64 (remaining bits).
- *
- * The top w limbs are dropped and the remaining limbs are shifted
- * right by b bits, pulling in the low bits of the next limb. If the
- * shift is at least the size of a, the result is zero. The sign is
- * preserved.
- *
- * r may alias a.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1) in the normal case,
- *                     O(n) if r aliases a and a temporary is used
- *   Output memory: O(n) limbs, at most n - w limbs
- *
- * @param[out] r     Result of a >> shift.
- * @param[in]  a     Value to shift.
- * @param[in]  shift Number of bits to shift right.
- */
 void bn_rshift(bignum* r, const bignum* a, int shift)
 {
   // aliasing
@@ -260,26 +183,6 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
   bn_trim(r);
 }
 
-/**
- * @brief Shift r left by one bit and add bit (0 or 1), in place:
- * r = (r << 1) + bit.
- *
- * Let n = r->size, measured in 64-bit limbs.
- *
- * This is the primitive used when building numbers bit by bit (e.g.
- * during parsing or in exponentiation loops). The added bit enters at
- * the least significant position and the carry propagates upward; if
- * the top bit overflows, a new limb is appended. The sign is
- * preserved.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1)
- *   Output memory: O(n) limbs, or O(n + 1) if a carry limb is created
- *
- * @param[in,out] r   Value to shift and add into (modified in place).
- * @param[in]     bit Bit (0 or 1) to add at the least significant position.
- */
 void bn_lshift1_add(bignum* r, int bit)
 {
   u64 carry = (bit != 0);

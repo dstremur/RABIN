@@ -31,32 +31,6 @@
 #include "../../include/bighelper.h"
 #include "../../include/bignum.h"
 
-/**
- * @brief Subtract the absolute value of b from the absolute value of a into r.
- *
- * Let n = a->size, measured in 64-bit limbs.
- *
- * This computes:
- *
- *   r = |a| - |b|
- *
- * and requires |a| >= |b|; if |b| > |a| the result wraps around
- * (two's-complement style) and is meaningless. It does not interpret or
- * modify the sign of the operands or the result. The caller is
- * responsible for setting r->is_neg.
- *
- * r may alias a or b.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1) in the normal case,
- *                     O(n) if r aliases a or b and a temporary is used
- *   Output memory: O(n) limbs
- *
- * @param[out] r Result storing |a| - |b| (requires |a| >= |b|).
- * @param[in]  a Minuend (magnitude only).
- * @param[in]  b Subtrahend (magnitude only).
- */
 void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 {
   // aliasing
@@ -86,30 +60,6 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
   bn_trim(r);
 }
 
-/**
- * @brief Subtract two signed bignums: r = a - b.
- *
- * Let n = max(a->size, b->size), measured in 64-bit limbs.
- *
- * Subtraction is reduced to magnitude addition or subtraction:
- *
- *   a - (-b) = a + b          (opposite signs, b negative)
- *   (-a) - b = -(a + b)       (opposite signs, a negative)
- *   same signs: subtract the smaller magnitude from the larger one and
- *               take the sign of the operand with the larger magnitude
- *
- * If the magnitudes are equal, the result is zero.
- *
- * Complexity:
- *   Time: O(n)
- *   Auxiliary memory: O(1), except for any temporary storage used by
- *                     bn_add_abs(), bn_sub_abs(), or bn_alloc()
- *   Output memory: O(n) limbs
- *
- * @param[out] r Result of the signed subtraction a - b.
- * @param[in]  a Minuend.
- * @param[in]  b Subtrahend.
- */
 void bn_sub(bignum* r, const bignum* a, const bignum* b)
 {
   // a - (-b) = a + b
