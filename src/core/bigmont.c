@@ -115,7 +115,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   // Trim leading zeros so bn_cmp works accurately
   bn_trim(r);
 
-  while (bn_cmp(r, &ctx->n) >= 0) {
+  if (bn_cmp(r, &ctx->n) >= 0) {
     bn_sub_abs(r, r, &ctx->n);
   }
 }

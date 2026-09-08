@@ -4,6 +4,21 @@
 #include "bigcore.h"
 #include "bigpoly.h"
 
+typedef struct {
+    bignum p;         // The prime modulus
+    bignum r_sq;      // R^2 mod p (used for entering Montgomery form)
+    uint64_t p_inv;     // -p^-1 mod 2^64 (Montgomery reduction constant)
+    size_t limbs;       // Number of machine words p takes up
+} fp_ctx;
+
+typedef struct {
+    bignum a;         // Curve parameter 'a'
+    bignum b;         // Curve parameter 'b'
+    fp_ctx field;     // The underlying finite field
+} ec_curve_t;
+
+void ec_point_add(ec_point res, ec_point p, ec_point q, const ec_curve *curve);
+
 /*
  * field_ctx: arithmetic in the ring Z_m = Z / m Z.
  *

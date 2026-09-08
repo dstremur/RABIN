@@ -54,8 +54,8 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
 {
   i64 bits = bn_bit_length(d);
 
-  // Plain left-to-right binary for short exponents (the window
-  // precompute would not pay off)
+  // left-to-right binary for short exponents
+  // Algorithm 14.79 Handbook of Applied Crypto
   if (bits < 64) {
     bn_copy(r_bar, &ctx->one_mont);
 
@@ -71,6 +71,7 @@ void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
 
   // Fixed window w = 4: precompute the odd powers a^1, a^3, ..., a^15
   // in Montgomery form (tab[1] = a_bar, tab[v] = tab[v-2] * a^2)
+  // Algorithm 14.85 Handbook of Applied Crypto
   bignum tab[16];
   for (u64 i = 0; i < 16; i++) bn_init(&tab[i]);
 

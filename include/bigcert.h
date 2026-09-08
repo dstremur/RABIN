@@ -28,13 +28,13 @@ struct pocklington_cert {
  *
  * Prints N, then for every element its factor q and base alpha_q, and
  * recurses into each child certificate. A certificate with size 0 is
- * printed as a base case (verified via BPSW).
+ * printed as a base case.
  *
  * Complexity:
- *   Time: O(m), m = total number of elements over all nested
+ *   - Time: \f$O(m), m =\f$ total number of elements over all nested
  *         certificates
- *   Auxiliary memory: O(d) recursion stack, d = certificate depth
- *   Output memory: O(0)
+ *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate depth
+ *   - Output memory: \f$O(0)\f$
  *
  * @param[in] cert Certificate to print (may be NULL, in which case
  *                 nothing is printed).
@@ -49,10 +49,10 @@ void print_pocklington_cert(pocklington_cert* cert);
  * (recursively), the data array, and the certificate itself.
  *
  * Complexity:
- *   Time: O(m), m = total number of elements over all nested
+ *   - Time: \f$O(m), m =\f$ total number of elements over all nested
  *         certificates
- *   Auxiliary memory: O(d) recursion stack, d = certificate depth
- *   Output memory: O(0)
+ *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate depth
+ *   - Output memory: \f$O(0)\f$
  *
  * @param[in] cert Certificate to free (may be NULL, in which case this
  *                 is a no-op).
@@ -64,19 +64,19 @@ void pocklington_cert_free(pocklington_cert* cert);
  *
  * Checks the Pocklington conditions for N:
  *
- *   1. alpha_q^(N - 1) = 1 (mod N) for each element
- *   2. q | N - 1 and q > sqrt(N) - 1 (via the accumulated factored part)
- *   3. gcd(alpha_q^((N - 1) / q), N) = 1 for each element
+ *   1. \f$\alpha_q^{N - 1} \equiv 1 \pmod N\f$ for each element
+ *   2. \f$q \mid N - 1\f$ and \f$q > \sqrt{N} - 1\f$ 
+ *   3. \f$\gcd\left(\alpha_q^{\frac{N - 1}{q}}, N\right) = 1\f$ for each element
  *
  * Leaf factors are accepted only if they are provable by a base case;
  * base_case_bound is the size threshold up to which a prime factor is
  * accepted without a child certificate.
  *
  * Complexity:
- *   Time: O(m * N^2 log N), m = number of elements, N = N->size in
- *         64-bit limbs
- *   Auxiliary memory: O(N)
- *   Output memory: O(0)
+ *   - Time: \f$O(m \cdot N^2 \log N)\f$, where \f$m\f$ = number of elements, 
+ *     \f$N\f$ = size in 64-bit limbs
+ *   - Auxiliary memory: \f$O(N)\f$
+ *   - Output memory: \f$O(0)\f$
  *
  * @param[in] cert            Certificate to verify.
  * @param[in] base_case_bound Maximum size (in bits) of a prime factor

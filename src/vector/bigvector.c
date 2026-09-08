@@ -29,6 +29,7 @@
  */
 
 #include "../../include/bigvector.h"
+#include "../../include/bigmatrix.h"
 
 #include <stdio.h>
 
@@ -167,3 +168,5 @@ void bigvector_println(bigvector* a)
   bigvector_print(a);
   printf("\n");
 }
+
+

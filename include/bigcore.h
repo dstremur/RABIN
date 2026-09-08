@@ -40,9 +40,9 @@ extern bignum BN_ZERO;
  * previously allocated limb storage.
  *
  * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1) limbs (one limb per constant)
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$ limbs 
  */
 void bn_init_constants();
 
@@ -53,13 +53,13 @@ void bn_init_constants();
  * until bn_init_constants() is called again.
  *
  * Complexity:
- *   Time: O(1)
- *   Auxiliary memory: O(1)
- *   Output memory: O(1)
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
  */
 void bn_free_constants();
 
-// bnscratch.c (thread-local bump arena; one get + one release per call)
+// bnscratch.c 
 /**
  * @brief Reserve n u64s of thread-local scratch space.
  *
@@ -187,8 +187,7 @@ bool bn_is_eq_i64(const bignum* n, i64 a);
  * @brief Grow the limb storage of r to at least capacity limbs.
  *
  * If r->capacity is already sufficient, nothing happens. Otherwise the
- * storage is reallocated with exponential growth (at least double the
- * old capacity, or the requested capacity, whichever is larger) and
+ * storage is reallocated with exponential growth and
  * the newly added limbs are zeroed. Existing limb contents are
  * preserved.
  *
@@ -354,8 +353,7 @@ int bn_get_bit(const bignum* a, int i);
  *
  * Returns 1 if a > b, -1 if a < b, 0 if a == b.
  *
- * Signs are handled first (a positive number is greater than a
- * negative one); for equal signs the magnitudes are compared, most
+ * Signs are handled first; for equal signs the magnitudes are compared, most
  * significant limb first, and the result is negated when both
  * operands are negative.
  *
@@ -370,6 +368,26 @@ int bn_get_bit(const bignum* a, int i);
  * @return 1 If a > b, -1 if a < b, 0 if a == b.
  */
 int bn_cmp(const bignum* a, const bignum* b);
+
+/**
+ * @brief Compare two signed bignums in constant time
+ *
+ * Returns 1 if a > b, -1 if a < b, 0 if a == b.
+ *
+ * Same semantics as bn_cmp, but this function always compares 
+ * all limbs to ensure constant time.
+ *
+ * Complexity:
+ *   Time: O(n) always, where n = max(a->size, b->size)
+ *   Auxiliary memory: O(1)
+ *   Output memory: O(1)
+ *
+ * @param[in] a First bignum.
+ * @param[in] b Second bignum.
+ *
+ * @return 1 If a > b, -1 if a < b, 0 if a == b.
+ */
+int bn_cmp_const_time(const bignum* a, const bignum* b);
 
 /**
  * @brief Compare the absolute values (magnitudes) of two bignums.
@@ -505,7 +523,6 @@ int bn_bit_length(const bignum* a);
 u64 bn_cnt_trailing_zeros(const bignum* a);
 
 // bigadd.c
-
 /**
  * @brief Add two signed bignums.
  *
@@ -615,8 +632,7 @@ void bn_add_u64(bignum* r, const bignum* a, u64 b);
  *
  * Note:
  *   The current implementation does not explicitly handle r == a safely
- *   for all nonzero offsets. If aliasing is not supported, document that
- *   here and enforce it in the API.
+ *   for all nonzero offsets.
  *
  * @param[out] r Accumulator; receives r + (a << (offset * 64)).
  * @param[in]  a Value to add.
@@ -1272,7 +1288,7 @@ void bn_lshift1_add(bignum* r, int bit);
  *
  * This computes:
  *
- *   r = floor(sqrt(a))
+ *   \f$r = \lfloor\sqrt{a}\rfloor\f$
  *
  * The iteration starts at x0 = 2^(ceil(k/2) + 1) where k is the bit
  * length of a, and repeatedly applies:

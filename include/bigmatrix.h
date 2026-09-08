@@ -280,4 +280,25 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
  */
 void bigmatrix_det(bignum* d, const bigmatrix* A);
 
+
+/**
+ * @brief Returns the identity matrix
+ * 
+ * @param I 
+ * @param n 
+ */
+void bigmatrix_id(bigmatrix* I, const u64 n);
+
+
+/**
+ * @brief Compute the LLL algorithm on the basis matrix B 
+ * 
+ * @param B 
+ * @param n 
+ * @param delta 
+ * @param H 
+ */
+void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H);
+
+
 #endif

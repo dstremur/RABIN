@@ -341,3 +341,195 @@ cleanup:
   bigmatrix_free(&T);
   bn_free_multi(&prev, NULL);
 }
+
+
+void bigmatrix_id(bigmatrix* I, const u64 n)
+{
+
+  bignum a, b; 
+  bn_init_multi(&a, &b, NULL);
+  bn_set_u64(&a, 1);
+  bn_set_u64(&b, 0);
+
+  for (u64 i = 0; i < n; i++){
+    for (u64 j = 0; j < n; j++){
+      if (i == j){
+        bigmatrix_set(I, a, i, j);
+      } else {
+        bigmatrix_set(I, b, i, j);
+      }
+    }
+  }
+}
+
+
+// Computation Number theory p. 86
+void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
+{
+
+  // 1 [Initialize]
+  u64 k = 2; 
+  u64 k_max = 1; 
+
+  // allocate lists for orth. vectors and squared norms
+  bigvector* b_star = malloc(n * sizeof(bigvector));
+  bignum* B_vals = malloc(n * sizeof(bignum));
+  for (u64 i = 0; i < n; i++) {
+    bigvector_init(&b_star[i], B->c_size);
+    bn_init(&B_vals[i]);
+  }
+
+  // Gram schmidt coefficients
+  double* mu = calloc(n * n, sizeof(double));
+
+  bigvector b_k; 
+  bigvector_init(&b_k, n);
+  bigmatrix_get_col(&b_star[0], B, 0);
+  bigvector_copy(&b_k, &b_star[0]);
+  bigvector_dot(&B_vals[0], &b_k, &b_k);
+
+  bigmatrix_id(H, n);
+
+  bigvector temp_vec;
+  bigvector_init(&temp_vec, B->rows);
+
+  // 2 [Incremental Gram-Schmidt]
+
+  if (k > k_max){
+     k_max = k; 
+
+  }
+}
+
+
+// void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
+// {
+//   u64 k = 2;
+//   u64 k_max = 1;
+
+//   // Allocate Gram-Schmidt orthogonalized vectors and squared norms
+//   bigvector* b_star = malloc(n * sizeof(bigvector));
+//   bignum* B_vals = malloc(n * sizeof(bignum));
+//   for (u64 i = 0; i < n; i++) {
+//     bigvector_init(&b_star[i], B->rows);
+//     bn_init(&B_vals[i]);
+//   }
+
+//   // Allocate table for Gram-Schmidt coefficients mu[k][j] stored as doubles
+//   double* mu = calloc(n * n, sizeof(double));
+
+//   // Step 1 [Initialize]
+//   bigvector b_k;
+//   bigvector_init(&b_k, B->rows);
+//   bigmatrix_get_col(&b_star[0], B, 0);
+//   bigvector_copy(&b_k, &b_star[0]);
+//   bigvector_dot(&B_vals[0], &b_k, &b_k);
+
+//   bigmatrix_id(H, n);
+
+//   bigvector temp_vec;
+//   bigvector_init(&temp_vec, B->rows);
+
+//   // Helper lambda or inline logic for RED(k, l)
+//   // RED(k, l): makes |mu[k][l]| <= 0.5 by reducing b_k using b_l
+//   #auto_red = ^(u64 ki, u64 li) {
+//     double mukl = mu[ki * n + li];
+//     if (fabs(mukl) > 0.5) {
+//       long long x = (long long)round(mukl);
+//       // b_k = b_k - x * b_l
+//       bigvector_sub_mul(B, ki, li, x); // Assumes a function to subtract scaled column
+//       // H_k = H_k - x * H_l
+//       bigmatrix_sub_mul(H, ki, li, x);
+//       mu[ki * n + li] -= x;
+//       for (u64 j = 0; j < li; j++) {
+//         mu[ki * n + j] -= x * mu[li * n + j];
+//       }
+//     }
+//   };
+
+//   while (k <= n) {
+//     // Step 2 [Incremental Gram-Schmidt]
+//     if (k <= k_max) {
+//       // Proceed to Step 3
+//     } else {
+//       k_max = k;
+//       bigmatrix_get_col(&b_k, B, k - 1);
+//       bigvector_copy(&b_star[k - 1], &b_k);
+
+//       for (u64 j = 1; j < k; j++) {
+//         bignum dot_val;
+//         bn_init(&dot_val);
+//         bigvector_dot(&dot_val, &b_k, &b_star[j - 1]);
+        
+//         double dot_d = bn_to_double(&dot_val);
+//         double Bj_d = bn_to_double(&B_vals[j - 1]);
+//         mu[(k - 1) * n + (j - 1)] = dot_d / Bj_d;
+
+//         // b*_k = b*_k - mu_{k,j} * b*_j (approximate or exact vector subtraction)
+//         // Implementation depends on scalar-vector vector subtraction helpers
+//         // ...
+//       }
+//       bigvector_dot(&B_vals[k - 1], &b_star[k - 1], &b_star[k - 1]);
+
+//       if (bn_is_zero(&B_vals[k - 1])) {
+//         // Error: vectors did not form a basis (linearly dependent)
+//         return;
+//       }
+//     }
+
+//     // Step 3 [Test LLL condition]
+//     // Execute RED(k, k - 1)
+//     // (Inline or helper call for RED calculation)
+//     double muk_k1 = mu[(k - 1) * n + (k - 2)];
+//     if (fabs(muk_k1) > 0.5) {
+//       long long x = (long long)round(muk_k1);
+//       // Apply reduction to basis column k and transform matrix H
+//       mu[(k - 1) * n + (k - 2)] -= x;
+//       for (u64 j = 0; j < k - 2; j++) {
+//         mu[(k - 1) * n + j] -= x * mu[(k - 2) * n + j];
+//       }
+//     }
+
+//     bignum Bk, Bk_prev, threshold_term;
+//     bn_init(&Bk); bn_init(&Bk_prev); bn_init(&threshold_term);
+    
+//     // Check LLL inequality: B_k < (delta - mu_{k,k-1}^2) * B_{k-1}
+//     // Using floating point conversion for norm comparison or exact bignum arithmetic
+//     double Bk_d = bn_to_double(&B_vals[k - 1]);
+//     double Bk_prev_d = bn_to_double(&B_vals[k - 2]);
+//     double rhs = (delta - muk_k1 * muk_k1) * Bk_prev_d;
+
+//     if (Bk_d < rhs) {
+//       // SWAP(k)
+//       // Swap columns k and k-1 in B and H, update Gram-Schmidt data accordingly
+//       // ...
+//       k = (k > 2) ? k - 1 : 2;
+//     } else {
+//       for (long long l = (long long)k - 3; l >= 0; l--) {
+//         // Execute RED(k, l)
+//         double mukl = mu[(k - 1) * n + l];
+//         if (fabs(mukl) > 0.5) {
+//           long long x = (long long)round(mukl);
+//           mu[(k - 1) * n + l] -= x;
+//           for (u64 j = 0; j < (u64)l; j++) {
+//             mu[(k - 1) * n + j] -= x * mu[l * n + j];
+//           }
+//         }
+//       }
+//       k++;
+//     }
+
+//     // Step 4 [Finished?] handled by the while (k <= n) loop condition.
+//   }
+
+//   // Cleanup allocations
+//   for (u64 i = 0; i < n; i++) {
+//     bigvector_free(&b_star[i]);
+//     bn_free(&B_vals[i]);
+//   }
+//   free(b_star);
+//   free(B_vals);
+//   free(mu);
+//   bigvector_free(&b_k);
+//   bigvector_free(&temp_vec);
+// }
