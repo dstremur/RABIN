@@ -4,60 +4,61 @@
 #include "bigcore.h"
 
 /**
- * @brief Compute (U_n, V_n, Q^n) exactly, by recursion on the binary
- * expansion of n.
+ * @brief Compute \f$(U_n, V_n, Q^n)\f$ exactly, by recursion on the binary
+ * expansion of \f$n\f$.
  *
- * Let n_l = n->size, measured in 64-bit limbs.
+ * Let \f$n_l =\f$ n->size, measured in 64-bit limbs.
  *
- * Base cases: n = 0 gives (U, V, Q^n) = (0, 2, 1); n = 1 gives
- * (1, P, Q). The recursion halves n and applies the doubling
+ * Base cases: \f$n = 0\f$ gives \f$(U, V, Q^n) = (0, 2, 1)\f$; \f$n = 1\f$
+ * gives
+ * \f$(1, P, Q)\f$. The recursion halves \f$n\f$ and applies the doubling
  * identities above, so the sequence of values is built from the
  * halved result.
  *
  * Complexity:
- *   Time: O(n_l^2 log n) - O(log n) levels of recursion, each with a
- *         few multiplications of up to n_l-limb values
- *   Auxiliary memory: O(n_l) limbs per recursion level, O(n_l log n)
- *                     total on the stack of temporaries
- *   Output memory: O(n_l) limbs per result
+ *   - Time: \f$O(n_l^2 \log n)\f$ - \f$O(\log n)\f$ levels of recursion, each
+ * with a few multiplications of up to \f$n_l\f$-limb values
+ *   - Auxiliary memory: \f$O(n_l)\f$ limbs per recursion level, \f$O(n_l \log
+ * n)\f$ total on the stack of temporaries
+ *   - Output memory: \f$O(n_l)\f$ limbs per result
  *
- * @param[out] u  Result storing U_n.
- * @param[out] v  Result storing V_n.
+ * @param[out] u  Result storing \f$U_n\f$.
+ * @param[out] v  Result storing \f$V_n\f$.
  * @param[in]  p  Lucas parameter P.
  * @param[in]  q  Lucas parameter Q.
- * @param[out] qn Result storing Q^n.
+ * @param[out] qn Result storing \f$Q^n\f$.
  * @param[in]  n  Index of the Lucas sequence term.
  */
 void bn_lucas_solve(bignum* u, bignum* v, const bignum* p, const bignum* q,
                     bignum* qn, const bignum* n);
 
 /**
- * @brief Compute (U_n mod m, V_n mod m, Q^n mod m) iteratively over the bits
- * of n, in the Montgomery domain.
+ * @brief Compute \f$(U_n \bmod m, V_n \bmod m, Q^n \bmod m)\f$ iteratively over
+ * the bits of \f$n\f$, in the Montgomery domain.
  *
- * Let n_l = m->size, measured in 64-bit limbs.
+ * Let \f$n_l =\f$ m->size, measured in 64-bit limbs.
  *
  * Same doubling identities as bn_lucas_solve(), but applied
- * left-to-right over the bits of n (starting from (U_1, V_1, Q^1) =
- * (1, P, Q)) with all multiplications as Montgomery multiplications
- * modulo m. Subtractions that would go negative are brought back into
- * [0, m) by adding m. Division by 2 is done by adding m when the
- * value is odd, then shifting.
+ * left-to-right over the bits of \f$n\f$ (starting from \f$(U_1, V_1, Q^1)\f$ =
+ * \f$(1, P, Q)\f$) with all multiplications as Montgomery multiplications
+ * modulo \f$m\f$. Subtractions that would go negative are brought back into
+ * \f$[0, m)\f$ by adding \f$m\f$. Division by 2 is done by adding \f$m\f$ when
+ * the value is odd, then shifting.
  *
  * The results are converted out of the Montgomery domain before
  * return.
  *
  * Complexity:
- *   Time: O(n_l^3) for the context initialization, then O(log n *
- *         n_l^2) for the bit loop
- *   Auxiliary memory: O(n_l) limbs for the context and temporaries
- *   Output memory: O(n_l) limbs per result
+ *   - Time: \f$O(n_l^3)\f$ for the context initialization, then
+ *           \f$O(\log n \cdot n_l^2)\f$ for the bit loop
+ *   - Auxiliary memory: \f$O(n_l)\f$ limbs for the context and temporaries
+ *   - Output memory: \f$O(n_l)\f$ limbs per result
  *
- * @param[out] u  Result storing U_n mod m.
- * @param[out] v  Result storing V_n mod m.
+ * @param[out] u  Result storing \f$U_n \bmod m\f$.
+ * @param[out] v  Result storing \f$V_n \bmod m\f$.
  * @param[in]  p  Lucas parameter P.
  * @param[in]  q  Lucas parameter Q.
- * @param[out] qn Result storing Q^n mod m.
+ * @param[out] qn Result storing \f$Q^n \bmod m\f$.
  * @param[in]  n  Index of the Lucas sequence term.
  * @param[in]  m  Modulus.
  */
@@ -65,20 +66,21 @@ void bn_lucas_solve_mod(bignum* u, bignum* v, const bignum* p, const bignum* q,
                         bignum* qn, const bignum* n, const bignum* m);
 
 /**
- * @brief Compute the n-th terms of the Lucas sequences U_n(P, Q) and
- * V_n(P, Q) exactly.
+ * @brief Compute the \f$n\f$-th terms of the Lucas sequences \f$U_n(P, Q)\f$
+ * and
+ * \f$V_n(P, Q)\f$ exactly.
  *
- * Let n_l = n->size, measured in 64-bit limbs.
+ * Let \f$n_l =\f$ n->size, measured in 64-bit limbs.
  *
- * Thin wrapper around bn_lucas_solve() that discards Q^n.
+ * Thin wrapper around bn_lucas_solve() that discards \f$Q^n\f$.
  *
  * Complexity:
- *   Time: O(n_l^2 log n), see bn_lucas_solve()
- *   Auxiliary memory: O(n_l log n) limbs
- *   Output memory: O(n_l) limbs per result
+ *   - Time: \f$O(n_l^2 \log n)\f$, see bn_lucas_solve()
+ *   - Auxiliary memory: \f$O(n_l \log n)\f$ limbs
+ *   - Output memory: \f$O(n_l)\f$ limbs per result
  *
- * @param[out] u Result storing U_n.
- * @param[out] v Result storing V_n.
+ * @param[out] u Result storing \f$U_n\f$.
+ * @param[out] v Result storing \f$V_n\f$.
  * @param[in]  p Lucas parameter P.
  * @param[in]  q Lucas parameter Q.
  * @param[in]  n Index of the Lucas sequence term.
@@ -87,20 +89,20 @@ void bn_lucas(bignum* u, bignum* v, const bignum* p, const bignum* q,
               const bignum* n);
 
 /**
- * @brief Compute U_n(P, Q) mod m and V_n(P, Q) mod m.
+ * @brief Compute \f$U_n(P, Q) \bmod m\f$ and \f$V_n(P, Q) \bmod m\f$.
  *
- * Let n_l = m->size, measured in 64-bit limbs.
+ * Let \f$n_l =\f$ m->size, measured in 64-bit limbs.
  *
- * Thin wrapper around bn_lucas_solve_mod() that discards Q^n mod m.
+ * Thin wrapper around bn_lucas_solve_mod() that discards \f$Q^n \bmod m\f$.
  *
  * Complexity:
- *   Time: O(n_l^3) for the context initialization, then O(log n *
- *         n_l^2), see bn_lucas_solve_mod()
- *   Auxiliary memory: O(n_l) limbs
- *   Output memory: O(n_l) limbs per result
+ *   - Time: \f$O(n_l^3)\f$ for the context initialization, then
+ *           \f$O(\log n \cdot n_l^2)\f$, see bn_lucas_solve_mod()
+ *   - Auxiliary memory: \f$O(n_l)\f$ limbs
+ *   - Output memory: \f$O(n_l)\f$ limbs per result
  *
- * @param[out] u Result storing U_n mod m.
- * @param[out] v Result storing V_n mod m.
+ * @param[out] u Result storing \f$U_n \bmod m\f$.
+ * @param[out] v Result storing \f$V_n \bmod m\f$.
  * @param[in]  p Lucas parameter P.
  * @param[in]  q Lucas parameter Q.
  * @param[in]  n Index of the Lucas sequence term.

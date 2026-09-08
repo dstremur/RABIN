@@ -29,9 +29,10 @@
  */
 
 #include "../../include/bigvector.h"
-#include "../../include/bigmatrix.h"
 
 #include <stdio.h>
+
+#include "../../include/bigmatrix.h"
 
 void bigvector_init(bigvector* a, u64 d)
 {
@@ -168,5 +169,3 @@ void bigvector_println(bigvector* a)
   bigvector_print(a);
   printf("\n");
 }
-
-

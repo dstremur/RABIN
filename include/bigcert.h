@@ -65,15 +65,16 @@ void pocklington_cert_free(pocklington_cert* cert);
  * Checks the Pocklington conditions for N:
  *
  *   1. \f$\alpha_q^{N - 1} \equiv 1 \pmod N\f$ for each element
- *   2. \f$q \mid N - 1\f$ and \f$q > \sqrt{N} - 1\f$ 
- *   3. \f$\gcd\left(\alpha_q^{\frac{N - 1}{q}}, N\right) = 1\f$ for each element
+ *   2. \f$q \mid N - 1\f$ and \f$q > \sqrt{N} - 1\f$
+ *   3. \f$\gcd\left(\alpha_q^{\frac{N - 1}{q}}, N\right) = 1\f$ for each
+ * element
  *
  * Leaf factors are accepted only if they are provable by a base case;
  * base_case_bound is the size threshold up to which a prime factor is
  * accepted without a child certificate.
  *
  * Complexity:
- *   - Time: \f$O(m \cdot N^2 \log N)\f$, where \f$m\f$ = number of elements, 
+ *   - Time: \f$O(m \cdot N^2 \log N)\f$, where \f$m\f$ = number of elements,
  *     \f$N\f$ = size in 64-bit limbs
  *   - Auxiliary memory: \f$O(N)\f$
  *   - Output memory: \f$O(0)\f$

@@ -342,18 +342,16 @@ cleanup:
   bn_free_multi(&prev, NULL);
 }
 
-
 void bigmatrix_id(bigmatrix* I, const u64 n)
 {
-
-  bignum a, b; 
+  bignum a, b;
   bn_init_multi(&a, &b, NULL);
   bn_set_u64(&a, 1);
   bn_set_u64(&b, 0);
 
-  for (u64 i = 0; i < n; i++){
-    for (u64 j = 0; j < n; j++){
-      if (i == j){
+  for (u64 i = 0; i < n; i++) {
+    for (u64 j = 0; j < n; j++) {
+      if (i == j) {
         bigmatrix_set(I, a, i, j);
       } else {
         bigmatrix_set(I, b, i, j);
@@ -362,14 +360,12 @@ void bigmatrix_id(bigmatrix* I, const u64 n)
   }
 }
 
-
 // Computation Number theory p. 86
 void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 {
-
   // 1 [Initialize]
-  u64 k = 2; 
-  u64 k_max = 1; 
+  u64 k = 2;
+  u64 k_max = 1;
 
   // allocate lists for orth. vectors and squared norms
   bigvector* b_star = malloc(n * sizeof(bigvector));
@@ -382,7 +378,7 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
   // Gram schmidt coefficients
   double* mu = calloc(n * n, sizeof(double));
 
-  bigvector b_k; 
+  bigvector b_k;
   bigvector_init(&b_k, n);
   bigmatrix_get_col(&b_star[0], B, 0);
   bigvector_copy(&b_k, &b_star[0]);
@@ -395,12 +391,10 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 
   // 2 [Incremental Gram-Schmidt]
 
-  if (k > k_max){
-     k_max = k; 
-
+  if (k > k_max) {
+    k_max = k;
   }
 }
-
 
 // void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 // {
@@ -437,7 +431,8 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 //     if (fabs(mukl) > 0.5) {
 //       long long x = (long long)round(mukl);
 //       // b_k = b_k - x * b_l
-//       bigvector_sub_mul(B, ki, li, x); // Assumes a function to subtract scaled column
+//       bigvector_sub_mul(B, ki, li, x); // Assumes a function to subtract
+//       scaled column
 //       // H_k = H_k - x * H_l
 //       bigmatrix_sub_mul(H, ki, li, x);
 //       mu[ki * n + li] -= x;
@@ -460,12 +455,13 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 //         bignum dot_val;
 //         bn_init(&dot_val);
 //         bigvector_dot(&dot_val, &b_k, &b_star[j - 1]);
-        
+
 //         double dot_d = bn_to_double(&dot_val);
 //         double Bj_d = bn_to_double(&B_vals[j - 1]);
 //         mu[(k - 1) * n + (j - 1)] = dot_d / Bj_d;
 
-//         // b*_k = b*_k - mu_{k,j} * b*_j (approximate or exact vector subtraction)
+//         // b*_k = b*_k - mu_{k,j} * b*_j (approximate or exact vector
+//         subtraction)
 //         // Implementation depends on scalar-vector vector subtraction helpers
 //         // ...
 //       }
@@ -492,16 +488,17 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 
 //     bignum Bk, Bk_prev, threshold_term;
 //     bn_init(&Bk); bn_init(&Bk_prev); bn_init(&threshold_term);
-    
+
 //     // Check LLL inequality: B_k < (delta - mu_{k,k-1}^2) * B_{k-1}
-//     // Using floating point conversion for norm comparison or exact bignum arithmetic
-//     double Bk_d = bn_to_double(&B_vals[k - 1]);
-//     double Bk_prev_d = bn_to_double(&B_vals[k - 2]);
-//     double rhs = (delta - muk_k1 * muk_k1) * Bk_prev_d;
+//     // Using floating point conversion for norm comparison or exact bignum
+//     arithmetic double Bk_d = bn_to_double(&B_vals[k - 1]); double Bk_prev_d =
+//     bn_to_double(&B_vals[k - 2]); double rhs = (delta - muk_k1 * muk_k1) *
+//     Bk_prev_d;
 
 //     if (Bk_d < rhs) {
 //       // SWAP(k)
-//       // Swap columns k and k-1 in B and H, update Gram-Schmidt data accordingly
+//       // Swap columns k and k-1 in B and H, update Gram-Schmidt data
+//       accordingly
 //       // ...
 //       k = (k > 2) ? k - 1 : 2;
 //     } else {

@@ -20,14 +20,14 @@ typedef unsigned __int128 u128;
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief o = c + a + b, returns the carry out (0 or 1).
+ * @brief \f$o = c + a + b\f$, returns the carry out (\f$0\f$ or \f$1\f$).
  *
  * @param[in]  c Carry in.
  * @param[in]  a First operand.
  * @param[in]  b Second operand.
  * @param[out] o Result.
  *
- * @return The carry out (0 or 1).
+ * @return The carry out (\f$0\f$ or \f$1\f$).
  */
 static inline unsigned char adc64(unsigned char c, u64 a, u64 b, u64* o)
 {
@@ -41,14 +41,14 @@ static inline unsigned char adc64(unsigned char c, u64 a, u64 b, u64* o)
 }
 
 /**
- * @brief o = c - a - b, returns the borrow out (0 or 1).
+ * @brief \f$o = c - a - b\f$, returns the borrow out (\f$0\f$ or \f$1\f$).
  *
  * @param[in]  c Borrow in.
  * @param[in]  a First operand.
  * @param[in]  b Second operand.
  * @param[out] o Result.
  *
- * @return The borrow out (0 or 1).
+ * @return The borrow out (\f$0\f$ or \f$1\f$).
  */
 static inline unsigned char sbb64(unsigned char c, u64 a, u64 b, u64* o)
 {
@@ -80,13 +80,14 @@ static inline u64 limbs_norm(const u64* p, u64 n)
 }
 
 /**
- * @brief unsigned magnitude compare: 1 if a > b, -1 if a < b, 0 if equal.
+ * @brief unsigned magnitude compare: 1 if \f$a > b\f$, -1 if \f$a < b\f$, 0 if
+ * equal.
  *
  * @param[in] a First operand limbs.
  * @param[in] b Second operand limbs.
  * @param[in] n Number of limbs.
  *
- * @return 1 If a > b, -1 if a < b, 0 if equal.
+ * @return 1 If \f$a > b\f$, -1 if \f$a < b\f$, 0 if equal.
  */
 static inline int limbs_cmp(const u64* a, const u64* b, u64 n)
 {
@@ -100,12 +101,13 @@ static inline int limbs_cmp(const u64* a, const u64* b, u64 n)
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief rp = up << s, 0 < s < 64, returns the bits shifted out of the top.
+ * @brief \f$rp = up \ll s\f$, \f$0 < s < 64\f$, returns the bits shifted out of
+ * the top.
  *
  * @param[out] rp   Result buffer.
  * @param[in]  up   Source limbs.
  * @param[in]  n    Number of limbs.
- * @param[in]  s    Shift amount (0 < s < 64).
+ * @param[in]  s    Shift amount (\f$0 < s < 64\f$).
  *
  * @return The bits shifted out of the top.
  */
@@ -119,12 +121,12 @@ static inline u64 limbs_lshift(u64* rp, const u64* up, u64 n, unsigned s)
 }
 
 /**
- * @brief rp = up >> s, 0 <= s < 64 (rp may alias up).
+ * @brief \f$rp = up \gg s\f$, \f$0 \le s < 64\f$ (\f$rp\f$ may alias \f$up\f$).
  *
- * @param[out] rp   Result buffer (may alias up).
+ * @param[out] rp   Result buffer (may alias \f$up\f$).
  * @param[in]  up   Source limbs.
  * @param[in]  n    Number of limbs.
- * @param[in]  s    Shift amount (0 <= s < 64).
+ * @param[in]  s    Shift amount (\f$0 \le s < 64\f$).
  */
 static inline void limbs_rshift(u64* rp, const u64* up, u64 n, unsigned s)
 {
@@ -142,7 +144,7 @@ static inline void limbs_rshift(u64* rp, const u64* up, u64 n, unsigned s)
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief rp += vp (n limbs), returns the carry out.
+ * @brief rp += vp (\f$n\f$ limbs), returns the carry out.
  *
  * @param[in,out] rp Accumulator (modified in place).
  * @param[in]     vp Value to add.
@@ -158,7 +160,7 @@ static inline u64 limbs_add_n(u64* rp, const u64* vp, u64 n)
 }
 
 /**
- * @brief p -= v, with borrow propagation over n limbs.
+ * @brief p -= v, with borrow propagation over \f$n\f$ limbs.
  *
  * @param[in,out] p Limb array (modified in place).
  * @param[in]     n Number of limbs.
@@ -174,7 +176,7 @@ static inline void limbs_sub_1(u64* p, u64 n, u64 v)
 }
 
 /**
- * @brief rp -= vp * q  (n limbs), returns the borrow out of the top.
+ * @brief rp -= vp * q  (\f$n\f$ limbs), returns the borrow out of the top.
  *
  * The multiply carry and the subtract borrow are kept in two independent
  * carry chains so the CPU can overlap them; on ADX hardware gcc/clang
@@ -221,10 +223,11 @@ static inline u64 limbs_submul_1(u64* rp, const u64* vp, u64 n, u64 q)
 }
 
 /**
- * @brief r = a + b (r must not alias a or b), returns the number of limbs
- * in the result (max(a_len, b_len) or +1 on carry).
+ * @brief \f$r = a + b\f$ (\f$r\f$ must not alias \f$a\f$ or \f$b\f$), returns
+ * the number of limbs in the result (\f$max(a_{len}, b_{len})\f$ or +1 on
+ * carry).
  *
- * @param[out] r     Result buffer (must not alias a or b).
+ * @param[out] r     Result buffer (must not alias \f$a\f$ or \f$b\f$).
  * @param[in]  a     First operand limbs.
  * @param[in]  a_len Number of limbs in a.
  * @param[in]  b     Second operand limbs.
@@ -239,9 +242,10 @@ u64 limbs_add_raw(u64* r, const u64* a, u64 a_len, const u64* b, u64 b_len);
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief r = a * b, r must have room for a_size + b_size limbs.
+ * @brief \f$r = a \cdot b\f$, \f$r\f$ must have room for \f$a_{size} +
+ * b_{size}\f$ limbs.
  *
- * @param[out] r      Result buffer (needs a_size + b_size limbs).
+ * @param[out] r      Result buffer (needs \f$a_{size} + b_{size}\f$ limbs).
  * @param[in]  a      First operand limbs.
  * @param[in]  a_size Number of limbs in a.
  * @param[in]  b      Second operand limbs.
@@ -251,9 +255,10 @@ void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
                       u64 b_size);
 
 /**
- * @brief r = a * b (both n limbs), r must have room for 2n limbs.
+ * @brief \f$r = a \cdot b\f$ (both \f$n\f$ limbs), \f$r\f$ must have room for
+ * \f$2n\f$ limbs.
  *
- * @param[out] r       Result buffer (needs 2n limbs).
+ * @param[out] r       Result buffer (needs \f$2n\f$ limbs).
  * @param[in]  a       First operand limbs.
  * @param[in]  b       Second operand limbs.
  * @param[in]  n       Number of limbs in each operand.
@@ -263,9 +268,10 @@ void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
                          u64* scratch);
 
 /**
- * @brief r = a * a (a_len limbs), r must have room for 2 * a_len limbs.
+ * @brief \f$r = a \cdot a\f$ (\f$a_{len}\f$ limbs), \f$r\f$ must have room for
+ * \f$2 \cdot a_{len}\f$ limbs.
  *
- * @param[out] r       Result buffer (needs 2 * a_len limbs).
+ * @param[out] r       Result buffer (needs \f$2 \cdot a_{len}\f$ limbs).
  * @param[in]  a       Operand limbs.
  * @param[in]  a_len   Number of limbs in a.
  * @param[in]  scratch Scratch buffer for intermediate results.
@@ -277,7 +283,7 @@ void limbs_sqr_karatsuba(u64* r, const u64* a, u64 a_len, u64* scratch);
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief r = a + b (a_size >= b_size), returns the carry out.
+ * @brief \f$r = a + b\f$ (\f$a_{size} \ge b_{size}\f$), returns the carry out.
  *
  * @param[out] r      Result buffer.
  * @param[in]  a      First operand limbs (the longer one).
@@ -290,7 +296,7 @@ void limbs_sqr_karatsuba(u64* r, const u64* a, u64 a_len, u64* scratch);
 u64 bn_add_inner(u64* r, const u64* a, u64 a_size, const u64* b, u64 b_size);
 
 /**
- * @brief r = a - b (a_size >= b_size), returns the borrow out.
+ * @brief \f$r = a - b\f$ (\f$a_{size} \ge b_{size}\f$), returns the borrow out.
  *
  * @param[out] r      Result buffer.
  * @param[in]  a      First operand limbs (the longer one).
@@ -303,7 +309,7 @@ u64 bn_add_inner(u64* r, const u64* a, u64 a_size, const u64* b, u64 b_size);
 u64 bn_sub_inner(u64* r, const u64* a, u64 a_size, const u64* b, u64 b_size);
 
 /**
- * @brief r += a_limb * b (len limbs), returns the carry out.
+ * @brief r += a_limb * b (\f$len\f$ limbs), returns the carry out.
  *
  * @param[in,out] r      Accumulator (modified in place).
  * @param[in]     b      Limb array.
@@ -315,7 +321,7 @@ u64 bn_sub_inner(u64* r, const u64* a, u64 a_size, const u64* b, u64 b_size);
 u64 bn_mul_add_inner(u64* r, const u64* b, u64 a_limb, u64 len);
 
 /**
- * @brief r -= a_limb * b (len limbs), returns the borrow out.
+ * @brief r -= a_limb * b (\f$len\f$ limbs), returns the borrow out.
  *
  * @param[in,out] r      Accumulator (modified in place).
  * @param[in]     b      Limb array.
@@ -331,13 +337,14 @@ u64 bn_sub_mul_digit(u64* r, const u64* b, u64 a_limb, u64 len);
  *-------------------------------------------------------------------------*/
 
 /**
- * @brief Newton iteration: returns -n^{-1} mod 2^64 (n must be odd).
+ * @brief Newton iteration: returns \f$-n^{-1} \bmod 2^{64}\f$ (\f$n\f$ must be
+ * odd).
  *
  * Used by Montgomery reduction and by Jebelean exact division.
  *
  * @param[in] n Odd modulus.
  *
- * @return -n^{-1} mod 2^64.
+ * @return \f$-n^{-1} \bmod 2^{64}\f$.
  */
 static inline u64 mod_inverse_u64(u64 n)
 {

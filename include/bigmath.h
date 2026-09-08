@@ -4,61 +4,65 @@
 #include "bigcore.h"
 
 /**
- * @brief Compute the Jacobi symbol (a / m).
+ * @brief Compute the Jacobi symbol \f$\left(\frac{a}{m}\right)\f$.
  *
- * Let n = m->size, measured in 64-bit limbs.
+ * Let \f$n =\f$ m->size, measured in 64-bit limbs.
  *
- * Returns 1 if a is a quadratic residue mod m, -1 if it is a
- * nonresidue, and 0 if gcd(a, m) > 1. m must be positive and odd;
- * otherwise 0 is returned and a message is printed.
+ * Returns \f$1\f$ if \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if
+ * it is a nonresidue, and \f$0\f$ if \f$\gcd(a, m) > 1\f$. \f$m\f$ must be
+ * positive and odd; otherwise \f$0\f$ is returned and a message is printed.
  *
- * Uses the binary algorithm: repeatedly strip factors of 2 from a
- * (flipping the sign when both the stripped power and m mod 8 are
- * odd), apply the mutual-reciprocity rule when both a and m are 3
- * mod 4, and reduce m mod a.
+ * Uses the binary algorithm: repeatedly strip factors of \f$2\f$ from \f$a\f$
+ * (flipping the sign when both the stripped power and \f$m \bmod 8\f$ are
+ * odd), apply the mutual-reciprocity rule when both \f$a\f$ and \f$m\f$ are
+ * \f$3
+ * \bmod 4\f$, and reduce \f$m \bmod a\f$.
  *
  * Complexity:
- *   Time: O(n^2) - O(n) iterations of O(n) modular reductions
- *   Auxiliary memory: O(n) limbs for temporaries
- *   Output memory: O(1)
+ *   - Time: \f$O(n^2)\f$ - \f$O(n)\f$ iterations of \f$O(n)\f$ modular
+ * reductions
+ *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
+ *   - Output memory: \f$O(1)\f$
  *
  * @param[in] a Numerator of the Jacobi symbol.
  * @param[in] m Denominator (must be positive and odd).
  *
- * @return 1 If a is a quadratic residue mod m, -1 if a nonresidue, 0
- *           if gcd(a, m) > 1 or m is not positive and odd.
+ * @return 1 If \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if a
+ * nonresidue, \f$0\f$ if \f$\gcd(a, m) > 1\f$ or \f$m\f$ is not positive and
+ * odd.
  */
 i64 bn_jacobi(const bignum* a, const bignum* m);
 
 /**
- * @brief Tonelli-Shanks: square root of n modulo the prime p.
+ * @brief Tonelli-Shanks: square root of \f$n\f$ modulo the prime \f$p\f$.
  *
- * Let n_l = p->size, measured in 64-bit limbs.
+ * Let \f$n_l =\f$ p->size, measured in 64-bit limbs.
  *
  * Inputs:
- * p, a prime
- * n, an element of Z / p Z such that solutions to the congruence
- * r^2 = n exist; when this is so we say that n is a quadratic
- * residue mod p.
+ * \f$p\f$, a prime
+ * \f$n\f$, an element of \f$Z / p Z\f$ such that solutions to the congruence
+ * \f$r^2 = n\f$ exist; when this is so we say that \f$n\f$ is a quadratic
+ * residue \f$\bmod p\f$.
  *
- * Computes r with r^2 = n (mod p) and stores it in r. The algorithm
- * factors p - 1 = Q * 2^S with Q odd, finds a quadratic nonresidue z,
- * and iteratively refines the candidate root R until t = n^Q * c^2
- * reaches 1.
+ * Computes \f$r\f$ with \f$r^2 = n\f$ (\f$\bmod p\f$) and stores it in \f$r\f$.
+ * The algorithm factors \f$p - 1 = Q \cdot 2^S\f$ with \f$Q\f$ odd, finds a
+ * quadratic nonresidue \f$z\f$, and iteratively refines the candidate root
+ * \f$R\f$ until \f$t = n^Q \cdot c^2\f$ reaches \f$1\f$.
  *
- * If n is zero, r is set to 0. If n is not a quadratic residue mod p
- * (Jacobi symbol != 1), a message is printed and r is left unchanged.
+ * If \f$n\f$ is zero, \f$r\f$ is set to \f$0\f$. If \f$n\f$ is not a quadratic
+ * residue \f$\bmod p\f$ (Jacobi symbol \f$\neq 1\f$), a message is printed and
+ * \f$r\f$ is left unchanged.
  *
  * Complexity:
- *   Time: O(n_l^2 * S^2) worst case - O(S) iterations, each with O(S)
- *         modular squarings, plus O(n_l^2) for the initial
- *         exponentiations and the nonresidue search
- *   Auxiliary memory: O(n_l) limbs for temporaries
- *   Output memory: O(n_l) limbs
+ *   - Time: \f$O(n_l^2 \cdot S^2)\f$ worst case - \f$O(S)\f$ iterations, each
+ * with \f$O(S)\f$ modular squarings, plus \f$O(n_l^2)\f$ for the initial
+ *           exponentiations and the nonresidue search
+ *   - Auxiliary memory: \f$O(n_l)\f$ limbs for temporaries
+ *   - Output memory: \f$O(n_l)\f$ limbs
  *
- * @param[out] r Result storing a square root of n mod p (if it exists).
+ * @param[out] r Result storing a square root of \f$n \bmod p\f$ (if it exists).
  * @param[in]  n Value whose square root is computed (a quadratic
- *               residue mod p).
+ *               residue \f$\bmod p\f$).
  * @param[in]  p Prime modulus.
  */
 void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
@@ -67,7 +71,7 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
  * @brief  Computes the greatest common divisor (GCD) of two bignums.
  *
  * @details Uses the classic Euclidean algorithm,
- *          @c gcd(a, b) == gcd(b, a % b), iterating until the remainder
+ *          \f$\gcd(a, b) = \gcd(b, a \bmod b)\f$, iterating until the remainder
  *          is zero; the last non-zero value is the GCD. The loop rotates
  *          three internal buffers by pointer swap, so no temporary
  *          bignums are allocated per iteration.
@@ -75,15 +79,14 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
  *          Zero handling follows the standard conventions:
  *          - @p a is zero  -> result is @p b
  *          - @p b is zero  -> result is @p a
- *          - both zero     -> result is zero, i.e. `gcd(0, 0) == 0`
+ *          - both zero     -> result is zero, i.e. \f$\gcd(0, 0) = 0\f$
  *
  *          The result is the principal (non-negative) GCD; the sign of the
  *          inputs is ignored, so `bn_gcd(d, &a, &b) == bn_gcd(d, &a, &nb)`.
  *
- * @param[out] d  Receives `gcd(a, b)`. Must be initialized before the call.
- *                May alias @p a or @p b — both operands are copied into
- *                temporaries before any work is done — so
- *                `bn_gcd(&a, &a, &b)` is valid.
+ * @param[out] d  Receives \f$\gcd(a, b)\f$. Must be initialized before the
+ * call. May alias @p a or @p b — both operands are copied into temporaries
+ * before any work is done — so `bn_gcd(&a, &a, &b)` is valid.
  * @param[in]  a  First operand. Not modified. Must not be @c NULL.
  * @param[in]  b  Second operand. Not modified. Must not be @c NULL.
  *
@@ -96,13 +99,13 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
  *       guaranteed by the `while (!bn_is_zero(v))` loop condition.
  *
  * @par Memory
- * Allocates 3 temporary bignums (each up to `max(size(a), size(b))`),
- * peak extra memory ≈ 3 operands. Fails silently on allocation error
- * if the underlying allocator does, so check @p d if that matters to you.
+ * Allocates 3 temporary bignums (each up to \f$\max(size(a), size(b))\f$),
+ * peak extra memory \f$\approx 3\f$ operands. Fails silently on allocation
+ * error if the underlying allocator does, so check @p d if that matters to you.
  *
  * @par Complexity
- * O(log min(a, b)) modulo operations; each modulo is O(n·m) word
- * divisions for n- and m-word operands.
+ * \f$O(\log \min(a, b))\f$ modulo operations; each modulo is \f$O(n \cdot m)\f$
+ * word divisions for \f$n\f$- and \f$m\f$-word operands.
  *
  * @warning <b>Not constant-time.</b> The number and shape of divisions
  *          depend on the operand values, which leaks information through

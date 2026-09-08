@@ -15,9 +15,9 @@
  * the read fails.
  *
  * Complexity:
- *   Time: O(bits / 64)
- *   Auxiliary memory: O(1)
- *   Output memory: O(bits / 64) limbs
+ *   - Time: \f$O(bits / 64)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(bits / 64)\f$ limbs
  *
  * @param[out] r    Result storing the random number.
  * @param[in]  bits Desired bit length of the number.
@@ -30,16 +30,16 @@ bool bn_gen_random(bignum* r, u64 bits);
 /**
  * @brief Generate a random bits-long odd number using a given urandom fd.
  *
- * Reads ceil(bits / 64) random limbs from fd, masks the top limb to
- * the exact bit length, sets the MSB so the number is exactly
- * bits long, and sets the LSB so it is odd.
+ * Reads \f$\lceil bits / 64 \rceil\f$ random limbs from \f$fd\f$, masks the top
+ * limb to the exact bit length, sets the MSB so the number is exactly
+ * \f$bits\f$ long, and sets the LSB so it is odd.
  *
  * Returns true on success, false on allocation or read failure.
  *
  * Complexity:
- *   Time: O(bits / 64)
- *   Auxiliary memory: O(1)
- *   Output memory: O(bits / 64) limbs
+ *   - Time: \f$O(bits / 64)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(bits / 64)\f$ limbs
  *
  * @param[out] r    Result storing the random odd number.
  * @param[in]  bits Desired bit length of the number.
@@ -56,9 +56,9 @@ bool bn_gen_random_odd_with_fd(bignum* r, u64 bits, int fd);
  * Returns true on success, false on allocation or read failure.
  *
  * Complexity:
- *   Time: O(bits / 64)
- *   Auxiliary memory: O(1)
- *   Output memory: O(bits / 64) limbs
+ *   - Time: \f$O(bits / 64)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(bits / 64)\f$ limbs
  *
  * @param[out] r    Result storing the random number.
  * @param[in]  bits Desired bit length of the number.
@@ -70,20 +70,21 @@ bool bn_gen_random_odd_with_fd(bignum* r, u64 bits, int fd);
 bool bn_gen_random_with_fd(bignum* r, u64 bits, int fd);
 
 /**
- * @brief Generate a random number in the closed range [low, high].
+ * @brief Generate a random number in the closed range \f$[low, high]\f$.
  *
- * Let b = bit length of (high - low).
+ * Let \f$b =\f$ bit length of \f$(high - low)\f$.
  *
- * Rejection sampling: draws random b-bit numbers until one is <=
- * (high - low), then adds low. If low == high, copies low directly.
+ * Rejection sampling: draws random \f$b\f$-bit numbers until one is \f$\le
+ * (high - low)\f$, then adds \f$low\f$. If \f$low = high\f$, copies \f$low\f$
+ * directly.
  *
  * Complexity:
- *   Time: O(b / 64) per draw, expected O(b / 64) overall (geometric
- *         number of draws), plus O(b) for the range computation
- *   Auxiliary memory: O(b) limbs for the range
- *   Output memory: O(b) limbs
+ *   - Time: \f$O(b / 64)\f$ per draw, expected \f$O(b / 64)\f$ overall
+ * (geometric number of draws), plus \f$O(b)\f$ for the range computation
+ *   - Auxiliary memory: \f$O(b)\f$ limbs for the range
+ *   - Output memory: \f$O(b)\f$ limbs
  *
- * @param[out] r    Result storing the random number in [low, high].
+ * @param[out] r    Result storing the random number in \f$[low, high]\f$.
  * @param[in]  low  Lower bound (inclusive).
  * @param[in]  high Upper bound (inclusive).
  */
