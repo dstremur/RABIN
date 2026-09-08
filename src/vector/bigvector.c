@@ -95,6 +95,16 @@ void bigvector_append(bigvector* v, bignum* a)
   return;
 }
 
+void bigvector_copy(bigvector* a, bigvector* b)
+{
+  // check for same size
+  assert(a->size == b->size);
+
+  for (int i = 0; i < a->size; i++) {
+    a->data[i] = b->data[i];
+  }
+}
+
 void bigvector_set(bigvector* a, bignum* v, u64 i)
 {
   if (a->size < i) return;

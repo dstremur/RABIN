@@ -15,9 +15,9 @@ typedef struct {
   bignum a;      // Curve parameter 'a'
   bignum b;      // Curve parameter 'b'
   fp_ctx field;  // The underlying finite field
-} ec_curve_t;
+} ec_curve;
 
-void ec_point_add(ec_point res, ec_point p, ec_point q, const ec_curve* curve);
+void ec_point_add(bignum res, bignum p, bignum q, const ec_curve* curve);
 
 /*
  * field_ctx: arithmetic in the ring Z_m = Z / m Z.

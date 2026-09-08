@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/bignum.h"
+#include "../../include/bignum.h"
 
 i64 bn_jacobi(const bignum* a, const bignum* m)
 {
@@ -214,10 +214,12 @@ void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 {
   if (bn_is_zero(a)) {
     bn_copy(d, b);
+    d->is_neg = false;
     return;
   }
   if (bn_is_zero(b)) {
     bn_copy(d, a);
+    d->is_neg = false;
     return;
   }
 
@@ -242,6 +244,7 @@ void bn_gcd(bignum* d, const bignum* a, const bignum* b)
 
   // The GCD is left in 'u'
   bn_copy(d, u);
+  d->is_neg = false;
 
   bn_free(&tmp_a);
   bn_free(&tmp_b);

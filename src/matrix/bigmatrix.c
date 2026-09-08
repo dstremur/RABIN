@@ -352,9 +352,9 @@ void bigmatrix_id(bigmatrix* I, const u64 n)
   for (u64 i = 0; i < n; i++) {
     for (u64 j = 0; j < n; j++) {
       if (i == j) {
-        bigmatrix_set(I, a, i, j);
+        bigmatrix_set(I, &a, i, j);
       } else {
-        bigmatrix_set(I, b, i, j);
+        bigmatrix_set(I, &b, i, j);
       }
     }
   }
@@ -387,7 +387,7 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
   bigmatrix_id(H, n);
 
   bigvector temp_vec;
-  bigvector_init(&temp_vec, B->rows);
+  bigvector_init(&temp_vec, B->c_size);
 
   // 2 [Incremental Gram-Schmidt]
 

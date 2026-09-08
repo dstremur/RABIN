@@ -1,6 +1,8 @@
 #ifndef BIGVECTOR_H
 #define BIGVECTOR_H
 
+#include <assert.h>
+
 #include "bigcore.h"
 
 typedef struct {
@@ -71,6 +73,14 @@ void bigvector_free(bigvector* a);
  * @param[in]     a Bignum to append.
  */
 void bigvector_append(bigvector* v, bignum* a);
+
+/**
+ * @brief Copy vector b into a
+ *
+ * @param [out] a
+ * @param [in] b
+ */
+void bigvector_copy(bigvector* a, bigvector* b);
 
 /**
  * @brief Set element i of a vector to a copy of v.
