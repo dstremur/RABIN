@@ -6,21 +6,10 @@
 /**
  * @brief Compute the Jacobi symbol \f$\left(\frac{a}{m}\right)\f$.
  *
- * Let \f$n =\f$ m->size, measured in 64-bit limbs.
- *
- * Returns \f$1\f$ if \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if
- * it is a nonresidue, and \f$0\f$ if \f$\gcd(a, m) > 1\f$. \f$m\f$ must be
- * positive and odd; otherwise \f$0\f$ is returned and a message is printed.
- *
- * Uses the binary algorithm: repeatedly strip factors of \f$2\f$ from \f$a\f$
- * (flipping the sign when both the stripped power and \f$m \bmod 8\f$ are
- * odd), apply the mutual-reciprocity rule when both \f$a\f$ and \f$m\f$ are
- * \f$3
- * \bmod 4\f$, and reduce \f$m \bmod a\f$.
+ * Wrapper around bn_kronecker
  *
  * Complexity:
- *   - Time: \f$O(n^2)\f$ - \f$O(n)\f$ iterations of \f$O(n)\f$ modular
- * reductions
+ *   - Time: \f$O(\ln(n)^2)\f$
  *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
  *   - Output memory: \f$O(1)\f$
  *
@@ -30,8 +19,30 @@
  * @return 1 If \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if a
  * nonresidue, \f$0\f$ if \f$\gcd(a, m) > 1\f$ or \f$m\f$ is not positive and
  * odd.
+ * @see bn_kronecker
  */
 i64 bn_jacobi(const bignum* a, const bignum* m);
+
+/**
+ * @brief Compute the Kronecker symbol \f$\left(\frac{a}{m}\right)\f$.
+ *
+ * Uses the standard algorithm based around quadratic reciprocity. See [1] p.29
+ * Algorithm 1.4.10
+ *
+ *
+ * Complexity:
+ *   - Time: \f$O(\ln(n)^2)\f$
+ *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] a Numerator of the Jacobi symbol.
+ * @param[in] m Denominator.
+ *
+ * @return 1 If \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if a
+ * nonresidue, \f$0\f$ if \f$\gcd(a, m) > 1\f$ or \f$m\f$ is not positive and
+ * odd.
+ */
+i64 bn_kronecker(const bignum* a, const bignum* b);
 
 /**
  * @brief Tonelli-Shanks: square root of \f$n\f$ modulo the prime \f$p\f$.
@@ -130,5 +141,41 @@ void tonelli_shanks(bignum* r, const bignum* n, const bignum* p);
  * @see bn_mod(), bn_copy(), bn_is_zero()
  */
 void bn_gcd(bignum* d, const bignum* a, const bignum* b);
+
+void bn_gcd_binary(bignum* d, const bignum* a, const bignum* b);
+
+void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b);
+
+/**
+ * @brief Compute the extended Euclidian algorithm
+ *
+ * @param [out] u
+ * @param [out] v
+ * @param [out] d
+ * @param [in] a
+ * @param [in] b
+ */
+void bn_gcd_extended(bignum* u, bignum* v, bignum* d, const bignum* a,
+                     const bignum* b);
+
+void bn_gcd_extended_lehmer(bignum* u, bignum* v, bignum* d, const bignum* a,
+                            const bignum* b);
+
+/**
+ * @brief Compute a solution to the Diophantine eq. x^2 + dy^2 = p
+ *
+ * @details Uses the well-known Algorithm of Cornacchia. See [1] p.34
+ * Algorithm 1.3.5.
+ *
+ * @par Complexity
+ * \f$O(\log(n)^2)\f$
+ *
+ *
+ * @param [out] x
+ * @param [out] y
+ * @param [in] p
+ * @param [in] d
+ */
+void bn_cornacchia(bignum* x, bignum* y, const bignum* p, const bignum* d);
 
 #endif

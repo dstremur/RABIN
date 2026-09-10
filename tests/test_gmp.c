@@ -226,7 +226,7 @@ MAKE_BENCHMARK(benchmark_sub, "Subtraction", bn_sub, mpz_sub)
 MAKE_BENCHMARK(benchmark_mul, "Multiply", bn_mul, mpz_mul)
 MAKE_BENCHMARK(benchmark_div, "Division", bn_div, mpz_tdiv_q)
 
-MAKE_BENCHMARK(benchmark_gcd, "GCD", bn_gcd, mpz_gcd)
+MAKE_BENCHMARK(benchmark_gcd, "GCD", bn_gcd_lehmer, mpz_gcd)
 
 void benchmark_mod_exp(int bits, double target_sec, gmp_randstate_t state)
 {

@@ -157,3 +157,26 @@ void bn_mul_fast(bignum* res, const bignum* a, const bignum* b)
   bigpoly_free(&poly_b);
   bigpoly_free(&poly_res);
 }
+
+void bn_mul_i64(bignum* r, const bignum* a, const i64 c)
+{
+  u64 carry = 0;
+  r->size = a->size;
+
+  bn_alloc(r, a->size + 1);
+
+  u64 abs_c = (c < 0) ? (u64)(-c) : (u64)c;
+
+  for (u64 i = 0; i < a->size; i++) {
+    u128 prod = (u128)a->limbs[i] * abs_c + carry;
+    r->limbs[i] = (u64)prod;
+    carry = (u64)(prod >> 64);
+  }
+
+  if (carry) {
+    r->limbs[r->size++] = carry;
+  }
+
+  bool neg = (c < 0);
+  r->is_neg = a->is_neg ^ neg;
+}

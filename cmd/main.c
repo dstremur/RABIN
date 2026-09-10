@@ -178,6 +178,41 @@ int main()
   printf("Pow: ");
   //bn_pow(&c, &a, &b);
   bn_println(&c);
+  bn_mul_i64(&c, &a, 3); 
+  printf("3 * a: ");
+  bn_println(&c);
+
+  bignum x, y, z;
+  bn_init_multi(&x, &y, &z);
+
+  bn_gcd_extended(&x, &y, &z, &a, &b);
+
+  printf("u: ");
+  bn_println(&x);
+  printf("v: ");
+  bn_println(&y);
+  printf("d: " );
+  bn_println(&z);
+
+  i64 j = bn_jacobi(&a, &b);
+
+  printf("JACOBI: %lli\n", (long long)j);
+
+  j = bn_kronecker(&a, &b);
+
+
+  printf("KRONECKER: %lli\n", (long long)j);
+
+
+  bn_cornacchia(&x, &y, &a, &b);
+  printf("Diophantine eq x^2 + by^2 = a solutions\n");
+  printf("x: "); 
+  bn_println(&x);
+  printf("y: "); 
+  bn_println(&y);
+
+
+  bn_free_multi(&x, &y, &z);
 
   bn_gen_safe_prime(&c, 512); 
 
@@ -239,9 +274,7 @@ int main()
     printf("a is not prime to base b \n");
   }
 
-  i64 j = bn_jacobi(&a, &b);
-
-  printf("JACOBI: %lli\n", (long long)j);
+  
 
   bignum r;
   bn_init(&r);

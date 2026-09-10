@@ -732,6 +732,15 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b);
 void bn_mul(bignum* r, const bignum* a, const bignum* b);
 
 /**
+ * @brief Multiply a bignum a with a 64-bit integer c
+ *
+ * @param r
+ * @param a
+ * @param c
+ */
+void bn_mul_i64(bignum* r, const bignum* a, const i64 c);
+
+/**
  * @brief Multiply two signed bignums with the schoolbook (grade-school)
  * algorithm: \f$r = a \cdot b\f$.
  *
