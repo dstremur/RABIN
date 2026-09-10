@@ -32,6 +32,7 @@
 #include "../../include/bighelper.h"
 #include "../../include/bigntt.h"
 #include "../../include/bignum.h"
+#include "../../include/precomp.h"
 #include "../../include/u64.h"
 
 void bn_sqr(bignum* r, const bignum* a)
@@ -179,4 +180,94 @@ void bn_mul_i64(bignum* r, const bignum* a, const i64 c)
 
   bool neg = (c < 0);
   r->is_neg = a->is_neg ^ neg;
+}
+
+bool bn_is_square(bignum* q, const bignum* a)
+{
+  // 1. [Test 64]
+  u64 t = a->limbs[0] & 63;
+
+  if (q64[t] == 0) return false;
+
+  u64 r = 0;
+  for (int i = a->size - 1; i >= 0; --i)
+    r = (r * 16 + (a->limbs[i] % 45045)) % 45045;
+
+  // 2. [Test 63
+  if (q63[r % 63] == 0) return false;
+  // 3. [Test 65]
+  if (q65[r % 65] == 0) return false;
+  // 4. [Test 11]
+  if (q11[r % 11] == 0) return false;
+
+  bignum q_1, q_2;
+  bn_init_multi(&q_1, &q_2, NULL);
+  bn_isqrt(&q_1, a);
+  bn_sqr(&q_2, &q_1);
+  if (bn_cmp(&q_2, a) != 0) {
+    bn_free_multi(&q_1, &q_2, NULL);
+    return false;
+  }
+
+  if (q) {
+    bn_copy(q, &q_1);
+  }
+
+  bn_free_multi(&q_1, &q_2, NULL);
+  return true;
+}
+
+bool bn_is_prime_power(bignum* p, const bignum* n)
+{
+  bignum a, b, p_0, temp, r;
+  bn_init_multi(&a, &b, &p_0, &temp, &r, NULL);
+  bn_set_u64(&a, 1);
+
+  bool verdict = false;
+
+  // 2. [Compute GCD]
+  while (true) {
+    bn_add_u64(&a, &a, 1);
+    bn_mod_exp(&b, &a, n, n);
+
+    bn_sub(&temp, &b, &a);
+    temp.is_neg = false;
+
+    bn_gcd(&p_0, &temp, n);
+
+    // 3. [Finished?]
+    if (bn_is_eq_i64(&p_0, 1)) {
+      verdict = false;
+      break;
+    }
+
+    if (!bn_bpsw(&p_0)) {
+      continue;
+    }
+
+    // 4. [Final Test]
+    bn_copy(&temp, n);
+    // repeatadly divide n by p
+    while (true) {
+      bn_divmod(&b, &r, &temp, &p_0);
+      if (!bn_is_zero(&r)) {
+        break;
+      }
+      bn_copy(&temp, &b);
+    }
+
+    if (bn_is_eq_i64(&temp, 1)) {
+      verdict = true;
+      if (p) {
+        bn_copy(p, &p_0);
+      }
+    } else {
+      verdict = false;
+    }
+
+    break;
+  }
+
+  bn_free_multi(&a, &b, &p_0, &temp, &r, NULL);
+  return verdict;
 }

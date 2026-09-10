@@ -194,6 +194,18 @@ int main()
   printf("d: " );
   bn_println(&z);
 
+  if (bn_is_square(&c, &a)){
+    printf("a is square \n");
+  } else {
+    printf("a is not square \n");
+  }
+
+  if (bn_is_prime_power(&c, &a)){
+    printf("a is prime power \n");
+  } else {
+    printf("a is not a prime power\n");
+  }
+
   i64 j = bn_jacobi(&a, &b);
 
   printf("JACOBI: %lli\n", (long long)j);

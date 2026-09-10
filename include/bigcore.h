@@ -1602,4 +1602,36 @@ void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
 void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
                      const bn_mont_ctx* ctx);
 
+/**
+ * @brief Checks if a is a square, if it outputs the square root.
+ *
+ * See [1] p.40 Algorithm 1.7.3.
+ *
+ * q is nullable
+ *
+ * @pre a > 0
+ *
+ * @param [out] q
+ * @param [in] a
+ * @return true
+ * @return false
+ */
+bool bn_is_square(bignum* q, const bignum* a);
+
+/**
+ * @brief Checks if a is a prime power, if, it outputs the prime p.
+ *
+ * See [1] p.40 Algorithm 1.7.4
+ *
+ * p is nullable
+ *
+ * @pre a > 0
+ *
+ * @param [out] p
+ * @param [in] n
+ * @return true
+ * @return false
+ */
+bool bn_is_prime_power(bignum* p, const bignum* n);
+
 #endif

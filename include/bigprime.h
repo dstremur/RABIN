@@ -50,29 +50,6 @@ bool bn_gen_prime(bignum* p, int bits);
 bool bn_gen_safe_prime(bignum* p, int bits);
 
 /**
- * @brief Test whether n is a perfect square.
- *
- * Let \f$n_l =\f$ n->size, measured in 64-bit limbs.
- *
- * Computes the integer square root with Newton-Raphson iteration
- * (\f$x \leftarrow (x + n/x) / 2\f$, seeded at \f$2^{bits/2}\f$) and checks
- * whether
- * \f$x^2 = n\f$. \f$0\f$ is considered a square; negative numbers are not.
- *
- * Complexity:
- *   - Time: \f$O(n_l^2 \log n_l)\f$ - \f$O(\log n_l)\f$ iterations, each
- * dominated by a division
- *   - Auxiliary memory: \f$O(n_l)\f$ limbs for temporaries
- *   - Output memory: \f$O(1)\f$
- *
- * @param[in] n Number to test.
- *
- * @return true  If \f$n\f$ is a perfect square.
- * @return false If \f$n\f$ is not a perfect square (or is negative).
- */
-bool bn_is_perfect_square(const bignum* n);
-
-/**
  * @brief Strong Lucas test of \f$n\f$ with Lucas parameters \f$(P, Q)\f$.
  *
  * Let \f$n_l =\f$ n->size, measured in 64-bit limbs.

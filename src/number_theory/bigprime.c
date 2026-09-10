@@ -109,47 +109,6 @@ bool bn_gen_safe_prime(bignum* p, int bits)
   return true;
 }
 
-bool bn_is_perfect_square(const bignum* n)
-{
-  if (bn_is_zero(n)) return true;
-
-  if (n->is_neg) return false;
-
-  // Newton-Raphson method
-  bignum x, y, tmp, rem;
-  bn_init_multi(&x, &y, &tmp, &rem, NULL);
-
-  // Initial guess: x = 2^(bits/2)
-  int bits = bn_bit_length(n);
-  bn_set_u64(&x, 1);
-  bn_lshift(&x, &x, (bits + 1) / 2);
-
-  // Newton-Raphson iteration
-  while (true) {
-    // y = (x + n/x) / 2
-    bn_newton_div(&tmp, n, &x);
-    bn_add(&y, &x, &tmp);
-    bn_rshift1(&y);
-
-    if (bn_cmp(&y, &x) >= 0) {
-      break;
-    }
-
-    bn_copy(&x, &y);
-  }
-
-  // Check if x * x == n
-  bn_mul(&tmp, &x, &x);
-  bool is_square = (bn_cmp(&tmp, n) == 0);
-
-  bn_free(&x);
-  bn_free(&y);
-  bn_free(&tmp);
-  bn_free(&rem);
-
-  return is_square;
-}
-
 bool bn_stronglucas(const bignum* n, bignum* P, bignum* Q)
 {
   bignum p, q, d, u, v, qn, tmp, n_plus_1;
@@ -243,7 +202,7 @@ bool bn_bpsw(const bignum* n)
   // finds a D using Selfridges method A*
   while (1) {
     // check if n is perfect square after 5 rounds
-    if (rounds == 15 && bn_is_perfect_square(n)) {
+    if (rounds == 5 && bn_is_square(NULL, n)) {
       bn_free(&two);
       bn_free(&D);
       bn_free(&magnitude);
