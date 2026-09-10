@@ -44,14 +44,15 @@ void pocklington_cert_free(pocklington_cert* cert)
   free(cert);
 }
 
-bool pocklington_cert_verify(const pocklington_cert* cert, u64 base_case_bound)
-{
-  // 1. a^(N - 1) = 1 mod N
+// bool pocklington_cert_verify(const pocklington_cert* cert, u64
+// base_case_bound)
+// {
+//   // 1. a^(N - 1) = 1 mod N
 
-  // 2. p | N - 1 & p > sqrt(N) - 1
+//   // 2. p | N - 1 & p > sqrt(N) - 1
 
-  // 3. gcd(a^((N - 1) / p), N) = 1
-}
+//   // 3. gcd(a^((N - 1) / p), N) = 1
+// }
 
 // bool pocklington_cert_verify2(const pocklington_cert* cert, u64
 // base_case_bound)

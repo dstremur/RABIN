@@ -25,7 +25,7 @@
 
 #include "../../include/bignum.h"
 
-void bn_isqrt_heron(bignum* r, bignum* a)
+void bn_isqrt_heron(bignum* r, const bignum* a)
 {
   if (a->is_neg) return;
 
@@ -60,4 +60,4 @@ void bn_isqrt_heron(bignum* r, bignum* a)
   bn_free_multi(&xn, &xnext, &tmp, NULL);
 }
 
-void bn_isqrt(bignum* r, bignum* a) { bn_isqrt_heron(r, a); }
+void bn_isqrt(bignum* r, const bignum* a) { bn_isqrt_heron(r, a); }

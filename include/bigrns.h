@@ -155,7 +155,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b,
  * @param[in]  r   Residue vector.
  * @param[in]  ctx RNS context.
  */
-void rns_to_bignum(bignum* a, const rns_num* v, ctx_rns* ctx);
+void rns_to_bignum(bignum* a, rns_num* v, const ctx_rns* ctx);
 
 /**
  * @brief Estimate the number of primes needed for an RNS matrix determinant.

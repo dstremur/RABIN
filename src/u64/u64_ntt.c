@@ -32,7 +32,7 @@
 
 #include "../../include/u64.h"
 
-void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
+void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
@@ -174,7 +174,7 @@ void ntt_ctx_u64_free(ntt_ctx_u64* ctx)
   if (ctx->bit_rev_indices) free(ctx->bit_rev_indices);
 }
 
-void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
+void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
@@ -218,7 +218,7 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx)
 }
 
 void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
-                                          ntt_ctx_u64* ctx)
+                                          const ntt_ctx_u64* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;

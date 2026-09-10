@@ -74,7 +74,7 @@ void bigmatrix_print_python(const bigmatrix* A);
  * @param[out] R Destination matrix.
  * @param[in]  A Source matrix.
  */
-void bigmatrix_copy(bigmatrix* R, bigmatrix* A);
+void bigmatrix_copy(bigmatrix* R, const bigmatrix* A);
 
 /**
  * @brief Get a single element: \f$R = A[r][c]\f$.

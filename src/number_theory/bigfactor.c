@@ -232,7 +232,7 @@ void bn_factorize(bigvector* v, bignum* n)
 
   // bn_println(&f);
 
-  if (trialdiv(&f, 10000) && (&f)) {
+  if (trialdiv(&f, 10000) && (!bn_is_zero(&f))) {
     bigvector_append_distinct(v, &f);
 
     bn_div(&tmp, &tmp, &f);

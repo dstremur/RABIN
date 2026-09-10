@@ -238,6 +238,7 @@ bool bn_check_ntt_safety(u64 ntt_size, u64 bit_width, const bignum* p)
 bool bigntt_ctx_init(ntt_ctx* ctx, bignum* p, bignum* g, bignum* omega,
                      bignum* psi, u64 k, u64 c)
 {
+  c *= 1;
   u64 n = (1ULL << k);
   ctx->k = k;
   ctx->n = n;
@@ -402,7 +403,7 @@ void bigntt_ctx_free(ntt_ctx* ctx)
   bn_mont_ctx_free(&ctx->mctx);
 }
 
-void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
+void bigntt_cyclic_forward(bigpoly* a_hat, const bigpoly* a, const ntt_ctx* ctx)
 {
   u64 n = ctx->n;
   bigpoly res;
@@ -479,12 +480,13 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
   bigpoly_free(&res);
 }
 
-void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
+void bigntt_cyclic_inverse(bigpoly* a_hat, const bigpoly* a, const ntt_ctx* ctx)
 {
   bigntt_cyclic_inverse_mont_in(a_hat, a, ctx);
 }
 
-void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx)
+void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, const bigpoly* a,
+                                   const ntt_ctx* ctx)
 {
   u64 n = ctx->n;
   bigpoly res;

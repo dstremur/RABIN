@@ -100,7 +100,7 @@ void bigvector_copy(bigvector* a, bigvector* b)
   // check for same size
   assert(a->size == b->size);
 
-  for (int i = 0; i < a->size; i++) {
+  for (u64 i = 0; i < a->size; i++) {
     a->data[i] = b->data[i];
   }
 }

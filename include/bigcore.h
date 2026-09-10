@@ -1111,7 +1111,7 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b);
  * @param[in]  ctx   Initialized Montgomery context for the modulus \f$n\f$.
  */
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
-                 bn_mont_ctx* ctx);
+                 const bn_mont_ctx* ctx);
 
 /**
  * @brief Calculate \f$a^b \bmod m\f$ into \f$r\f$ using plain (non-Montgomery)
@@ -1202,7 +1202,7 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m);
  * @param[in]  ctx   Montgomery context initialized for \f$m\f$.
  */
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
-                     const bignum* m, bn_mont_ctx* ctx);
+                     const bignum* m, const bn_mont_ctx* ctx);
 
 // bigshift.c
 /**
@@ -1350,7 +1350,7 @@ void bn_lshift1_add(bignum* r, int bit);
  * @param[out] r Result storing \f$\lfloor\sqrt{a}\rfloor\f$.
  * @param[in]  a Value to take the square root of.
  */
-void bn_isqrt_heron(bignum* r, bignum* a);
+void bn_isqrt_heron(bignum* r, const bignum* a);
 
 /**
  * @brief Calculate the integer square root of a.
@@ -1371,7 +1371,7 @@ void bn_isqrt_heron(bignum* r, bignum* a);
  * @param[out] r Result storing \f$\lfloor\sqrt{a}\rfloor\f$.
  * @param[in]  a Value to take the square root of.
  */
-void bn_isqrt(bignum* r, bignum* a);
+void bn_isqrt(bignum* r, const bignum* a);
 
 // biglog.c
 /**
@@ -1497,7 +1497,7 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx);
  * limbs).
  * @param[in]     ctx Initialized Montgomery context.
  */
-void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
+void bn_mont_redc(bignum* r, bignum* t, const bn_mont_ctx* ctx);
 
 /**
  * @brief Convert a value from the normal domain into the Montgomery domain.
@@ -1520,7 +1520,7 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx);
  * @param[in]  A     Value in the normal domain.
  * @param[in]  ctx   Initialized Montgomery context.
  */
-void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
+void bn_mont_in(bignum* A_bar, const bignum* A, const bn_mont_ctx* ctx);
 
 /**
  * @brief Convert a value from the Montgomery domain back to the normal domain.
@@ -1543,7 +1543,7 @@ void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx);
  * @param[in]  A_bar Value in the Montgomery domain.
  * @param[in]  ctx   Initialized Montgomery context.
  */
-void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
+void bn_mont_out(bignum* A, const bignum* A_bar, const bn_mont_ctx* ctx);
 
 /**
  * @brief Montgomery multiplication of two values in the Montgomery domain.
@@ -1571,7 +1571,7 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx);
  * @param[in]  ctx   Initialized Montgomery context.
  */
 void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
-                 bn_mont_ctx* ctx);
+                 const bn_mont_ctx* ctx);
 
 /**
  * @brief Montgomery multiplication using the context's scratch buffer.
@@ -1600,6 +1600,6 @@ void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
  * @param[in]  ctx     Initialized Montgomery context (provides scratch).
  */
 void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
-                     bn_mont_ctx* ctx);
+                     const bn_mont_ctx* ctx);
 
 #endif

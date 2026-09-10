@@ -290,7 +290,8 @@ void bigntt_ctx_free(ntt_ctx* ctx);
  * @param[in]      a Input polynomial.
  * @param[in]    ctx NTT context.
  */
-void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
+void bigntt_cyclic_forward(bigpoly* a_hat, const bigpoly* a,
+                           const ntt_ctx* ctx);
 
 /**
  * @brief Inverse cyclic NTT of a bignum polynomial: \f$a_{hat} =
@@ -312,7 +313,8 @@ void bigntt_cyclic_forward(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
  * @param[in]      a Input polynomial (normal domain).
  * @param[in]    ctx NTT context.
  */
-void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
+void bigntt_cyclic_inverse(bigpoly* a_hat, const bigpoly* a,
+                           const ntt_ctx* ctx);
 
 /**
  * @brief Inverse cyclic NTT with Montgomery-domain input:
@@ -340,6 +342,7 @@ void bigntt_cyclic_inverse(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
  * @param[in]      a Input polynomial (Montgomery domain).
  * @param[in]    ctx NTT context.
  */
-void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, bigpoly* a, ntt_ctx* ctx);
+void bigntt_cyclic_inverse_mont_in(bigpoly* a_hat, const bigpoly* a,
+                                   const ntt_ctx* ctx);
 
 #endif

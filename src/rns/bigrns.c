@@ -168,7 +168,7 @@ void rns_add(rns_num* r, const rns_num* a, const rns_num* b, const ctx_rns* ctx)
   }
 }
 
-void rns_to_bignum(bignum* a, const rns_num* v, ctx_rns* ctx)
+void rns_to_bignum(bignum* a, rns_num* v, const ctx_rns* ctx)
 {
   u64 t = ctx->count;
   if (t == 0) {

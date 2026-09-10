@@ -106,7 +106,7 @@ u64 compute_mu(u64 q)
 
 u64 barrett_reduction(u128 c, u64 q, u64 mu)
 {
-  unsigned __int128 q_est = (unsigned __int128)((c * mu) >> 128);
+  unsigned __int128 q_est = ((unsigned __int128)c * mu) >> 64;
 
   u64 r = (u64)(c - q_est * q);
 
@@ -121,7 +121,7 @@ u64 goldilock_red(u128 c)
 {
   u128 X_3 = c >> 96;
   u128 X_2 = (c >> 64) & ((1ULL << 32) - 1);
-  u128 X_1 = c & ((1ULL >> 64) - 1);
+  u128 X_1 = c & 0xFFFFFFFFFFFFFFFFULL;
   u128 C_out = X_1 + (X_2 * (1ULL << 32) - 1) - X_3;
   if (C_out >= 18446744069414584321ULL) {
     C_out -= 18446744069414584321ULL;

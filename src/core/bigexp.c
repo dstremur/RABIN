@@ -50,7 +50,7 @@ void bn_pow(bignum* r, const bignum* a, const bignum* b)
 }
 
 void bn_mont_exp(bignum* r_bar, const bignum* a_bar, const bignum* d,
-                 bn_mont_ctx* ctx)
+                 const bn_mont_ctx* ctx)
 {
   i64 bits = bn_bit_length(d);
 
@@ -155,7 +155,7 @@ void bn_mod_exp(bignum* r, const bignum* a, const bignum* b, const bignum* m)
 }
 
 void bn_mod_exp_mont(bignum* r, const bignum* a, const bignum* b,
-                     const bignum* m, bn_mont_ctx* ctx)
+                     const bignum* m, const bn_mont_ctx* ctx)
 {
   assert(!bn_is_zero(m) && !bn_is_even(m));
   assert(bn_cmp(&ctx->n, m) == 0);

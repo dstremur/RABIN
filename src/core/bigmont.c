@@ -75,7 +75,7 @@ void bn_mont_ctx_free(bn_mont_ctx* ctx)
   bn_free(&ctx->tmp);
 }
 
-void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
+void bn_mont_redc(bignum* r, bignum* t, const bn_mont_ctx* ctx)
 {
   u64 size = ctx->n.size;
   u64* n_limbs = ctx->n.limbs;
@@ -120,12 +120,12 @@ void bn_mont_redc(bignum* r, bignum* t, bn_mont_ctx* ctx)
   }
 }
 
-void bn_mont_in(bignum* A_bar, const bignum* A, bn_mont_ctx* ctx)
+void bn_mont_in(bignum* A_bar, const bignum* A, const bn_mont_ctx* ctx)
 {
   bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
 
-void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
+void bn_mont_out(bignum* A, const bignum* A_bar, const bn_mont_ctx* ctx)
 {
   bignum one;
   bn_init(&one);
@@ -137,13 +137,13 @@ void bn_mont_out(bignum* A, const bignum* A_bar, bn_mont_ctx* ctx)
 }
 
 void bn_mont_mul(bignum* r, const bignum* a_bar, const bignum* b_bar,
-                 bn_mont_ctx* ctx)
+                 const bn_mont_ctx* ctx)
 {
   bn_mont_mul_raw(r, a_bar, b_bar, ctx);
 }
 
 void bn_mont_mul_raw(bignum* result, const bignum* A_bar, const bignum* B_bar,
-                     bn_mont_ctx* ctx)
+                     const bn_mont_ctx* ctx)
 {
   bignum* T = &ctx->tmp;
 

@@ -368,21 +368,19 @@ bool bn_provable_prime_inner(bignum* p, u64 k)
 
   bignum a, n, q, I, R, twoI, n_min1, two, two_q, tmp;
   bn_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
-  i64 i, g;
+  i64 g;
   bool success;
   bn_set_u64(&two, 2);
 
   // trial division bound
   g = (u64)(c_opt * k * k + 1);
 
-restart:
-
   double rel_size;
   do {
     rel_size = gen_rel_size();
   } while ((k * rel_size >= (k - margin)));
 
-  printf("new size %llu \n", (u64)(rel_size * k));
+  printf("new size %lu \n", (u64)(rel_size * k));
   // recursive call
   if (!bn_provable_prime_inner(&q, (u64)(rel_size * k))) {
     bn_free_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
@@ -431,7 +429,7 @@ restart:
       }
 
       if (success) {
-        printf("   [FOUND] %llu-bit prime\n", k);
+        printf("   [FOUND] %lu-bit prime\n", k);
         break;
       }
     }
@@ -458,7 +456,7 @@ void bn_gen_proth_primes(u64 count, u64 k, u64 c)
   u64 curr_c = (c & 1) ? c : c + 1;
   u64 found = 0;
 
-  printf("/* Generated %llu Proth Primes with k=%llu */\n", count, k);
+  printf("/* Generated %lu Proth Primes with k=%lu */\n", count, k);
   printf("static const uint64_t RNS_PRIMES[] = {\n");
 
   while (found < count) {
@@ -472,7 +470,7 @@ void bn_gen_proth_primes(u64 count, u64 k, u64 c)
     if (bn_bpsw(&p_bn)) {
       // Using limbs[0] works IF your limbs are 64-bit.
       u64 prime = p_bn.limbs[0];
-      printf("    %lluULL, // c=%llu\n", prime, curr_c);
+      printf("    %luULL, // c=%lu\n", prime, curr_c);
       found++;
     }
 
@@ -550,7 +548,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
   gen_provable_primes_arithmetic(&F, (n / 2) + 2, &F_cert);
 
   u64 s = optimal_table_len(n, 64);
-  // printf("Table length: %llu \n", s);
+  // printf("Table length: %lu \n", s);
 
   bignum t, A, B, exp, temp;
   bn_init_multi(&t, &A, &B, &exp, &temp, NULL);
@@ -598,7 +596,7 @@ void gen_provable_primes_arithmetic(bignum* p, u64 n,
     for (u64 i = 0; i < 70000; i++) {
       u64 p = primes[i];
       if (p >= T_bound) {
-        // printf("i: %llu \n", i);
+        // printf("i: %lu \n", i);
         break;
       }
 

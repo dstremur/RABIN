@@ -77,7 +77,7 @@ void bigmatrix_print_python(const bigmatrix* A)
   printf("]\n");  // End outer list
 }
 
-void bigmatrix_copy(bigmatrix* R, bigmatrix* A)
+void bigmatrix_copy(bigmatrix* R, const bigmatrix* A)
 {
   // check if sizes match
   if (A->c_size != R->c_size || A->r_size != R->r_size) return;

@@ -72,7 +72,7 @@ void bigntt_ctx_print_debug(const ntt_ctx *ctx)
     printf("=========================================\n");
     printf("         NTT CONTEXT DEBUG LOG           \n");
     printf("=========================================\n");
-    printf("Transform Length (n) : %llu\n", ctx->n);
+    printf("Transform Length (n) : %lu\n", ctx->n);
     printf("Modulus (q)          : "); bn_println(&ctx->q);
     printf("N Inverse (n_inv)    : "); bn_println(&ctx->n_inv);
     
@@ -97,7 +97,7 @@ void bigntt_ctx_print_debug(const ntt_ctx *ctx)
     printf("\n--- BIT REVERSAL INDICES (First 8 Samples) ---\n");
     u64 max_samples = (ctx->n < 8) ? ctx->n : 8;
     for (u64 i = 0; i < max_samples; i++) {
-        printf("  Index [%2llu] ---> Bit-Reversed Index [%2llu]\n", i, ctx->bit_rev_indices[i]);
+        printf("  Index [%lu] ---> Bit-Reversed Index [%lu]\n", i, ctx->bit_rev_indices[i]);
     }
     printf("=========================================\n");
 }

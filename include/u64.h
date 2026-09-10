@@ -245,7 +245,7 @@ void mont_init(mont_ctx* ctx, u64 p);
  *
  * @return \f$T \cdot R^{-1} \bmod p\f$.
  */
-u64 mont_redc(unsigned __int128 T, mont_ctx* ctx);
+u64 mont_redc(unsigned __int128 T, const mont_ctx* ctx);
 
 /**
  * @brief Montgomery multiplication: \f$(a \cdot b \cdot R^{-1}) \bmod p\f$.
@@ -264,7 +264,7 @@ u64 mont_redc(unsigned __int128 T, mont_ctx* ctx);
  *
  * @return \f$(a \cdot b \cdot R^{-1}) \bmod p\f$.
  */
-u64 mont_mul(u64 a, u64 b, mont_ctx* ctx);
+u64 mont_mul(u64 a, u64 b, const mont_ctx* ctx);
 
 /**
  * @brief Convert a value from the normal domain into the Montgomery domain:
@@ -282,7 +282,7 @@ u64 mont_mul(u64 a, u64 b, mont_ctx* ctx);
  *
  * @return \f$a \cdot R \bmod p\f$ (Montgomery form).
  */
-u64 mont_in(u64 a, mont_ctx* ctx);
+u64 mont_in(u64 a, const mont_ctx* ctx);
 
 /**
  * @brief Convert a value from the Montgomery domain back to the normal
@@ -300,7 +300,7 @@ u64 mont_in(u64 a, mont_ctx* ctx);
  *
  * @return \f$a_{hat} \cdot R^{-1} \bmod p\f$ (normal domain).
  */
-u64 mont_out(u64 a_hat, mont_ctx* ctx);
+u64 mont_out(u64 a_hat, const mont_ctx* ctx);
 
 /**
  * @brief Modular inverse of a value given in the Montgomery domain.
@@ -349,7 +349,7 @@ u64 mont_inverse(u64 a_mont, const mont_ctx* ctx);
  * @param[in]      a Input array.
  * @param[in]    ctx NTT context.
  */
-void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
+void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
 
 /**
  * @brief Initialize an NTT context for the Goldilocks field \f$p = 5 \cdot
@@ -473,7 +473,7 @@ void ntt_ctx_u64_free(ntt_ctx_u64* ctx);
  * @param[in]      a Input array.
  * @param[in]    ctx NTT context.
  */
-void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
+void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
 
 /**
  * @brief Inverse cyclic NTT with Montgomery-domain input:
@@ -500,7 +500,7 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, ntt_ctx_u64* ctx);
  * @param[in]    ctx NTT context.
  */
 void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
-                                          ntt_ctx_u64* ctx);
+                                          const ntt_ctx_u64* ctx);
 
 // u64_matrix.c
 /**
