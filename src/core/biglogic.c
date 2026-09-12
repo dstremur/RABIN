@@ -1,4 +1,4 @@
-/*
+/**
  * biglogic.c
  *
  * Logic functions
@@ -6,6 +6,7 @@
  * Implements the standard logic functions, such as and, or, xor, ...
  *
  * Copyright (C) 2026 Diego Strebel
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * This program is free software: you can redistribute it and/or modify
@@ -24,13 +25,49 @@
 
 #include "../../include/biglogic.h"
 
-#include "../../include/bignum.h"
-#include "immintrin.h"
+#include <immintrin.h>
 
-static void bn_and_avx(u64* res, const u64* a, const u64* b, const u64 size);
-static void bn_or_avx(u64* res, const u64* a, const u64* b, const u64 size);
-static void bn_xor_avx(u64* res, const u64* a, const u64* b, const u64 size);
-static void bn_not_avx(u64* res, const u64* a, const u64 size);
+#include "../../include/bignum.h"
+
+static void bn_and_scalar(u64* res, const u64* a, const u64* b, u64 size);
+
+static void bn_or_scalar(u64* res, const u64* a, const u64* b, u64 size);
+
+static void bn_xor_scalar(u64* res, const u64* a, const u64* b, u64 size);
+
+static void bn_not_scalar(u64* res, const u64* a, u64 size);
+
+#if defined(__GNUC__) || defined(__clang__)
+
+__attribute__((target("avx512f"))) static void bn_and_avx512(u64* res,
+                                                             const u64* a,
+                                                             const u64* b,
+                                                             u64 size);
+
+__attribute__((target("avx512f"))) static void bn_or_avx512(u64* res,
+                                                            const u64* a,
+                                                            const u64* b,
+                                                            u64 size);
+
+__attribute__((target("avx512f"))) static void bn_xor_avx512(u64* res,
+                                                             const u64* a,
+                                                             const u64* b,
+                                                             u64 size);
+
+__attribute__((target("avx512f"))) static void bn_not_avx512(u64* res,
+                                                             const u64* a,
+                                                             u64 size);
+
+static inline int bn_has_avx512(void)
+{
+  return __builtin_cpu_supports("avx512f") != 0;
+}
+
+#else
+
+static inline int bn_has_avx512(void) { return 0; }
+
+#endif
 
 void bn_and(bignum* r, const bignum* a, const bignum* m)
 {
@@ -38,9 +75,17 @@ void bn_and(bignum* r, const bignum* a, const bignum* m)
 
   u64 min = MIN(r->size, m->size);
 
-  bn_and_avx(r->limbs, a->limbs, m->limbs, min);
+  if (bn_has_avx512()) {
+#if defined(__GNUC__) || defined(__clang__)
+    bn_and_avx512(r->limbs, a->limbs, m->limbs, min);
+#else
+    bn_and_scalar(r->limbs, a->limbs, m->limbs, min);
+#endif
+  } else {
+    bn_and_scalar(r->limbs, a->limbs, m->limbs, min);
+  }
 
-  // zero the rest
+  /* Zero the remaining limbs. */
   for (u64 i = min; i < r->size; i++) {
     r->limbs[i] = 0;
   }
@@ -50,24 +95,56 @@ void bn_and(bignum* r, const bignum* a, const bignum* m)
 
 void bn_or(bignum* r, const bignum* a, const bignum* m)
 {
-  const bignum* larger = (a->size > m->size) ? a : m;
-  const bignum* smaller = (a->size > m->size) ? m : a;
+  const bignum* larger;
+  const bignum* smaller;
+
+  if (a->size > m->size) {
+    larger = a;
+    smaller = m;
+  } else {
+    larger = m;
+    smaller = a;
+  }
 
   bn_copy(r, larger);
 
-  bn_or_avx(r->limbs, r->limbs, smaller->limbs, smaller->size);
+  if (bn_has_avx512()) {
+#if defined(__GNUC__) || defined(__clang__)
+    bn_or_avx512(r->limbs, r->limbs, smaller->limbs, smaller->size);
+#else
+    bn_or_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
+#endif
+  } else {
+    bn_or_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
+  }
 
   bn_trim(r);
 }
 
 void bn_xor(bignum* r, const bignum* a, const bignum* m)
 {
-  const bignum* larger = (a->size > m->size) ? a : m;
-  const bignum* smaller = (a->size > m->size) ? m : a;
+  const bignum* larger;
+  const bignum* smaller;
+
+  if (a->size > m->size) {
+    larger = a;
+    smaller = m;
+  } else {
+    larger = m;
+    smaller = a;
+  }
 
   bn_copy(r, larger);
 
-  bn_xor_avx(r->limbs, r->limbs, smaller->limbs, smaller->size);
+  if (bn_has_avx512()) {
+#if defined(__GNUC__) || defined(__clang__)
+    bn_xor_avx512(r->limbs, r->limbs, smaller->limbs, smaller->size);
+#else
+    bn_xor_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
+#endif
+  } else {
+    bn_xor_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
+  }
 
   bn_trim(r);
 }
@@ -80,22 +157,65 @@ void bn_not(bignum* r, const bignum* a)
   }
 
   bn_copy(r, a);
-  bn_not_avx(r->limbs, r->limbs, r->size);
+
+  if (bn_has_avx512()) {
+#if defined(__GNUC__) || defined(__clang__)
+    bn_not_avx512(r->limbs, r->limbs, r->size);
+#else
+    bn_not_scalar(r->limbs, r->limbs, r->size);
+#endif
+  } else {
+    bn_not_scalar(r->limbs, r->limbs, r->size);
+  }
+
   bn_trim(r);
 }
 
-void bn_and_avx(u64* res, const u64* a, const u64* b, const u64 size)
+static void bn_and_scalar(u64* res, const u64* a, const u64* b, u64 size)
+{
+  for (u64 i = 0; i < size; i++) {
+    res[i] = a[i] & b[i];
+  }
+}
+
+static void bn_or_scalar(u64* res, const u64* a, const u64* b, u64 size)
+{
+  for (u64 i = 0; i < size; i++) {
+    res[i] = a[i] | b[i];
+  }
+}
+
+static void bn_xor_scalar(u64* res, const u64* a, const u64* b, u64 size)
+{
+  for (u64 i = 0; i < size; i++) {
+    res[i] = a[i] ^ b[i];
+  }
+}
+
+static void bn_not_scalar(u64* res, const u64* a, u64 size)
+{
+  for (u64 i = 0; i < size; i++) {
+    res[i] = ~a[i];
+  }
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+
+__attribute__((target("avx512f"))) static void bn_and_avx512(u64* res,
+                                                             const u64* a,
+                                                             const u64* b,
+                                                             u64 size)
 {
   u64 i = 0;
 
-  // load 8 limbs
   for (; i + 8 <= size; i += 8) {
-    __m512i vec_a = _mm512_loadu_si512((const __m512i*)&a[i]);
-    __m512i vec_b = _mm512_loadu_si512((const __m512i*)&b[i]);
+    __m512i vec_a = _mm512_loadu_si512((const void*)&a[i]);
+
+    __m512i vec_b = _mm512_loadu_si512((const void*)&b[i]);
 
     __m512i vec_res = _mm512_and_si512(vec_a, vec_b);
 
-    _mm512_storeu_si512((__m512i*)&res[i], vec_res);
+    _mm512_storeu_si512((void*)&res[i], vec_res);
   }
 
   for (; i < size; i++) {
@@ -103,18 +223,21 @@ void bn_and_avx(u64* res, const u64* a, const u64* b, const u64 size)
   }
 }
 
-void bn_or_avx(u64* res, const u64* a, const u64* b, const u64 size)
+__attribute__((target("avx512f"))) static void bn_or_avx512(u64* res,
+                                                            const u64* a,
+                                                            const u64* b,
+                                                            u64 size)
 {
   u64 i = 0;
 
-  // load 8 limbs
   for (; i + 8 <= size; i += 8) {
-    __m512i vec_a = _mm512_loadu_si512((const __m512i*)&a[i]);
-    __m512i vec_b = _mm512_loadu_si512((const __m512i*)&b[i]);
+    __m512i vec_a = _mm512_loadu_si512((const void*)&a[i]);
+
+    __m512i vec_b = _mm512_loadu_si512((const void*)&b[i]);
 
     __m512i vec_res = _mm512_or_si512(vec_a, vec_b);
 
-    _mm512_storeu_si512((__m512i*)&res[i], vec_res);
+    _mm512_storeu_si512((void*)&res[i], vec_res);
   }
 
   for (; i < size; i++) {
@@ -122,18 +245,21 @@ void bn_or_avx(u64* res, const u64* a, const u64* b, const u64 size)
   }
 }
 
-void bn_xor_avx(u64* res, const u64* a, const u64* b, const u64 size)
+__attribute__((target("avx512f"))) static void bn_xor_avx512(u64* res,
+                                                             const u64* a,
+                                                             const u64* b,
+                                                             u64 size)
 {
   u64 i = 0;
 
-  // load 8 limbs
   for (; i + 8 <= size; i += 8) {
-    __m512i vec_a = _mm512_loadu_si512((const __m512i*)&a[i]);
-    __m512i vec_b = _mm512_loadu_si512((const __m512i*)&b[i]);
+    __m512i vec_a = _mm512_loadu_si512((const void*)&a[i]);
+
+    __m512i vec_b = _mm512_loadu_si512((const void*)&b[i]);
 
     __m512i vec_res = _mm512_xor_si512(vec_a, vec_b);
 
-    _mm512_storeu_si512((__m512i*)&res[i], vec_res);
+    _mm512_storeu_si512((void*)&res[i], vec_res);
   }
 
   for (; i < size; i++) {
@@ -141,20 +267,25 @@ void bn_xor_avx(u64* res, const u64* a, const u64* b, const u64 size)
   }
 }
 
-void bn_not_avx(u64* res, const u64* a, const u64 size)
+__attribute__((target("avx512f"))) static void bn_not_avx512(u64* res,
+                                                             const u64* a,
+                                                             u64 size)
 {
   u64 i = 0;
 
-  __m512i ones = _mm512_set1_epi64(-1LL);
+  const __m512i ones = _mm512_set1_epi64(-1LL);
 
-  // load 8 limbs
   for (; i + 8 <= size; i += 8) {
-    __m512i vec_a = _mm512_loadu_si512((const __m512i*)&a[i]);
+    __m512i vec_a = _mm512_loadu_si512((const void*)&a[i]);
+
     __m512i vec_res = _mm512_xor_si512(vec_a, ones);
-    _mm512_storeu_si512((__m512i*)&res[i], vec_res);
+
+    _mm512_storeu_si512((void*)&res[i], vec_res);
   }
 
   for (; i < size; i++) {
-    res[i] = ~(a[i]);
+    res[i] = ~a[i];
   }
 }
+
+#endif
