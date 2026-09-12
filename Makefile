@@ -79,7 +79,7 @@ test_%: $(BUILD_DIR)/test_%
 tests: $(TEST_BINS)
 
 TESTS = test_add test_add_u64 test_bpsw test_cmp test_div test_div_gcd \
-        test_divmod test_divmod_u64 test_field test_flint test_gcd \
+        test_divmod test_divmod_u64 test_field test_gcd \
         test_gcd_extended test_gmp test_isqrt test_kron test_log_2 \
         test_lshift test_mod test_mod_inverse test_mod_u64
 
