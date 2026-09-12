@@ -1,15 +1,19 @@
 // tests all available functions
 
-#include <../include/bignum.h>
-#include <../include/bigvector.h>
 #include <stdio.h>
+
+#include "../include/biglogic.h"
+#include "../include/bignum.h"
+#include "../include/bigvector.h"
 
 int main()
 {
   bignum a, b, res;
   bn_init_multi(&a, &b, &res, NULL);
 
-  bn_init_val(&a, "214240923082520938209829358290858352903593285");
+  bn_init_val(&a,
+              "2142409230825209382098293582908583529035932854353453453463463464"
+              "56456456456456464256324636346346346");
   bn_init_val(&b, "2344");
 
   printf("A: ");
@@ -33,11 +37,23 @@ int main()
   printf("DIV: ");
   bn_println(&res);
 
+  bn_and(&res, &a, &b);
+  printf("a & b: ");
+  bn_println(&res);
+
+  bn_or(&res, &a, &b);
+  printf("a or b: ");
+  bn_println(&res);
+
+  bn_xor(&res, &a, &b);
+  printf("a xor b: ");
+  bn_println(&res);
+
   bn_mod(&res, &a, &b);
   printf("MOD: ");
   bn_println(&res);
 
-  bn_pow(&res, &a, &b);
+  // bn_pow(&res, &a, &b);
   printf("POW: ");
   bn_println(&res);
 

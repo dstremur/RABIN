@@ -423,6 +423,11 @@ void bn_gcd_extended(bignum* u, bignum* v, bignum* d, const bignum* a,
 
   if (bn_is_zero(b)) {
     bn_set_u64(v, 0);
+    // normalize: gcd is non-negative (GMP convention)
+    if (d->is_neg) {
+      d->is_neg = false;
+      u->is_neg = !u->is_neg;
+    }
     bn_free_multi(&v_1, &v_3, &t_1, &t_3, &temp, NULL);
     return;
   }
@@ -444,6 +449,13 @@ void bn_gcd_extended(bignum* u, bignum* v, bignum* d, const bignum* a,
     bn_copy(&v_3, &t_3);
   }
 
+  // normalize: gcd is non-negative (GMP convention); flip d and u
+  // together so the Bezout identity u*a + v*b == d is preserved
+  if (d->is_neg) {
+    d->is_neg = false;
+    u->is_neg = !u->is_neg;
+  }
+
   // v = (d - au) / b
   bn_mul(&temp, a, u);
   bn_copy(v, d);
@@ -462,6 +474,11 @@ void bn_gcd_extended_lehmer(bignum* u, bignum* v, bignum* d, const bignum* a,
   bn_init_multi(&a_work, &b_work, &t, &r, &v_1, &Q, &p1, &p2, NULL);
   bn_copy(&a_work, a);
   bn_copy(&b_work, b);
+
+  // the Lehmer loop reasons about top limbs as positive magnitudes, so it
+  // must run on |a|, |b|; the sign of a is re-applied to u at the end
+  a_work.is_neg = false;
+  b_work.is_neg = false;
 
   // 1. [Initialize]
   bn_set_u64(u, 1);
@@ -546,8 +563,14 @@ void bn_gcd_extended_lehmer(bignum* u, bignum* v, bignum* d, const bignum* a,
     }
   }
 
-  // Set final GCD: d = a_work
+  // Set final GCD: d = a_work (>= 0, the loop ran on magnitudes)
   bn_copy(d, &a_work);
+
+  // u is the Bezout cofactor of |a|; re-apply the sign of a so that
+  // u*a + v*b == d holds for the original (signed) inputs
+  if (a->is_neg) {
+    u->is_neg = !u->is_neg;
+  }
 
   // Calculate final cofactor v = (d - a * u) / b
   bn_mul(&t, a, u);

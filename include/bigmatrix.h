@@ -299,6 +299,10 @@ void bigmatrix_det(bignum* d, const bigmatrix* A);
  */
 void bigmatrix_id(bigmatrix* I, const u64 n);
 
+void bigmatrix_swap(bigmatrix* a, bigmatrix* b);
+
+void bigmatrix_trace(bignum* t, const bigmatrix* A);
+
 void bigmatrix_charpoly_adj(bigpoly* p, bigmatrix* J, const bigmatrix* A);
 
 void bigmatrix_trace(bignum* t, const bigmatrix* A);

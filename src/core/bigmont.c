@@ -122,6 +122,16 @@ void bn_mont_redc(bignum* r, bignum* t, const bn_mont_ctx* ctx)
 
 void bn_mont_in(bignum* A_bar, const bignum* A, const bn_mont_ctx* ctx)
 {
+  // REDC requires both operands < n (T < n*R); reduce A if necessary
+  if (bn_cmp(A, &ctx->n) >= 0) {
+    bignum work;
+    bn_init(&work);
+    bn_mod(&work, A, &ctx->n);
+    bn_mont_mul(A_bar, &work, &ctx->r_square, ctx);
+    bn_free(&work);
+    return;
+  }
+
   bn_mont_mul(A_bar, A, &ctx->r_square, ctx);
 }
 

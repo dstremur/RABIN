@@ -3,7 +3,7 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags 
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp  -funroll-loops -fopenmp 
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp  -funroll-loops -fopenmp -mavx512f
 LDFLAGS = -fopenmp -lm -flto -lgmp
 ASFLAGS = -f elf64
 
@@ -77,6 +77,14 @@ test_%: $(BUILD_DIR)/test_%
 
 # 6. Build all tests without running them
 tests: $(TEST_BINS)
+
+TESTS = test_add test_add_u64 test_bpsw test_cmp test_div test_div_gcd \
+        test_divmod test_divmod_u64 test_field test_flint test_gcd \
+        test_gcd_extended test_gmp test_isqrt test_kron test_log_2 \
+        test_lshift test_mod test_mod_inverse test_mod_u64
+
+test_complete: $(TESTS)
+	@echo "All specified tests completed successfully!"
 
 # Clean up all build artifacts
 clean:

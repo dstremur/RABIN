@@ -291,26 +291,6 @@ void bigmatrix_swap(bigmatrix* a, bigmatrix* b)
   *b = t;
 }
 
-// Matrix Multiplication BugIn step 2, multiplying the original matrix $M$ by
-// $C_1$ should yield:$$M \cdot C_1 = \begin{pmatrix} 0 & 1 & 2 & 3 \\ 1 & 2 & 3
-// & 0 \\ 2 & 3 & 0 & 1 \\ 3 & 0 & 1 & 2 \end{pmatrix} \begin{pmatrix} -4 & 1 &
-// 2 & 3 \\ 1 & -2 & 3 & 0 \\ 2 & 3 & -4 & 1 \\ 3 & 0 & 1 & -2 \end{pmatrix} =
-// \begin{pmatrix} 14 & 4 & -2 & -4 \\ 4 & 6 & -4 & 6 \\ -2 & -4 & 14 & 4 \\ -4
-// & 6 & 4 & 6 \end{pmatrix}$$Your script outputs:$$\begin{pmatrix} 14 & 4 & 2 &
-// -4 \\ 8 & 6 & 4 & 6 \\ 8 & 4 & 14 & 4 \\ 20 & 6 & 4 & 6
-// \end{pmatrix}$$Because the diagonal matches exactly ($14 + 6 + 14 + 6 = 40$),
-// the trace calculation $a_2 = -40 / 2 = -20$ succeeds. However, the corrupted
-// off-diagonal values cascade into incorrect results for all subsequent steps.
-// This typically indicates a loop index error in your matrix multiplication
-// logic or a failure to reset the accumulator variable to zero for each element
-// calculation.Integer Division IssueIn step 3, the script calculates a trace of
-// $104$ and computes $a_3 = -104 / 3 = -34$. Dividing integers in languages
-// like C, C++, or Python (using //) truncates the decimal instead of evaluating
-// to $-34.66$. While the $104$ trace is already incorrect due to the prior
-// multiplication bug, be mindful of division types if validating intermediate
-// incorrect states. The correct algorithm will inherently produce perfect
-// integers.
-
 void bigmatrix_charpoly_adj(bigpoly* p, bigmatrix* J, const bigmatrix* A)
 {
   assert(A->c_size == A->r_size);

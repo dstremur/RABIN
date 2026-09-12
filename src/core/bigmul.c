@@ -43,6 +43,15 @@ void bn_sqr(bignum* r, const bignum* a)
     return;
   }
 
+  if (r == a) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_sqr(&tmp, a);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   bn_alloc(r, 2 * a->size);
 
   u64 scratch_size = 8 * a->size + 8;  // conservative heuristic

@@ -44,24 +44,6 @@ void bigpoly_init(bigpoly* p)
   p->size = 0;
 }
 
-void bn_and(bignum* r, const bignum* a, const bignum* mask)
-{
-  bn_copy(r, a);
-
-  u64 min = MIN(r->size, mask->size);
-
-  for (u64 i = 0; i < min; i++) {
-    r->limbs[i] &= mask->limbs[i];
-  }
-
-  // zero the rest
-  for (u64 i = min; i < r->size; i++) {
-    r->limbs[i] = 0;
-  }
-
-  bn_trim(r);
-}
-
 void bigpoly_set(bigpoly* p, bignum* coeff, u64 deg)
 {
   bigpoly_alloc(p, deg + 1);

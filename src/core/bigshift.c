@@ -181,6 +181,9 @@ void bn_rshift(bignum* r, const bignum* a, int shift)
     memset(r->limbs + r->size, 0, (r->capacity - r->size) * sizeof(u64));
   }
   bn_trim(r);
+
+  // truncation toward zero keeps the sign of the dividend
+  r->is_neg = a->is_neg && !bn_is_zero(r);
 }
 
 void bn_lshift1_add(bignum* r, int bit)
