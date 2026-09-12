@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "../include/bigmatrix.h"
+#include "../include/bigpoly.h"
 #include "../include/bigrand.h"
 #include "../include/bigrns.h"
 #include "../include/primes.h"
@@ -289,8 +290,9 @@ int main()
   bigmatrix_free(&RectB);
   bigmatrix_free(&RectR);
 
-  bigmatrix D;
+  bigmatrix D, ADJ;
   bigmatrix_init(&D, 4, 4);
+  bigmatrix_init(&ADJ, 4, 4);
   bignum tmp;
   bn_init(&tmp);
 
@@ -305,6 +307,26 @@ int main()
   bigmatrix_print(&D);
   bigmatrix_det(&tmp, &D);
   bn_println(&tmp);
+
+  bigmatrix_trace(&tmp, &D);
+  bn_println(&tmp);
+
+  bigpoly p;
+  bigpoly_init(&p);
+
+  bigmatrix_charpoly_adj(&p, &ADJ, &D);
+
+  printf("Char poly: ");
+  bigpoly_print(&p);
+  printf("\n");
+
+  printf("Adjoint: \n ");
+  bigmatrix_print(&ADJ);
+  printf("\n");
+
+  bigpoly_free(&p);
+
+  bigmatrix_free(&ADJ);
 
   ctx_rns ctx;
   rns_context_init(&ctx, RNS_PRIMES, 10);

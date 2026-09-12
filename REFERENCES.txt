@@ -1,1 +1,2 @@
 [1] H. Cohen, A Course in Computational Algebraic Number Theory, Springer-Verlag, Berlin, 1993.
+[2] A. J. Menezes, P. C. van Oorschot, and S. A. Vanstone, Handbook of Applied Cryptography, CRC Press, Boca Raton, 1996.

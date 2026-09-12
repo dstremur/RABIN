@@ -1634,4 +1634,12 @@ bool bn_is_square(bignum* q, const bignum* a);
  */
 bool bn_is_prime_power(bignum* p, const bignum* n);
 
+/**
+ * @brief Negates a bignum
+ *
+ * @param r
+ * @param a
+ */
+void bn_neg(bignum* r, const bignum* a);
+
 #endif

@@ -146,16 +146,51 @@ void bigpoly_trim(bigpoly* p)
   }
 }
 
+// Qwen 3.8-Flash
 void bigpoly_print(const bigpoly* p)
 {
-  for (i64 i = p->deg; i >= 0; i--) {
-    bn_print(&p->coeff[i]);
-    printf("x^%" PRId64 "", i);
-    if (i != 0) {
-      printf("+");
-    }
+  if (p == NULL || p->coeff == NULL || p->size == 0) {
+    printf("0\n");
+    return;
   }
+
+  bignum mag;
+  bn_init(&mag);
+
+  bool first = true;
+
+  for (i64 i = (i64)p->deg; i >= 0; i--) {
+    const bignum* c = &p->coeff[i];
+    if (bn_is_zero(c)) continue;
+
+    const bool neg = c->is_neg;
+
+    if (first) {
+      if (neg) putchar('-');
+    } else {
+      putchar(' ');
+      putchar(neg ? '-' : '+');
+      putchar(' ');
+    }
+
+    bn_copy(&mag, c);
+    if (neg) bn_neg(&mag, &mag);
+
+    /* hide the coefficient 1 on every term except the constant one */
+    if (i == 0 || !bn_is_eq_i64(&mag, 1)) bn_print(&mag);
+
+    if (i >= 2)
+      printf("x^%" PRId64, i);
+    else if (i == 1)
+      putchar('x');
+
+    first = false;
+  }
+
+  if (first) putchar('0');
+
   printf("\n");
+  bn_free(&mag);
 }
 
 void bigpoly_add(bigpoly* r, const bigpoly* p, const bigpoly* q)

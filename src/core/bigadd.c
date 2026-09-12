@@ -62,6 +62,15 @@ void bn_add_abs(bignum* r, const bignum* a, const bignum* b)
 
 void bn_add(bignum* r, const bignum* a, const bignum* b)
 {
+  if (r == a || r == b) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_add(&tmp, a, b);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   if (a->is_neg == b->is_neg) {
     bn_add_abs(r, a, b);
     r->is_neg = a->is_neg;
@@ -152,4 +161,23 @@ void bn_add_at_offset(bignum* r, const bignum* a, u64 offset)
     carry = (u64)(sum >> 64);
   }
   bn_trim(r);
+}
+
+void bn_neg(bignum* r, const bignum* a)
+{
+  if (r == NULL || a == NULL) {
+    return;
+  }
+
+  // Copy if destination is a different object
+  if (r != a) {
+    bn_copy(r, a);
+  }
+
+  // Zero must always remain positive (is_neg = false)
+  if (bn_is_zero(r)) {
+    r->is_neg = false;
+  } else {
+    r->is_neg = !r->is_neg;
+  }
 }

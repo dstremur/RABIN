@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "bigcore.h"
+#include "bigpoly.h"
 #include "bigvector.h"
 
 // use a flat array structure
@@ -297,6 +298,10 @@ void bigmatrix_det(bignum* d, const bigmatrix* A);
  * @param n
  */
 void bigmatrix_id(bigmatrix* I, const u64 n);
+
+void bigmatrix_charpoly_adj(bigpoly* p, bigmatrix* J, const bigmatrix* A);
+
+void bigmatrix_trace(bignum* t, const bigmatrix* A);
 
 /**
  * @brief Compute the LLL algorithm on the basis matrix B

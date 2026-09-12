@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 
+#include "../../include/bigpoly.h"
 #include "../../include/bigrns.h"
 #include "../../include/primes.h"
 
@@ -224,8 +225,7 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
   bn_init_multi(&sum, &tmp, NULL);
   for (u64 i = 0; i < A->r_size; i++) {
     for (u64 j = 0; j < B->c_size; j++) {
-      bn_set_u64(&sum, 0);
-
+      bn_set_i64(&sum, 0);
       for (u64 k = 0; k < A->c_size; k++) {
         // tmp = A[i][k] * B[k][j]
         bn_mul(&tmp, &A->data[i * A->c_size + k], &B->data[k * B->c_size + j]);
@@ -233,7 +233,7 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
         bn_add(&sum, &sum, &tmp);
       }
 
-      bn_copy(&R->data[i * B->c_size + j], &sum);
+      bigmatrix_set(R, &sum, i, j);
     }
   }
   bn_free(&sum);
@@ -263,83 +263,122 @@ void bigmatrix_det(bignum* d, const bigmatrix* A)
   bigmatrix_free(&T);
 
   return;
+}
 
-  // broken
-
-  bignum prev;
-  bn_init(&prev);
-
-  // Track sign changes
-  i64 sign = 1;
-
-  bigmatrix_hadamard(&prev, A);
-
-  bn_alloc(d, prev.size);
-
-  bn_set_u64(&prev, 1);
-
-  for (u64 k = 0; k < n - 1; k++) {
-    bignum* pivot = GET(&T, k, k);
-    // swap if pivot is zero
-    if (bn_is_zero(pivot)) {
-      u64 swap = k + 1;
-      bool found = false;
-
-      while (swap < n) {
-        bignum* t1 = GET(&T, swap, k);
-        if (!bn_is_zero(t1)) {
-          found = true;
-          break;
-        }
-        swap++;
-      }
-
-      if (!found) {
-        bn_set_u64(d, 0);
-        goto cleanup;
-      }
-
-      // swap
-      for (u64 j = k; j < n; j++) {
-        bn_swap(GET(&T, k, j), GET(&T, swap, j));
-      }
-      sign *= -1;
-      pivot = GET(&T, k, k);
+void bigmatrix_neg(const bigmatrix* A)
+{
+  for (u64 i = 0; i < A->r_size; i++) {
+    for (u64 j = 0; j < A->c_size; j++) {
+      bn_neg(GET(A, i, j), GET(A, i, j));
     }
+  }
+}
 
-    // #pragma omp parallel
-    {
-      bignum temp1, temp2, temp3;
-      bn_init_multi(&temp1, &temp2, &temp3, NULL);
-      // #pragma omp for collapse(2) schedule(static)
-      for (u64 i = k + 1; i < n; i++) {
-        bignum* t = GET(&T, i, k);
-        for (u64 j = k + 1; j < n; j++) {
-          // T_ij = (T_ij * T_kk - T_ik * T_kj) / T_kk
+void bigmatrix_trace(bignum* t, const bigmatrix* A)
+{
+  assert(A->c_size == A->r_size);
+  u64 n = A->c_size;
+  bn_set_u64(t, 0);
+  for (u64 i = 0; i < n; i++) {
+    bn_add(t, t, GET(A, i, i));
+  }
+}
 
-          bn_mul(&temp1, GET(&T, i, j), pivot);
-          bn_mul(&temp2, t, GET(&T, k, j));
-          bn_sub(&temp3, &temp1, &temp2);
+void bigmatrix_swap(bigmatrix* a, bigmatrix* b)
+{
+  bigmatrix t = *a;
+  *a = *b;
+  *b = t;
+}
 
-          bn_div(GET(&T, i, j), &temp3, &prev);
-        }
+// Matrix Multiplication BugIn step 2, multiplying the original matrix $M$ by
+// $C_1$ should yield:$$M \cdot C_1 = \begin{pmatrix} 0 & 1 & 2 & 3 \\ 1 & 2 & 3
+// & 0 \\ 2 & 3 & 0 & 1 \\ 3 & 0 & 1 & 2 \end{pmatrix} \begin{pmatrix} -4 & 1 &
+// 2 & 3 \\ 1 & -2 & 3 & 0 \\ 2 & 3 & -4 & 1 \\ 3 & 0 & 1 & -2 \end{pmatrix} =
+// \begin{pmatrix} 14 & 4 & -2 & -4 \\ 4 & 6 & -4 & 6 \\ -2 & -4 & 14 & 4 \\ -4
+// & 6 & 4 & 6 \end{pmatrix}$$Your script outputs:$$\begin{pmatrix} 14 & 4 & 2 &
+// -4 \\ 8 & 6 & 4 & 6 \\ 8 & 4 & 14 & 4 \\ 20 & 6 & 4 & 6
+// \end{pmatrix}$$Because the diagonal matches exactly ($14 + 6 + 14 + 6 = 40$),
+// the trace calculation $a_2 = -40 / 2 = -20$ succeeds. However, the corrupted
+// off-diagonal values cascade into incorrect results for all subsequent steps.
+// This typically indicates a loop index error in your matrix multiplication
+// logic or a failure to reset the accumulator variable to zero for each element
+// calculation.Integer Division IssueIn step 3, the script calculates a trace of
+// $104$ and computes $a_3 = -104 / 3 = -34$. Dividing integers in languages
+// like C, C++, or Python (using //) truncates the decimal instead of evaluating
+// to $-34.66$. While the $104$ trace is already incorrect due to the prior
+// multiplication bug, be mindful of division types if validating intermediate
+// incorrect states. The correct algorithm will inherently produce perfect
+// integers.
+
+void bigmatrix_charpoly_adj(bigpoly* p, bigmatrix* J, const bigmatrix* A)
+{
+  assert(A->c_size == A->r_size);
+
+  // 1. [Initialize]
+  u64 n = A->c_size;
+
+  bigmatrix C, T;
+  bigmatrix_init(&C, n, n);
+  bigmatrix_init(&T, n, n);
+  bigmatrix_id(&C, n);
+
+  printf("A: \n");
+  bigmatrix_print(A);
+  printf("\n");
+  printf("C: \n");
+  bigmatrix_print(&C);
+  printf("\n");
+
+  bignum temp, trace;
+  bn_init_multi(&temp, &trace, NULL);
+  bignum* a = malloc((n + 1) * sizeof(bignum));
+  for (u64 i = 0; i <= n; i++) {
+    bn_init(&a[i]);
+  }
+  bn_set_u64(&a[0], 1);
+
+  // 2. [Finished?]
+  for (u64 i = 1; i <= n; i++) {
+    // 3. [Compute next a_i and C]
+    bigmatrix_mul(&T, A, &C);
+
+    bigmatrix_trace(&trace, &T);
+
+    bn_set_u64(&temp, i);
+    // bn_div(&a[i], &trace, &temp);
+    bn_divmod_u64(&a[i], &trace, i);
+
+    bn_neg(&a[i], &a[i]);
+
+    if (J && i == n) {
+      bigmatrix_copy(J, &C);
+      if ((n - 1) & 1) {
+        bigmatrix_neg(J);
       }
-
-      bn_free_multi(&temp1, &temp2, &temp3, NULL);
     }
-
-    bn_copy(&prev, pivot);
+    bigmatrix_copy(&C, &T);
+    for (u64 j = 0; j < n; j++) {
+      bn_add(&temp, GET(&C, j, j), &a[i]);
+      bigmatrix_set(&C, &temp, j, j);
+    }
   }
 
-  // det = M_nn
-  bn_copy(d, GET(&T, n - 1, n - 1));
-  if (sign == -1) {
-    d->is_neg = !d->is_neg;
+  bigpoly_alloc(p, n + 1);
+
+  for (u64 i = 0; i <= n; i++) {
+    bn_println(&a[i]);
+    // bn_init(&p->coeff[n - i]);
+    bn_copy(&p->coeff[n - i], &a[i]);
+    bn_free(&a[i]);
   }
 
-cleanup:
+  p->deg = n;
+
+  free(a);
+  bn_free_multi(&temp, &trace, NULL);
+  bigmatrix_free(&C);
   bigmatrix_free(&T);
-  bn_free_multi(&prev, NULL);
 }
 
 void bigmatrix_id(bigmatrix* I, const u64 n)
@@ -358,6 +397,8 @@ void bigmatrix_id(bigmatrix* I, const u64 n)
       }
     }
   }
+
+  bn_free_multi(&a, &b, NULL);
 }
 
 // Computation Number theory p. 86
