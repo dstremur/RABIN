@@ -406,7 +406,7 @@ int main()
   benchmark_bpsw(16384, time_per_test, state);
   benchmark_bpsw(32768, time_per_test, state);
   benchmark_bpsw(65536, time_per_test, state);
-  //benchmark_bpsw(250000, time_per_test, state);
+  // benchmark_bpsw(250000, time_per_test, state);
 
   benchmark_gcd(2048, time_per_test, state);
   benchmark_gcd(8192, time_per_test, state);

@@ -200,3 +200,102 @@ void bn_lshift1_add(bignum* r, int bit)
     r->limbs[r->size++] = carry;
   }
 }
+
+// void bn_lshift_avx512(bignum* r, const bignum* a, int shift)
+// {
+//   // aliasing
+//   if (r == a) {
+//     bignum tmp;
+//     bn_init(&tmp);
+//     bn_lshift_avx512(&tmp, a, shift);
+//     bn_copy(r, &tmp);
+//     bn_free(&tmp);
+//     return;
+//   }
+
+//   // early exit for 0
+//   if (shift == 0) {
+//     bn_copy(r, a);
+//     return;
+//   }
+
+//   // handle zero-valued bignum
+//   if (a->size == 0) {
+//     bn_set_u64(r, 0);
+//     return;
+//   }
+
+//   u64 words = shift / 64;
+//   u64 bits = shift % 64;
+
+//   u64 max_size = a->size + words + 1;
+//   // if alloc fails just return 0
+//   if (!bn_alloc(r, max_size)) {
+//     bn_set_u64(r, 0);
+//     return;
+//   }
+
+//   // zero the limbs
+//   memset(r->limbs, 0, max_size * sizeof(u64));
+
+//   r->is_neg = a->is_neg;
+
+//   // Fallback to memcpy for exact word multiples
+//   if (bits == 0) {
+//     memcpy(r->limbs + words, a->limbs, a->size * sizeof(u64));
+//     r->size = a->size + words;
+//     bn_trim(r);
+//     return;
+//   }
+
+//   u64 i = 0;
+//   __m512i prev_carry_vec = _mm512_setzero_si512();
+
+//   // Process 8 limbs (512 bits) per iteration
+//   for (; i + 8 <= a->size; i += 8) {
+//     __m512i vec = _mm512_loadu_si512((const void*)&a->limbs[i]);
+
+//     // Shift limbs left and calculate bits crossing over
+//     __m512i shifted = _mm512_slli_epi64(vec, bits);
+//     __m512i carries = _mm512_srli_epi64(vec, 64 - bits);
+
+//     // VALIGNQ logic: Shift the 'carries' vector right across elements by 1
+//     // and inject the highest limb from the previous vector into lane 0
+//     __m512i aligned_carries = _mm512_alignr_epi64(carries, prev_carry_vec,
+//     7);
+
+//     // Combine left-shifted bits with incoming carry bits
+//     __m512i result = _mm512_or_si512(shifted, aligned_carries);
+
+//     _mm512_storeu_si512((void*)&r->limbs[i + words], result);
+//     prev_carry_vec = carries;
+//   }
+
+//   // Handle remaining partial vector using AVX-512 masked operations
+//   if (i < a->size) {
+//     __mmask8 mask = (1U << (a->size - i)) - 1;
+
+//     __m512i vec = _mm512_maskz_loadu_epi64(mask, &a->limbs[i]);
+
+//     __m512i shifted = _mm512_slli_epi64(vec, bits);
+//     __m512i carries = _mm512_srli_epi64(vec, 64 - bits);
+//     __m512i aligned_carries = _mm512_alignr_epi64(carries, prev_carry_vec,
+//     7);
+
+//     __m512i result = _mm512_or_si512(shifted, aligned_carries);
+
+//     _mm512_mask_storeu_epi64(&r->limbs[i + words], mask, result);
+//   }
+
+//   // The final scalar carry out of the most significant limb
+//   u64 final_carry = a->limbs[a->size - 1] >> (64 - bits);
+
+//   if (final_carry) {
+//     r->limbs[a->size + words] = final_carry;
+//     r->size = a->size + words + 1;
+//   } else {
+//     r->size = a->size + words;
+//   }
+
+//   bn_trim(r);
+// }

@@ -282,8 +282,8 @@ static void benchmark_mod_inverse(int bits, double target_sec,
 static double bench_budget(int bits)
 {
   if (bits <= 32768) return 1.0;
-  if (bits <= 131072) return 0.5;
-  return 0.25;
+  if (bits <= 131072) return 2.0;
+  return 4.0;
 }
 
 int main()
