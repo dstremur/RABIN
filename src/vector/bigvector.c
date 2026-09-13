@@ -144,6 +144,21 @@ void bigvector_norm(bignum* r, const bigvector* a)
   bn_free(&temp);
 }
 
+void bigvector_neg(bigvector* r, const bigvector* a)
+{
+  if (r == NULL || a == NULL) {
+    return;
+  }
+
+  if (r != a) {
+    bigvector_copy(r, a);
+  }
+
+  for (u64 i = 0; i < a->size; i++) {
+    bn_neg(&r->data[i], &a->data[i]);
+  }
+}
+
 void bigvector_dot(bignum* r, const bigvector* a, const bigvector* b)
 {
   if (a->dynamic) {

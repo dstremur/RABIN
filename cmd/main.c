@@ -166,6 +166,9 @@ int main()
   bn_div(&c, &a, &b);
   printf("DIV: ");
   bn_println(&c);
+  bn_div_euclid(&c, &a, &b);
+  printf("DIV euclid: ");
+  bn_println(&c);
   bn_mod(&c, &a, &b);
   printf("MOD: ");
   bn_println(&c);

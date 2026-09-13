@@ -21,6 +21,9 @@ int main()
 
   bigvector_println(&a);
 
+  bigvector_neg(&a, &a);
+  bigvector_println(&a);
+
   bigvector_free(&a);
 
   bn_free_constants();

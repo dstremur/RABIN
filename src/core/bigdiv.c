@@ -571,6 +571,53 @@ void bn_divmod(bignum* q, bignum* r, const bignum* a, const bignum* b)
   }
 }
 
+void bn_div_euclid(bignum* q, const bignum* a, const bignum* b)
+{
+  bignum zero, one, r;
+
+  bn_init(&zero);
+  bn_init(&one);
+  bn_init(&r);
+
+  bn_set_u64(&zero, 0);
+  bn_set_u64(&one, 1);
+
+  if (bn_is_zero(b)) {
+    /* division by zero */
+    /* assert(false), abort(), or whatever your API uses */
+    goto cleanup;
+  }
+
+  /*
+   * bn_divmod gives truncated division:
+   *
+   *     a = b*q + r
+   *
+   * with |r| < |b|.
+   */
+  bn_divmod(q, &r, a, b);
+
+  /*
+   * Convert to Euclidean division:
+   *
+   *     0 <= r < |b|
+   */
+  if (bn_cmp(&r, &zero) < 0) {
+    if (bn_cmp(b, &zero) > 0) {
+      /* q <- q - 1, r <- r + b */
+      bn_sub(q, q, &one);
+    } else {
+      /* q <- q + 1, r <- r - b */
+      bn_add(q, q, &one);
+    }
+  }
+
+cleanup:
+  bn_free(&zero);
+  bn_free(&one);
+  bn_free(&r);
+}
+
 void bn_div(bignum* q, const bignum* a, const bignum* b)
 {
   bn_divmod(q, NULL, a, b);

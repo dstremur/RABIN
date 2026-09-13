@@ -317,4 +317,6 @@ void bigmatrix_trace(bignum* t, const bigmatrix* A);
  */
 void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H);
 
+void bigmatrix_hermite(bigmatrix* W, const bigmatrix* A);
+
 #endif

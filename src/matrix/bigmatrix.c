@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 
+#include "../../include/bigmath.h"
 #include "../../include/bigpoly.h"
 #include "../../include/bigrns.h"
 #include "../../include/primes.h"
@@ -379,6 +380,389 @@ void bigmatrix_id(bigmatrix* I, const u64 n)
   }
 
   bn_free_multi(&a, &b, NULL);
+}
+
+void bigmatrix_neg_col(bigmatrix* A, u64 j)
+{
+  for (u64 i = 0; i < A->r_size; i++) {
+    bn_neg(GET(A, i, j), GET(A, i, j));
+  }
+}
+
+void bigmatrix_neg_row(bigmatrix* A, u64 i)
+{
+  for (u64 j = 0; j < A->c_size; j++) {
+    bn_neg(GET(A, i, j), GET(A, i, j));
+  }
+}
+
+static bool bigmatrix_row_prefix_is_zero(const bigmatrix* A, u64 i, u64 k)
+{
+  for (u64 j = 0; j < k; j++) {
+    if (!bn_is_zero(GET(A, i, j))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static u64 bigmatrix_min_abs_index(const bigmatrix* A, int i, int k)
+{
+  int j, j0 = -1;
+  for (j = 0; j <= k; j++) {
+    if (bn_is_zero(GET(A, i, j))) continue;
+
+    if (j0 == -1 || bn_cmp_abs(GET(A, i, j), GET(A, i, j0)) < 0) j0 = j;
+  }
+
+  return j0;
+}
+
+static void bigmatrix_swap_col(bigmatrix* A, u64 k1, u64 k2)
+{
+  for (u64 r = 0; r < A->r_size; r++) {
+    bn_swap(GET(A, r, k1), GET(A, r, k2));
+  }
+}
+
+void bigmatrix_hermite(bigmatrix* W, const bigmatrix* A)
+{
+  const u64 m = A->r_size;
+  const u64 n = A->c_size;
+
+  if (m == 0 || n == 0) {
+    bigmatrix_free(W);
+    bigmatrix_init(W, m, n);
+    return;
+  }
+
+  /*
+   * Algorithm 2.4.5
+   *
+   * i = current row
+   * k = current pivot column
+   * j = column currently being eliminated against k
+   * l = final row index
+   */
+  i64 i = (i64)m - 1;
+  i64 j = (i64)n;
+  i64 k = (i64)n - 1;
+  i64 l = (m <= n) ? 1 : (i64)m - (i64)n + 1;
+
+  /*
+   * The pseudocode numbers rows/columns from 1, while the C
+   * implementation is 0-based.
+   *
+   * Thus the stopping row is:
+   *
+   *   l_alg = l
+   *   l_c   = l_alg - 1
+   */
+  const i64 l0 = l - 1;
+
+  bigmatrix A_work;
+  bigmatrix B;
+
+  bigmatrix_init(&A_work, m, n);
+  bigmatrix_copy(&A_work, A);
+
+  /* Auxiliary column vector B. */
+  bigmatrix_init(&B, m, 1);
+
+  bignum u, v, d;
+  bignum aik, aij;
+  bignum tik, tij;
+  bignum temp1, temp2;
+  bignum b, q;
+
+  bn_init_multi(&u, &v, &d, &aik, &aij, &tik, &tij, &temp1, &temp2, &b, &q,
+                NULL);
+
+  /*
+   * ============================================================
+   * Main loop
+   * ============================================================
+   */
+  while (true) {
+    /*
+     * ----------------------------------------------------------
+     * Step 2/3:
+     *
+     * Starting with j = k, search to the left for a nonzero
+     * entry in the current row.
+     *
+     * If the row prefix is already zero, go directly to step 4.
+     * ----------------------------------------------------------
+     */
+
+    j = k;
+
+    while (j > 0 && bn_is_zero(GET(&A_work, (u64)i, (u64)(j - 1)))) {
+      --j;
+    }
+
+    if (j > 0) {
+      /*
+       * There is a nonzero a[i][j-1].  Set j to that column.
+       */
+      --j;
+
+      /*
+       * --------------------------------------------------------
+       * Step 3 [Euclidean step]
+       *
+       * u*a[i][k] + v*a[i][j] = d
+       * where d = gcd(a[i][k], a[i][j]).
+       *
+       * We need to preserve the old pivot and old j-column
+       * entries because both columns are modified below.
+       * --------------------------------------------------------
+       */
+
+      bn_copy(&aik, GET(&A_work, (u64)i, (u64)k));
+      bn_copy(&aij, GET(&A_work, (u64)i, (u64)j));
+
+      bn_gcd_extended_lehmer(&u, &v, &d, &aik, &aij);
+
+      /*
+       * B = u*A_k + v*A_j
+       */
+      for (u64 x = 0; x < m; x++) {
+        /*
+         * temp1 = u * A[x][k]
+         * temp2 = v * A[x][j]
+         * B[x]  = temp1 + temp2
+         */
+        bn_mul(&temp1, &u, GET(&A_work, x, (u64)k));
+        bn_mul(&temp2, &v, GET(&A_work, x, (u64)j));
+        bn_add(GET(&B, x, 0), &temp1, &temp2);
+      }
+
+      /*
+       * A_j <- (aik/d) A_j - (aij/d) A_k
+       *
+       * Compute aik/d and aij/d once.
+       */
+      bn_div_euclid(&tik, &aik, &d);
+      bn_div_euclid(&tij, &aij, &d);
+
+      for (u64 x = 0; x < m; x++) {
+        /*
+         * temp1 = (aik/d) * old A_j
+         * temp2 = (aij/d) * old A_k
+         */
+        bn_mul(&temp1, &tik, GET(&A_work, x, (u64)j));
+        bn_mul(&temp2, &tij, GET(&A_work, x, (u64)k));
+
+        bn_sub(GET(&A_work, x, (u64)j), &temp1, &temp2);
+      }
+
+      /*
+       * A_k <- B
+       */
+      for (u64 x = 0; x < m; x++) {
+        bn_copy(GET(&A_work, x, (u64)k), GET(&B, x, 0));
+      }
+
+      /*
+       * We intentionally continue with the same row and pivot
+       * column.  More columns to the left may still be nonzero.
+       */
+      continue;
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * Step 4 [Final reductions]
+     *
+     * The entire prefix before k is zero, so normalize the
+     * pivot and reduce all columns to its right.
+     * ----------------------------------------------------------
+     */
+
+    bn_copy(&b, GET(&A_work, (u64)i, (u64)k));
+
+    if (bn_is_zero(&b)) {
+      /*
+       * No pivot in this row.
+       *
+       * The algorithm advances k by one and finishes this row.
+       */
+      ++k;
+
+    } else {
+      /*
+       * Normalize pivot to positive.
+       */
+      if (b.is_neg) {
+        bigmatrix_neg_col(&A_work, (u64)k);
+        bn_neg(&b, &b);
+      }
+
+      /*
+       * For every column to the right:
+       *
+       *   q = floor(|a[i][j]| / b)
+       *   A_j <- A_j - q A_k
+       */
+      for (u64 jj = (u64)k + 1; jj < n; jj++) {
+        /*
+         * q = floor(|a[i][j]| / b)
+         */
+        bn_copy(&q, GET(&A_work, (u64)i, jj));
+        // q.is_neg = false;
+
+        bn_div(&q, &q, &b);
+
+        for (u64 x = 0; x < m; x++) {
+          bn_mul(&temp1, &q, GET(&A_work, x, (u64)k));
+
+          bn_sub(GET(&A_work, x, jj), GET(&A_work, x, jj), &temp1);
+        }
+      }
+    }
+
+    /*
+     * ----------------------------------------------------------
+     * Step 5/6 [Finished?]
+     * ----------------------------------------------------------
+     */
+
+    if (i == l0) {
+      break;
+    }
+
+    /*
+     * Move to the previous row and previous pivot column.
+     */
+    --i;
+    --k;
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * Extract W.
+   *
+   * The nonzero/Hermite part consists of columns k ... n-1.
+   * ------------------------------------------------------------
+   */
+
+  const u64 wcols = n - (u64)k;
+
+  bigmatrix_free(W);
+  bigmatrix_init(W, m, wcols);
+
+  for (u64 jj = 0; jj < wcols; jj++) {
+    for (u64 x = 0; x < m; x++) {
+      /*
+       * The algorithm guarantees positive pivot columns.
+       * Do not mutate A_work just for copying unless that is
+       * specifically desired.
+       */
+      bn_copy(GET(W, x, jj), GET(&A_work, x, (u64)k + jj));
+    }
+  }
+
+  bn_free_multi(&u, &v, &d, &aik, &aij, &tik, &tij, &temp1, &temp2, &b, &q,
+                NULL);
+
+  bigmatrix_free(&B);
+  bigmatrix_free(&A_work);
+}
+
+void bigmatrix_hermite2(bigmatrix* W, const bigmatrix* A)
+{
+  // 1. [Initialize]
+  u64 m = A->r_size;
+  u64 n = A->c_size;
+  if (m == 0 || n == 0) return;
+
+  u64 i = m - 1;
+  u64 k = n - 1;
+  u64 l = 0;
+  if (m > n) {
+    l = m - n;
+  }
+
+  bigmatrix A_work;
+  bigmatrix_init(&A_work, m, n);
+  bigmatrix_copy(&A_work, A);
+
+  bignum b, q, rem, temp, one, t2;
+  bn_init_multi(&b, &q, &rem, &temp, &one, &t2, NULL);
+  bn_set_u64(&one, 1);
+// 2. [Row finished?]
+step2:
+  if (bigmatrix_row_prefix_is_zero(&A_work, i, k)) {
+    if (GET(&A_work, i, k)->is_neg) {
+      bigmatrix_neg_col(&A_work, k);
+    }
+    goto step5;
+  }
+
+  // 3. [Choose non-zero entry]
+  u64 j_0 = bigmatrix_min_abs_index(&A_work, i, k);
+  if (j_0 < k) {
+    bigmatrix_swap_col(&A_work, k, j_0);
+  }
+  if (GET(&A_work, i, k)->is_neg) {
+    bigmatrix_neg_col(&A_work, k);
+  }
+
+  bn_copy(&b, GET(&A_work, i, k));
+
+  // 4. [Reduce]
+  for (u64 j = 0; j < k; j++) {
+    bn_div_euclid(&q, GET(&A_work, i, j), &b);
+    for (u64 x = 0; x < m; x++) {
+      bn_mul(&temp, &q, GET(&A_work, x, k));
+      bn_println(&temp);
+      bn_copy(&t2, GET(&A_work, x, j));
+      bn_sub(&t2, &t2, &temp);
+      bigmatrix_set(&A_work, &t2, x, j);
+    }
+  }
+  goto step2;
+
+// 5. [Final reductions]
+step5:
+  bn_copy(&b, GET(&A_work, i, k));
+  if (bn_is_zero(&b)) {
+    k++;
+    goto step6;
+  }
+
+  for (u64 j = k + 1; j < n; j++) {
+    bn_div_euclid(&q, GET(&A_work, i, j), &b);
+    for (u64 x = 0; x < m; x++) {
+      bn_mul(&temp, &q, GET(&A_work, x, k));
+      bn_println(&temp);
+      bn_copy(&t2, GET(&A_work, x, j));
+      bn_sub(&t2, &t2, &temp);
+      bigmatrix_set(&A_work, &t2, x, j);
+    }
+  }
+
+// 6. [Finished?]
+step6:
+  if (i != l) {
+    i--;
+    k--;
+    goto step2;
+  }
+
+  bigmatrix_free(W);
+  bigmatrix_init(W, m, n - k);
+  // copy result
+  for (u64 j = 0; j < n - k; j++) {
+    for (u64 x = 0; x < m; x++) {
+      // GET(&A_work, x, j + k)->is_neg = false;
+      bn_copy(GET(W, x, j), GET(&A_work, x, j + k));
+    }
+  }
+
+  bn_free_multi(&b, &q, &rem, &temp, &one, NULL);
+  bigmatrix_free(&A_work);
 }
 
 // Computation Number theory p. 86

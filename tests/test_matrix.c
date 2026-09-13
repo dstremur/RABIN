@@ -297,9 +297,9 @@ int main()
   bn_init(&tmp);
 
   // set matrix D
-  for (u64 i = 0; i < 4; i++) {
-    for (u64 j = 0; j < 4; j++) {
-      bn_set_u64(&tmp, (i + j) % 4);
+  for (i64 i = 0; i < 4; i++) {
+    for (i64 j = 0; j < 4; j++) {
+      bn_set_i64(&tmp, (i + j) % 4);
       bigmatrix_set(&D, &tmp, i, j);
     }
   }
@@ -321,6 +321,11 @@ int main()
   printf("\n");
 
   printf("Adjoint: \n ");
+  bigmatrix_print(&ADJ);
+  printf("\n");
+
+  printf("Hermite: \n ");
+  bigmatrix_hermite(&ADJ, &D);
   bigmatrix_print(&ADJ);
   printf("\n");
 

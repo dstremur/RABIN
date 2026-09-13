@@ -203,4 +203,6 @@ void bigvector_print(bigvector* a);
  */
 void bigvector_println(bigvector* a);
 
+void bigvector_neg(bigvector* r, const bigvector* a);
+
 #endif

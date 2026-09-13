@@ -835,6 +835,8 @@ void bn_sqr(bignum* r, const bignum* a);
  */
 void bn_div(bignum* q, const bignum* a, const bignum* b);
 
+void bn_div_euclid(bignum* q, const bignum* a, const bignum* b);
+
 /**
  * @brief \f$q = a / b\f$, \f$r = a \% b\f$  (either result may be NULL).
  *
