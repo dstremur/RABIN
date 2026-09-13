@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <gmp.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -5,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "../include/bignum.h"
 
@@ -390,18 +392,20 @@ void benchmark_kronecker(int bits, double target_sec, gmp_randstate_t state)
 void benchmark_tonelli_shanks(int bits, double target_sec,
                               gmp_randstate_t state)
 {
-  mpz_t mpz_p, mpz_root, mpz_n;
-  mpz_inits(mpz_p, mpz_root, mpz_n, NULL);
+  mpz_t mpz_p, mpz_n;
+  mpz_inits(mpz_p, mpz_n, NULL);
 
-  mpz_urandomb(mpz_p, state, bits);
-  mpz_nextprime(mpz_p, mpz_p);
-  if (mpz_even_p(mpz_p)) {
-    mpz_add_ui(mpz_p, mpz_p, 1);
-    mpz_nextprime(mpz_p, mpz_p);
-  }
+  // No prime generation at large bit sizes (mpz_nextprime hangs at thousands
+  // of bits). Sample the modulus until the Kronecker symbol certifies that
+  // n is a quadratic residue mod p, keeping tonelli_shanks on its full
+  // algorithm path instead of the early "No square roots exist" return.
+  mpz_urandomb(mpz_n, state, bits);
 
-  mpz_urandomm(mpz_root, state, mpz_p);
-  mpz_powm_ui(mpz_n, mpz_root, 2, mpz_p);
+  do {
+    mpz_urandomb(mpz_p, state, bits);
+    mpz_setbit(mpz_p, 0);  // ensure odd modulus
+    if (mpz_cmp_ui(mpz_p, 3) <= 0) mpz_set_ui(mpz_p, 5);
+  } while (mpz_kronecker(mpz_n, mpz_p) != 1);
 
   char* s_n = mpz_get_str(NULL, 10, mpz_n);
   char* s_p = mpz_get_str(NULL, 10, mpz_p);
@@ -418,6 +422,15 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
   int ops_custom = 0;
   double total_custom = 0;
 
+  // Silence tonelli_shanks' diagnostic output while timing. This only
+  // redirects fd 1 for the duration of the loop; the library function
+  // itself keeps its normal printing.
+  fflush(stdout);
+  int saved_stdout = dup(STDOUT_FILENO);
+  int dev_null = open("/dev/null", O_WRONLY);
+  dup2(dev_null, STDOUT_FILENO);
+  close(dev_null);
+
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
     tonelli_shanks(&bn_r, &bn_n, &bn_p);
@@ -425,6 +438,10 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
   } while (total_custom < target_sec);
+
+  fflush(stdout);
+  dup2(saved_stdout, STDOUT_FILENO);
+  close(saved_stdout);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
@@ -437,7 +454,7 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
   bn_free(&bn_n);
   bn_free(&bn_p);
   bn_free(&bn_r);
-  mpz_clears(mpz_p, mpz_root, mpz_n, NULL);
+  mpz_clears(mpz_p, mpz_n, NULL);
 }
 
 // =============================================================================

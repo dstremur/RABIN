@@ -10,7 +10,7 @@
  *      large prime modulus
  *   2. 1000 randomized cases (a: 1..4096 bits signed, m: 1..4096 bits,
  *      prime or random) vs mpz_invert
- *   3. Time-based benchmark vs GMP at 512/1024/2048/4096 bits
+ *   3. Time-based benchmark vs GMP at 2048/8192/32768/65536/65539 bits
  *
  * (No pointer-aliasing cases: a and m are const inputs, res aliasing is
  * not documented as supported.)
@@ -173,7 +173,9 @@ static void run_random(gmp_randstate_t state)
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_m = 1 + (rand() % 4096);
-    bool prime_m = (rand() & 1);  // half prime, half random
+    // Prime moduli only at small sizes: mpz_nextprime is intractable at
+    // large bit lengths (cause of the original benchmark hangs).
+    bool prime_m = (bits_m <= 1024) && (rand() & 1);
 
     bignum a, m, res;
     mpz_t za, zm, zr;
@@ -224,13 +226,18 @@ static void benchmark_mod_inverse(int bits, double target_sec,
   bn_init_multi(&bn_a, &bn_m, &bn_res, NULL);
   mpz_inits(mpz_a, mpz_m, mpz_res, NULL);
 
-  char* sa;
-  char* sm;
+  // Rejection sampling for fast coprime pair generation at arbitrary bit sizes.
+  // Avoids calling mpz_nextprime on huge inputs (e.g., 32768+ bits).
+  mpz_urandomb(mpz_m, state, bits);
+  mpz_setbit(mpz_m, 0);  // ensure m is odd to increase coprimality odds
+  if (mpz_cmp_ui(mpz_m, 2) <= 0) mpz_set_ui(mpz_m, 3);
 
-  mpz_urandomb(mpz_a, state, bits);
-  sa = mpz_get_str(NULL, 10, mpz_a);
-  gen_mpz(mpz_m, bits, true, 2, state);  // prime ensures inverse exists
-  sm = mpz_get_str(NULL, 10, mpz_m);
+  do {
+    mpz_urandomb(mpz_a, state, bits);
+  } while (mpz_invert(mpz_res, mpz_a, mpz_m) == 0);
+
+  char* sa = mpz_get_str(NULL, 10, mpz_a);
+  char* sm = mpz_get_str(NULL, 10, mpz_m);
   bn_init_val(&bn_a, sa);
   bn_init_val(&bn_m, sm);
   free(sa);
@@ -243,6 +250,7 @@ static void benchmark_mod_inverse(int bits, double target_sec,
   volatile bool custom_ok;
   volatile int gmp_ok;
 
+  // Measure custom implementation speed
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
     custom_ok = bn_mod_inverse(&bn_res, &bn_a, &bn_m);
@@ -251,6 +259,7 @@ static void benchmark_mod_inverse(int bits, double target_sec,
     total_custom = get_elapsed_time(start, end);
   } while (total_custom < target_sec);
 
+  // Measure GMP implementation speed
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
     gmp_ok = mpz_invert(mpz_res, mpz_a, mpz_m);
