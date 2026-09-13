@@ -25,9 +25,11 @@
 
 #include "../../include/biglogic.h"
 
-#include <immintrin.h>
-
 #include "../../include/bignum.h"
+
+#if defined(__AVX512F__)
+#include <immintrin.h>
+#endif
 
 static void bn_and_scalar(u64* res, const u64* a, const u64* b, u64 size);
 
@@ -37,26 +39,15 @@ static void bn_xor_scalar(u64* res, const u64* a, const u64* b, u64 size);
 
 static void bn_not_scalar(u64* res, const u64* a, u64 size);
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
 
-__attribute__((target("avx512f"))) static void bn_and_avx512(u64* res,
-                                                             const u64* a,
-                                                             const u64* b,
-                                                             u64 size);
+static void bn_and_avx512(u64* res, const u64* a, const u64* b, u64 size);
 
-__attribute__((target("avx512f"))) static void bn_or_avx512(u64* res,
-                                                            const u64* a,
-                                                            const u64* b,
-                                                            u64 size);
+static void bn_or_avx512(u64* res, const u64* a, const u64* b, u64 size);
 
-__attribute__((target("avx512f"))) static void bn_xor_avx512(u64* res,
-                                                             const u64* a,
-                                                             const u64* b,
-                                                             u64 size);
+static void bn_xor_avx512(u64* res, const u64* a, const u64* b, u64 size);
 
-__attribute__((target("avx512f"))) static void bn_not_avx512(u64* res,
-                                                             const u64* a,
-                                                             u64 size);
+static void bn_not_avx512(u64* res, const u64* a, u64 size);
 
 static inline int bn_has_avx512(void)
 {
@@ -69,14 +60,26 @@ static inline int bn_has_avx512(void) { return 0; }
 
 #endif
 
+bool bn_supports_avx512(void) { return bn_has_avx512() != 0; }
+
 void bn_and(bignum* r, const bignum* a, const bignum* m)
 {
+  // aliasing
+  if (r == a || r == m) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_and(&tmp, a, m);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   bn_copy(r, a);
 
   u64 min = MIN(r->size, m->size);
 
   if (bn_has_avx512()) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
     bn_and_avx512(r->limbs, a->limbs, m->limbs, min);
 #else
     bn_and_scalar(r->limbs, a->limbs, m->limbs, min);
@@ -95,6 +98,16 @@ void bn_and(bignum* r, const bignum* a, const bignum* m)
 
 void bn_or(bignum* r, const bignum* a, const bignum* m)
 {
+  // aliasing
+  if (r == a || r == m) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_or(&tmp, a, m);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   const bignum* larger;
   const bignum* smaller;
 
@@ -109,7 +122,7 @@ void bn_or(bignum* r, const bignum* a, const bignum* m)
   bn_copy(r, larger);
 
   if (bn_has_avx512()) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
     bn_or_avx512(r->limbs, r->limbs, smaller->limbs, smaller->size);
 #else
     bn_or_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
@@ -123,6 +136,16 @@ void bn_or(bignum* r, const bignum* a, const bignum* m)
 
 void bn_xor(bignum* r, const bignum* a, const bignum* m)
 {
+  // aliasing
+  if (r == a || r == m) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_xor(&tmp, a, m);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   const bignum* larger;
   const bignum* smaller;
 
@@ -137,7 +160,7 @@ void bn_xor(bignum* r, const bignum* a, const bignum* m)
   bn_copy(r, larger);
 
   if (bn_has_avx512()) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
     bn_xor_avx512(r->limbs, r->limbs, smaller->limbs, smaller->size);
 #else
     bn_xor_scalar(r->limbs, r->limbs, smaller->limbs, smaller->size);
@@ -159,7 +182,7 @@ void bn_not(bignum* r, const bignum* a)
   bn_copy(r, a);
 
   if (bn_has_avx512()) {
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
     bn_not_avx512(r->limbs, r->limbs, r->size);
 #else
     bn_not_scalar(r->limbs, r->limbs, r->size);
@@ -199,12 +222,9 @@ static void bn_not_scalar(u64* res, const u64* a, u64 size)
   }
 }
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__AVX512F__)
 
-__attribute__((target("avx512f"))) static void bn_and_avx512(u64* res,
-                                                             const u64* a,
-                                                             const u64* b,
-                                                             u64 size)
+static void bn_and_avx512(u64* res, const u64* a, const u64* b, u64 size)
 {
   u64 i = 0;
 
@@ -223,10 +243,7 @@ __attribute__((target("avx512f"))) static void bn_and_avx512(u64* res,
   }
 }
 
-__attribute__((target("avx512f"))) static void bn_or_avx512(u64* res,
-                                                            const u64* a,
-                                                            const u64* b,
-                                                            u64 size)
+static void bn_or_avx512(u64* res, const u64* a, const u64* b, u64 size)
 {
   u64 i = 0;
 
@@ -245,10 +262,7 @@ __attribute__((target("avx512f"))) static void bn_or_avx512(u64* res,
   }
 }
 
-__attribute__((target("avx512f"))) static void bn_xor_avx512(u64* res,
-                                                             const u64* a,
-                                                             const u64* b,
-                                                             u64 size)
+static void bn_xor_avx512(u64* res, const u64* a, const u64* b, u64 size)
 {
   u64 i = 0;
 
@@ -267,9 +281,7 @@ __attribute__((target("avx512f"))) static void bn_xor_avx512(u64* res,
   }
 }
 
-__attribute__((target("avx512f"))) static void bn_not_avx512(u64* res,
-                                                             const u64* a,
-                                                             u64 size)
+static void bn_not_avx512(u64* res, const u64* a, u64 size)
 {
   u64 i = 0;
 
