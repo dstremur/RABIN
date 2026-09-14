@@ -379,8 +379,10 @@ void bn_set_i64(bignum* n, int64_t val)
   if (val >= 0) {
     bn_set_u64(n, (u64)val);
   } else {
-    u64 abs = (u64) - (val - 1) + 1;
-    bn_set_u64(n, abs);
+    // In two's complement, 0 - (u64)val safely computes |val| for all negative
+    // values, including INT64_MIN (9223372036854775808U).
+    u64 abs_val = 0 - (u64)val;
+    bn_set_u64(n, abs_val);
     n->is_neg = true;
   }
 }

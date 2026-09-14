@@ -35,13 +35,14 @@ void run_det_benchmark(u64 size, u64 bits)
     }
   }
 
-  printf("Benchmarking %llu x %llu (%llu-bit entries)... \n", size, size, bits);
-  fflush(stdout);
+  printf("Benchmarking %llu x %llu (%llu-bit entries) Determinant... ", size,
+         size, bits);
+  // yyfflush(stdout);
 
   // bigmatrix_print_python(&M);
 
   u64 k = rns_estimate_determinant(&M);
-  printf("k: %llu \n", k);
+  // printf("k: %llu \n", k);
 
   if ((k + 1) > 500) {
     rns_context_init(&ctx, RNS_PRIMES2, k + 1);
@@ -55,8 +56,8 @@ void run_det_benchmark(u64 size, u64 bits)
 
   printf("Time: %f seconds\n", end - start);
 
-  printf("rns: ");
-  bn_println(&det);
+  // printf("rns: ");
+  // bn_println(&det);
 
   bigmatrix_free(&M);
   bn_free(&det);
@@ -83,7 +84,7 @@ void run_hadamard_benchmark(u64 size, u64 bits)
 
   printf("Benchmarking %llu x %llu (%llu-bit entries) hadamard bound... ", size,
          size, bits);
-  fflush(stdout);
+  // fflush(stdout);
 
   double start = get_time();
   bigmatrix_hadamard(&det, &M);
@@ -92,6 +93,39 @@ void run_hadamard_benchmark(u64 size, u64 bits)
   printf("Time: %f seconds\n", end - start);
 
   bigmatrix_free(&M);
+  bn_free(&det);
+  bn_free(&val);
+}
+
+void run_hermite_benchmark(u64 size, u64 bits)
+{
+  bigmatrix M, H;
+  bignum det, val;
+
+  bn_init(&det);
+  bn_init(&val);
+  bigmatrix_init(&M, size, size);
+
+  // Populate with random data to prevent "easy" zeros
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&M, &val, i, j);
+    }
+  }
+
+  printf("Benchmarking %llu x %llu (%llu-bit entries) Hermite normal form... ",
+         size, size, bits);
+  // fflush(stdout);
+
+  double start = get_time();
+  bigmatrix_hermite(&H, &M);
+  double end = get_time();
+
+  printf("Time: %f seconds\n", end - start);
+
+  bigmatrix_free(&M);
+  bigmatrix_free(&H);
   bn_free(&det);
   bn_free(&val);
 }
@@ -291,15 +325,15 @@ int main()
   bigmatrix_free(&RectR);
 
   bigmatrix D, ADJ;
-  bigmatrix_init(&D, 4, 4);
-  bigmatrix_init(&ADJ, 4, 4);
+  bigmatrix_init(&D, 10, 10);
+  bigmatrix_init(&ADJ, 10, 10);
   bignum tmp;
   bn_init(&tmp);
 
   // set matrix D
-  for (i64 i = 0; i < 4; i++) {
-    for (i64 j = 0; j < 4; j++) {
-      bn_set_i64(&tmp, (i + j) % 4);
+  for (i64 i = 0; i < 10; i++) {
+    for (i64 j = 0; j < 10; j++) {
+      bn_set_i64(&tmp, (i + j) % 10);
       bigmatrix_set(&D, &tmp, i, j);
     }
   }
@@ -410,6 +444,7 @@ int main()
   for (int i = 0; i < num_tests; i++) {
     run_det_benchmark(sizes[i], 32);  // 32-bit random entries
     run_hadamard_benchmark(sizes[i], 64);
+    run_hermite_benchmark(sizes[i], 32);
   }
 
   bn_free(&tmp);
