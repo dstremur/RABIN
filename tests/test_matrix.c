@@ -363,6 +363,10 @@ int main()
   bigmatrix_print(&ADJ);
   printf("\n");
 
+  printf("Hermite GCD: \n ");
+  bigmatrix_hermite_gcd(&ADJ, &D);
+  bigmatrix_print(&ADJ);
+  printf("\n");
   bigpoly_free(&p);
 
   bigmatrix_free(&ADJ);

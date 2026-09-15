@@ -517,6 +517,128 @@ step6:
   bigmatrix_free(&A_work);
 }
 
+void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A)
+{
+  // 1. [Initialize]
+  u64 m = A->r_size;
+  u64 n = A->c_size;
+  if (m == 0 || n == 0) return;
+
+  u64 i = m - 1;
+  u64 j = n - 1;
+  u64 k = n - 1;
+  u64 l = 0;
+  if (m > n) {
+    l = m - n;
+  }
+
+  bigmatrix A_work;
+  bigmatrix_init(&A_work, m, n);
+  bigmatrix_copy(&A_work, A);
+
+  bignum* B;
+  B = malloc(m * sizeof(bignum));
+  for (u64 x = 0; x < m; x++) {
+    bn_init(&B[x]);
+  }
+
+  bignum u, v, d, temp, temp2, one, b, q_k, q_j;
+  bn_init_multi(&u, &v, &d, &temp, &temp2, &one, &b, &q_k, &q_j, NULL);
+  bn_set_u64(&one, 1);
+
+// 2. [Check zero]
+step2:
+  if (j == 0) {
+    goto step4;
+  }
+  j--;
+  if (bn_is_zero(GET(&A_work, i, j))) {
+    goto step2;
+  }
+
+  // 3. [Euclidean step]
+  bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k), GET(&A_work, i, j));
+
+  bignum a_abs;
+  bn_init(&a_abs);
+  bn_copy(&a_abs, GET(&A_work, i, k));
+  a_abs.is_neg = false;
+
+  // if d == |a_{i,k}|, force v == 0, u = sign(a_{i,k})
+  if (bn_cmp(&d, &a_abs) == 0) {
+    bn_set_u64(&v, 0);
+    bn_set_u64(&u, 1);
+    if (GET(&A_work, i, k)->is_neg) {
+      bn_set_i64(&u, -1);
+    }
+  }
+  bn_free(&a_abs);
+
+  for (u64 x = 0; x < m; x++) {
+    bn_mul(&B[x], &u, GET(&A_work, x, k));
+    bn_mul(&temp, &v, GET(&A_work, x, j));
+    bn_add(&B[x], &B[x], &temp);
+  }
+
+  bn_div_euclid(&q_k, GET(&A_work, i, k), &d);
+  bn_div_euclid(&q_j, GET(&A_work, i, j), &d);
+
+  for (u64 x = 0; x < m; x++) {
+    bn_mul(&temp, &q_k, GET(&A_work, x, j));
+    bn_mul(&temp2, &q_j, GET(&A_work, x, k));
+    bn_sub(GET(&A_work, x, j), &temp, &temp2);
+    bn_copy(GET(&A_work, x, k), &B[x]);
+  }
+  goto step2;
+
+  // 4. [Final reduction]
+step4:
+  bn_copy(&b, GET(&A_work, i, k));
+  if (b.is_neg && !bn_is_zero(&b)) {
+    for (u64 x = 0; x < m; x++) {
+      bn_neg(GET(&A_work, x, k), GET(&A_work, x, k));
+    }
+    bn_neg(&b, &b);
+  }
+
+  if (bn_is_zero(&b)) {
+    k++;
+    goto step5;
+  }
+
+  for (u64 j_0 = k + 1; j_0 < n; j_0++) {
+    bn_div_euclid(&temp2, GET(&A_work, i, j_0), &b);
+    for (u64 x = 0; x < m; x++) {
+      bn_mul(&temp, &temp2, GET(&A_work, x, k));
+      bn_sub(GET(&A_work, x, k), GET(&A_work, x, k), &temp);
+    }
+  }
+
+step5:
+  // 5. [Finished]
+  if (i == l) {
+    for (u64 x = 0; x < n - k; x++) {
+      for (u64 y = 0; y < m; y++) {
+        bn_copy(GET(W, y, x), GET(&A_work, y, x + k));
+      }
+    }
+    goto cleanup;
+  }
+
+  i--;
+  k--;
+  j = k;
+  goto step2;
+
+cleanup:
+
+  bigmatrix_free(&A_work);
+  bn_free_multi(&u, &v, &d, &temp, &temp2, &one, &b, &q_k, &q_j, NULL);
+  for (u64 x = 0; x < m; x++) {
+    bn_free(&B[x]);
+  }
+}
+
 // void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 // {
 //   u64 k = 2;
@@ -530,8 +652,8 @@ step6:
 //     bn_init(&B_vals[i]);
 //   }
 
-//   // Allocate table for Gram-Schmidt coefficients mu[k][j] stored as doubles
-//   double* mu = calloc(n * n, sizeof(double));
+//   // Allocate table for Gram-Schmidt coefficients mu[k][j] stored as
+//   doubles double* mu = calloc(n * n, sizeof(double));
 
 //   // Step 1 [Initialize]
 //   bigvector b_k;
@@ -583,7 +705,8 @@ step6:
 
 //         // b*_k = b*_k - mu_{k,j} * b*_j (approximate or exact vector
 //         subtraction)
-//         // Implementation depends on scalar-vector vector subtraction helpers
+//         // Implementation depends on scalar-vector vector subtraction
+//         helpers
 //         // ...
 //       }
 //       bigvector_dot(&B_vals[k - 1], &b_star[k - 1], &b_star[k - 1]);
@@ -612,9 +735,9 @@ step6:
 
 //     // Check LLL inequality: B_k < (delta - mu_{k,k-1}^2) * B_{k-1}
 //     // Using floating point conversion for norm comparison or exact bignum
-//     arithmetic double Bk_d = bn_to_double(&B_vals[k - 1]); double Bk_prev_d =
-//     bn_to_double(&B_vals[k - 2]); double rhs = (delta - muk_k1 * muk_k1) *
-//     Bk_prev_d;
+//     arithmetic double Bk_d = bn_to_double(&B_vals[k - 1]); double Bk_prev_d
+//     = bn_to_double(&B_vals[k - 2]); double rhs = (delta - muk_k1 * muk_k1)
+//     * Bk_prev_d;
 
 //     if (Bk_d < rhs) {
 //       // SWAP(k)

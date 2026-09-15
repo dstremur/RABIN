@@ -319,4 +319,5 @@ void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H);
 
 void bigmatrix_hermite(bigmatrix* W, const bigmatrix* A);
 
+void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A);
 #endif
