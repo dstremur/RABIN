@@ -663,7 +663,6 @@ cleanup:
   }
 }
 
-
 void bigmatrix_smith(bigmatrix* S, const bigmatrix* A)
 {
   if (A->c_size != A->r_size) {
