@@ -32,6 +32,7 @@
 
 #include "../../include/bigmatrix.h"
 
+#include <omp.h>
 #include <stdio.h>
 
 #include "../../include/bigmath.h"
@@ -219,26 +220,43 @@ void bigmatrix_print(const bigmatrix* A)
 
 void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 {
-  // check if sizes match
   if (A->c_size != B->r_size) return;
 
-  bignum sum, tmp;
-  bn_init_multi(&sum, &tmp, NULL);
-  for (u64 i = 0; i < A->r_size; i++) {
+  // Transpose B
+  bigmatrix B_T;
+  bigmatrix_init(&B_T, B->c_size, B->r_size);
+
+  for (u64 i = 0; i < B->r_size; i++) {
     for (u64 j = 0; j < B->c_size; j++) {
-      bn_set_i64(&sum, 0);
-      for (u64 k = 0; k < A->c_size; k++) {
-        // tmp = A[i][k] * B[k][j]
-        bn_mul(&tmp, &A->data[i * A->c_size + k], &B->data[k * B->c_size + j]);
-
-        bn_add(&sum, &sum, &tmp);
-      }
-
-      bigmatrix_set(R, &sum, i, j);
+      bn_copy(&B_T.data[j * B_T.c_size + i], &B->data[i * B->c_size + j]);
     }
   }
-  bn_free(&sum);
-  bn_free(&tmp);
+#pragma omp parallel
+  {
+    bignum sum, tmp;
+    bn_init_multi(&sum, &tmp, NULL);
+
+#pragma omp for collapse(2) schedule(dynamic)
+    for (u64 i = 0; i < A->r_size; i++) {
+      for (u64 j = 0; j < B_T.r_size; j++) {
+        bn_set_i64(&sum, 0);
+
+        for (u64 k = 0; k < A->c_size; k++) {
+          // tmp = A[i][k] * B_T[j][k]
+          bn_mul(&tmp, &A->data[i * A->c_size + k],
+                 &B_T.data[j * B_T.c_size + k]);
+          bn_add(&sum, &sum, &tmp);
+        }
+
+        bigmatrix_set(R, &sum, i, j);
+      }
+    }
+
+    bn_free(&sum);
+    bn_free(&tmp);
+  }
+
+  bigmatrix_free(&B_T);
 }
 
 void bigmatrix_det(bignum* d, const bigmatrix* A)
@@ -432,8 +450,8 @@ void bigmatrix_hermite(bigmatrix* W, const bigmatrix* A)
   u64 n = A->c_size;
   if (m == 0 || n == 0) return;
 
-  u64 i = m - 1;
-  u64 k = n - 1;
+  i64 i = m - 1;
+  i64 k = n - 1;
   u64 l = 0;
   if (m > n) {
     l = m - n;
@@ -517,6 +535,10 @@ step6:
   bigmatrix_free(&A_work);
 }
 
+void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D)
+{
+}
+
 void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A)
 {
   // 1. [Initialize]
@@ -542,8 +564,8 @@ void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A)
     bn_init(&B[x]);
   }
 
-  bignum u, v, d, temp, temp2, one, b, q_k, q_j;
-  bn_init_multi(&u, &v, &d, &temp, &temp2, &one, &b, &q_k, &q_j, NULL);
+  bignum u, v, d, temp, temp2, temp3, one, b, q_k, q_j;
+  bn_init_multi(&u, &v, &d, &temp, &temp2, &temp3, &one, &b, &q_k, &q_j, NULL);
   bn_set_u64(&one, 1);
 
 // 2. [Check zero]
@@ -610,13 +632,15 @@ step4:
     bn_div_euclid(&temp2, GET(&A_work, i, j_0), &b);
     for (u64 x = 0; x < m; x++) {
       bn_mul(&temp, &temp2, GET(&A_work, x, k));
-      bn_sub(GET(&A_work, x, k), GET(&A_work, x, k), &temp);
+      bn_sub(GET(&A_work, x, j_0), GET(&A_work, x, j_0), &temp);
     }
   }
 
 step5:
   // 5. [Finished]
   if (i == l) {
+    bigmatrix_free(W);
+    bigmatrix_init(W, m, n - k);
     for (u64 x = 0; x < n - k; x++) {
       for (u64 y = 0; y < m; y++) {
         bn_copy(GET(W, y, x), GET(&A_work, y, x + k));
@@ -633,7 +657,7 @@ step5:
 cleanup:
 
   bigmatrix_free(&A_work);
-  bn_free_multi(&u, &v, &d, &temp, &temp2, &one, &b, &q_k, &q_j, NULL);
+  bn_free_multi(&u, &v, &d, &temp, &temp2, &temp3, &one, &b, &q_k, &q_j, NULL);
   for (u64 x = 0; x < m; x++) {
     bn_free(&B[x]);
   }

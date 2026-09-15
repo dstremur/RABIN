@@ -628,6 +628,18 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b)
   bn_divmod(NULL, r, a, b);
 }
 
+void bn_mod_pos(bignum* r, const bignum* a, const bignum* b)
+{
+  bn_mod(r, a, b);
+  if (r->is_neg) {
+    if (b->is_neg) {
+      bn_sub(r, r, b);
+    } else {
+      bn_add(r, r, b);
+    }
+  }
+}
+
 void bn_div_exact(bignum* q, const bignum* a, const bignum* b)
 {
   u64 an = bn_nsize(a), bn_size = bn_nsize(b);

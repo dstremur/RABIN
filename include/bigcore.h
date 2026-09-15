@@ -985,6 +985,8 @@ void bn_mod(bignum* r, const bignum* a, const bignum* b);
  */
 uint64_t bn_divmod_u64(bignum* q, const bignum* a, uint64_t d);
 
+void bn_mod_pos(bignum* r, const bignum* a, const bignum* b);
+
 /**
  * @brief Reduce a modulo a 64-bit divisor d.
  *

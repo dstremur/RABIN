@@ -37,7 +37,7 @@ void run_det_benchmark(u64 size, u64 bits)
 
   printf("Benchmarking %llu x %llu (%llu-bit entries) Determinant... ", size,
          size, bits);
-  // yyfflush(stdout);
+  fflush(stdout);
 
   // bigmatrix_print_python(&M);
 
@@ -84,7 +84,7 @@ void run_hadamard_benchmark(u64 size, u64 bits)
 
   printf("Benchmarking %llu x %llu (%llu-bit entries) hadamard bound... ", size,
          size, bits);
-  // fflush(stdout);
+  fflush(stdout);
 
   double start = get_time();
   bigmatrix_hadamard(&det, &M);
@@ -105,6 +105,7 @@ void run_hermite_benchmark(u64 size, u64 bits)
   bn_init(&det);
   bn_init(&val);
   bigmatrix_init(&M, size, size);
+  bigmatrix_init(&H, size, size);
 
   // Populate with random data to prevent "easy" zeros
   for (u64 i = 0; i < size; i++) {
@@ -116,7 +117,7 @@ void run_hermite_benchmark(u64 size, u64 bits)
 
   printf("Benchmarking %llu x %llu (%llu-bit entries) Hermite normal form... ",
          size, size, bits);
-  // fflush(stdout);
+  fflush(stdout);
 
   double start = get_time();
   bigmatrix_hermite(&H, &M);
@@ -441,14 +442,20 @@ int main()
   u64 sizes[] = {2, 4, 6, 8, 16, 32, 64, 128, 256, 300, 512, 700, 994, 1024};
   int num_tests = sizeof(sizes) / sizeof(sizes[0]);
 
-  for (int i = 0; i < num_tests; i++) {
-    // run_mul_benchmark(sizes[i], 32);
+  // for (int i = 0; i < num_tests; i++) {
+  //   run_hadamard_benchmark(sizes[i], 32);
+  // }
+
+  // for (int i = 0; i < 11; i++) {
+  //   run_det_benchmark(sizes[i], 32);
+  // }
+
+  for (int i = 0; i < 8; i++) {
+    run_hermite_benchmark(sizes[i], 32);
   }
 
   for (int i = 0; i < num_tests; i++) {
-    run_det_benchmark(sizes[i], 32);  // 32-bit random entries
-    run_hadamard_benchmark(sizes[i], 64);
-    run_hermite_benchmark(sizes[i], 32);
+    run_mul_benchmark(sizes[i], 64);
   }
 
   bn_free(&tmp);

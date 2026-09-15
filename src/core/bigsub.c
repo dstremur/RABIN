@@ -62,6 +62,15 @@ void bn_sub_abs(bignum* r, const bignum* a, const bignum* b)
 
 void bn_sub(bignum* r, const bignum* a, const bignum* b)
 {
+  if (r == a || r == b) {
+    bignum tmp;
+    bn_init(&tmp);
+    bn_sub(&tmp, a, b);
+    bn_copy(r, &tmp);
+    bn_free(&tmp);
+    return;
+  }
+
   // a - (-b) = a + b
   if (!a->is_neg && b->is_neg) {
     bn_add_abs(r, a, b);
