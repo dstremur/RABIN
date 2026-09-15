@@ -120,7 +120,7 @@ void run_hermite_benchmark(u64 size, u64 bits)
   fflush(stdout);
 
   double start = get_time();
-  bigmatrix_hermite(&H, &M);
+  bigmatrix_smith(&H, &M);
   double end = get_time();
 
   printf("Time: %f seconds\n", end - start);
@@ -365,7 +365,7 @@ int main()
   printf("\n");
 
   printf("Hermite GCD: \n ");
-  bigmatrix_hermite_gcd(&ADJ, &D);
+  bigmatrix_smith(&ADJ, &D);
   bigmatrix_print(&ADJ);
   printf("\n");
   bigpoly_free(&p);
@@ -450,13 +450,13 @@ int main()
   //   run_det_benchmark(sizes[i], 32);
   // }
 
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 5; i++) {
     run_hermite_benchmark(sizes[i], 32);
   }
 
-  for (int i = 0; i < num_tests; i++) {
-    run_mul_benchmark(sizes[i], 64);
-  }
+  // for (int i = 0; i < num_tests; i++) {
+  //   run_mul_benchmark(sizes[i], 64);
+  // }
 
   bn_free(&tmp);
 

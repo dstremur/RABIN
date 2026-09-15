@@ -322,4 +322,6 @@ void bigmatrix_hermite(bigmatrix* W, const bigmatrix* A);
 void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A);
 
 void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D);
+
+void bigmatrix_smith(bigmatrix* S, const bigmatrix* A);
 #endif

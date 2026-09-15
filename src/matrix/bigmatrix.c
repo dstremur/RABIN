@@ -663,6 +663,264 @@ cleanup:
   }
 }
 
+
+void bigmatrix_smith(bigmatrix* S, const bigmatrix* A)
+{
+  if (A->c_size != A->r_size) {
+    printf("Matrix must be square\n");
+    return;
+  }
+
+  // 1. [Initialize i]
+  i64 n = A->r_size;
+  i64 i = n;
+  bignum R;
+  bn_init(&R);
+  bigmatrix_det(&R, A);
+  R.is_neg = false;
+
+  if (n == 1) {
+    bigmatrix_set(S, &R, 0, 0);
+    bn_free(&R);
+    return;
+  }
+
+  bignum u, v, d, q_i, q_j, t1, t2, b;
+  bn_init_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
+
+  bigmatrix A_work;
+  bigmatrix_init(&A_work, n, n);
+  bigmatrix_copy(&A_work, A);
+
+  bignum* B = malloc(n * sizeof(bignum));
+  for (u64 x = 0; x < n; x++) {
+    bn_init(&B[x]);
+  }
+
+  bignum* a_i_i = NULL;
+  bignum* a_i_j = NULL;
+
+// 2. [Initialize j for row reduction]
+step2:
+  i64 j = i;
+  i64 c = 0;
+
+// 3. [Check zero]
+step3:
+  if (j == 1) {
+    goto step5;
+  }
+
+  j--;
+  if (bn_is_zero(GET(&A_work, i - 1, j - 1))) {
+    goto step3;
+  }
+
+// 4. [Euclidean step]
+step4:
+  a_i_i = GET(&A_work, i - 1, i - 1);
+  a_i_j = GET(&A_work, i - 1, j - 1);
+
+  bn_gcd_extended_lehmer(&u, &v, &d, a_i_i, a_i_j);
+
+  // use Remark to find u,v minimal
+  bignum a_abs;
+  bn_init(&a_abs);
+  bn_copy(&a_abs, GET(&A_work, i - 1, j - 1));
+  a_abs.is_neg = false;
+
+  bignum a_ii_abs;
+  bn_init(&a_ii_abs);
+  bn_copy(&a_ii_abs, GET(&A_work, i - 1, i - 1));
+  a_ii_abs.is_neg = false;
+
+  // if d == |a_{i,i}|, force u = sign(a_{i,i}), v = 0
+  if (bn_cmp(&d, &a_ii_abs) == 0) {
+    bn_set_u64(&u, 1);
+    bn_set_u64(&v, 0);
+    if (GET(&A_work, i - 1, i - 1)->is_neg) bn_set_i64(&u, -1);
+  }
+  // if d == |a_{i,j}|, force u = 0, v = sign(a_{i,j})
+  else if (bn_cmp(&d, &a_abs) == 0) {
+    bn_set_u64(&u, 0);
+    bn_set_u64(&v, 1);
+    if (GET(&A_work, i - 1, j - 1)->is_neg) bn_set_i64(&v, -1);
+  }
+
+  bn_free(&a_abs);
+  bn_free(&a_ii_abs);
+
+  // B = uA_i + vA_j
+  for (u64 x = 0; x < n; x++) {
+    bn_mul(&B[x], &u, GET(&A_work, x, i - 1));
+    bn_mul(&t1, &v, GET(&A_work, x, j - 1));
+    bn_add(&B[x], &B[x], &t1);
+  }
+
+  // A_j = ((a_ii / d)A_j - (a_ij / d)A_i) mod R
+  bn_div(&q_i, GET(&A_work, i - 1, i - 1), &d);
+  bn_div(&q_j, GET(&A_work, i - 1, j - 1), &d);
+  for (u64 x = 0; x < n; x++) {
+    bn_mul(&t1, &q_i, GET(&A_work, x, j - 1));
+    bn_mul(&t2, &q_j, GET(&A_work, x, i - 1));
+    bn_sub(&t1, &t1, &t2);
+    bn_mod(&t1, &t1, &R);
+    bn_copy(GET(&A_work, x, j - 1), &t1);
+  }
+
+  // A_i = B mod R
+  for (u64 x = 0; x < n; x++) {
+    bn_mod(GET(&A_work, x, i - 1), &B[x], &R);
+  }
+
+  goto step3;
+
+// 5. [Initialize j for column reduction]
+step5:
+  j = i;
+
+// 6. [Check zero]
+step6:
+  if (j == 1) {
+    goto step8;
+  }
+  j--;
+  if (bn_is_zero(GET(&A_work, j - 1, i - 1))) {
+    goto step6;
+  }
+
+// 7. [Euclidean step]
+step7:
+  a_i_i = GET(&A_work, i - 1, i - 1);
+  a_i_j = GET(&A_work, j - 1, i - 1);
+
+  bn_gcd_extended_lehmer(&u, &v, &d, a_i_i, a_i_j);
+
+  // use Remark to find u,v minimal
+  // use Remark to find u,v minimal safely
+  bignum a_abs_col;
+  bn_init(&a_abs_col);
+  bn_copy(&a_abs_col, GET(&A_work, j - 1, i - 1));
+  a_abs_col.is_neg = false;
+
+  bignum a_ii_abs_col;
+  bn_init(&a_ii_abs_col);
+  bn_copy(&a_ii_abs_col, GET(&A_work, i - 1, i - 1));
+  a_ii_abs_col.is_neg = false;
+
+  // if d == |a_{i,i}|, force u = sign(a_{i,i}), v = 0
+  if (bn_cmp(&d, &a_ii_abs_col) == 0) {
+    bn_set_u64(&u, 1);
+    bn_set_u64(&v, 0);
+    if (GET(&A_work, i - 1, i - 1)->is_neg) bn_set_i64(&u, -1);
+  }
+  // if d == |a_{j,i}|, force u = 0, v = sign(a_{j,i})
+  else if (bn_cmp(&d, &a_abs_col) == 0) {
+    bn_set_u64(&u, 0);
+    bn_set_u64(&v, 1);
+    if (GET(&A_work, j - 1, i - 1)->is_neg) bn_set_i64(&v, -1);
+  }
+
+  bn_free(&a_abs_col);
+  bn_free(&a_ii_abs_col);
+
+  // B = uA'_i + vA'_j
+  for (u64 x = 0; x < n; x++) {
+    bn_mul(&B[x], &u, GET(&A_work, i - 1, x));
+    bn_mul(&t1, &v, GET(&A_work, j - 1, x));
+    bn_add(&B[x], &B[x], &t1);
+  }
+
+  // A'_j = ((a_ii / d)A'_j - (a_ij / d)A'_i) mod R
+  bn_div(&q_i, GET(&A_work, i - 1, i - 1), &d);
+  bn_div(&q_j, GET(&A_work, j - 1, i - 1), &d);
+  for (u64 x = 0; x < n; x++) {
+    bn_mul(&t1, &q_i, GET(&A_work, j - 1, x));
+    bn_mul(&t2, &q_j, GET(&A_work, i - 1, x));
+    bn_sub(&t1, &t1, &t2);
+    bn_mod(&t1, &t1, &R);
+    bn_copy(GET(&A_work, j - 1, x), &t1);
+  }
+
+  // A'_i = B mod R
+  for (u64 x = 0; x < n; x++) {
+    bn_mod(GET(&A_work, i - 1, x), &B[x], &R);
+  }
+
+  c++;
+  goto step6;
+
+// 8. [Repeat stage i?]
+step8:
+  if (c > 0) {
+    goto step2;
+  }
+
+// 9. [Check the rest of the matrix]
+step9:
+  bn_copy(&b, GET(&A_work, i - 1, i - 1));
+  for (u64 k_0 = 0; k_0 < (u64)(i - 1); k_0++) {
+    for (u64 l_0 = 0; l_0 < (u64)(i - 1); l_0++) {
+      bool not_divisible = false;
+      if (bn_is_zero(&b)) {
+        if (!bn_is_zero(GET(&A_work, k_0, l_0))) {
+          not_divisible = true;
+        }
+      } else {
+        bn_mod(&t1, GET(&A_work, k_0, l_0), &b);
+        if (!bn_is_zero(&t1)) {
+          not_divisible = true;
+        }
+      }
+
+      if (not_divisible) {
+        for (u64 x = 0; x < n; x++) {
+          bn_add(GET(&A_work, i - 1, x), GET(&A_work, i - 1, x),
+                 GET(&A_work, k_0, x));
+        }
+        goto step2;
+      }
+    }
+  }
+
+  // 10. [Next stage]
+  bn_gcd_lehmer(&t1, GET(&A_work, i - 1, i - 1), &R);
+  bigmatrix_set(&A_work, &t1, i - 1, i - 1);
+  bn_div(&R, &R, &t1);
+
+  if (i == 2) {
+    bn_gcd_lehmer(&t2, GET(&A_work, 0, 0), &R);
+    bigmatrix_set(&A_work, &t2, 0, 0);
+
+    // order diagonal entries in proper order
+    bignum zero;
+    bn_init(&zero);
+    for (u64 r = 0; r < n; r++) {
+      for (u64 c = 0; c < n; c++) {
+        if (r == c) {
+          bigmatrix_set(S, GET(&A_work, n - 1 - r, n - 1 - r), r, r);
+        } else {
+          bigmatrix_set(S, &zero, r, c);
+        }
+      }
+    }
+    bn_free(&zero);
+    goto cleanup;
+  }
+
+  i--;
+  goto step2;
+
+cleanup:
+  for (u64 x = 0; x < n; x++) {
+    bn_free(&B[x]);
+  }
+  free(B);
+  bn_free(&R);
+  bn_free_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
+  bigmatrix_free(&A_work);
+}
+
 // void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
 // {
 //   u64 k = 2;
