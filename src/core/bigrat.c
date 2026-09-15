@@ -4,9 +4,8 @@ void br_add(bigrat* r, const bigrat* a, const bigrat* b) {}
 
 void br_print(const bigrat* r)
 {
-  printf("num: ");
-  bn_println(&r->num);
-  printf("den: ");
+  bn_print(&r->num);
+  printf("/");
   bn_println(&r->den);
 }
 

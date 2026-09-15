@@ -17,6 +17,8 @@ int main()
   br_print(&r);
 
   br_mul(&p, &r, &q);
+  br_mul(&r, &p, &q);
 
   br_print(&p);
+  br_print(&r);
 }

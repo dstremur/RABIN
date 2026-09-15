@@ -286,7 +286,8 @@ static void benchmark_mul_internal(int limbs)
 static void run_internal_comparison()
 {
   printf("\n--- bn_mul: schoolbook vs Karatsuba (internal) ---\n");
-  int sizes[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
+  int sizes[] = {16,   32,   64,   128,   256,   512,   1024,
+                 2048, 4096, 8192, 10000, 20000, 40000, 80000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_internal(sizes[i]);
   }
