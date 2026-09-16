@@ -29,7 +29,9 @@ void br_print(const bigrat* r);
 void br_neg(bigrat* r);
 
 void br_init(bigrat* r);
+void br_init_multi(bigrat* r, ...);
 
 void br_free(bigrat* r);
+void br_free_multi(bigrat* r, ...);
 
 #endif

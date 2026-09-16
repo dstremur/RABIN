@@ -21,4 +21,18 @@ int main()
 
   br_print(&p);
   br_print(&r);
+
+  bn_set_i64(&r.den, 3);
+  bn_set_i64(&r.num, 1);
+
+  bn_set_i64(&q.den, 4);
+  bn_set_i64(&q.num, 1);
+
+  br_div(&p, &r, &q);
+
+  br_print(&p);
+
+  br_free(&r);
+  br_free(&p);
+  br_free(&q);
 }
