@@ -715,8 +715,7 @@ step3:
     goto step3;
   }
 
-// 4. [Euclidean step]
-step4:
+  // 4. [Euclidean step]
   a_i_i = GET(&A_work, i - 1, i - 1);
   a_i_j = GET(&A_work, i - 1, j - 1);
 
@@ -788,8 +787,7 @@ step6:
     goto step6;
   }
 
-// 7. [Euclidean step]
-step7:
+  // 7. [Euclidean step]
   a_i_i = GET(&A_work, i - 1, i - 1);
   a_i_j = GET(&A_work, j - 1, i - 1);
 
@@ -855,11 +853,10 @@ step8:
     goto step2;
   }
 
-// 9. [Check the rest of the matrix]
-step9:
+  // 9. [Check the rest of the matrix]
   bn_copy(&b, GET(&A_work, i - 1, i - 1));
-  for (u64 k_0 = 0; k_0 < (u64)(i - 1); k_0++) {
-    for (u64 l_0 = 0; l_0 < (u64)(i - 1); l_0++) {
+  for (i64 k_0 = 0; k_0 < i - 1; k_0++) {
+    for (i64 l_0 = 0; l_0 < i - 1; l_0++) {
       bool not_divisible = false;
       if (bn_is_zero(&b)) {
         if (!bn_is_zero(GET(&A_work, k_0, l_0))) {
@@ -873,7 +870,7 @@ step9:
       }
 
       if (not_divisible) {
-        for (u64 x = 0; x < n; x++) {
+        for (i64 x = 0; x < n; x++) {
           bn_add(GET(&A_work, i - 1, x), GET(&A_work, i - 1, x),
                  GET(&A_work, k_0, x));
         }
@@ -894,8 +891,8 @@ step9:
     // order diagonal entries in proper order
     bignum zero;
     bn_init(&zero);
-    for (u64 r = 0; r < n; r++) {
-      for (u64 c = 0; c < n; c++) {
+    for (i64 r = 0; r < n; r++) {
+      for (i64 c = 0; c < n; c++) {
         if (r == c) {
           bigmatrix_set(S, GET(&A_work, n - 1 - r, n - 1 - r), r, r);
         } else {
@@ -911,7 +908,7 @@ step9:
   goto step2;
 
 cleanup:
-  for (u64 x = 0; x < n; x++) {
+  for (i64 x = 0; x < n; x++) {
     bn_free(&B[x]);
   }
   free(B);

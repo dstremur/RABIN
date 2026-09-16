@@ -496,8 +496,8 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
 static double bench_budget(int bits)
 {
   if (bits <= 32768) return 1.0;
-  if (bits <= 131072) return 0.5;
-  return 0.25;
+  if (bits <= 131072) return 2.0;
+  return 4.0;
 }
 
 int main()
@@ -513,11 +513,12 @@ int main()
   run_random(state);
 
   print_table_header();
-  benchmark_logic(2048, bench_budget(2048), state);
-  benchmark_logic(8192, bench_budget(8192), state);
-  benchmark_logic(32768, bench_budget(32768), state);
-  benchmark_logic(65536, bench_budget(65536), state);
-  benchmark_logic(65539, bench_budget(65539), state);
+  /*  benchmark_logic(2048, bench_budget(2048), state);
+    benchmark_logic(8192, bench_budget(8192), state);
+    benchmark_logic(32768, bench_budget(32768), state);
+    benchmark_logic(65536, bench_budget(65536), state);
+    benchmark_logic(65539, bench_budget(65539), state);
+    */
   benchmark_logic(1000000, bench_budget(1000000), state);
   benchmark_logic(10000000, bench_budget(10000000), state);
   print_table_footer();

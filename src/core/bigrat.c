@@ -2,13 +2,56 @@
 
 #include <stdarg.h>
 
-void br_add(bigrat* r, const bigrat* a, const bigrat* b) {}
+void br_add(bigrat* r, const bigrat* p, const bigrat* q)
+{
+  /* p = a / c, q = b /d
+   * p + q = ad + bc / cd
+   */
+
+  bignum t1, t2;
+  bn_init_multi(&t1, &t2, NULL);
+
+  bn_mul(&r->den, &p->den, &q->den);
+  bn_mul(&t1, &p->num, &q->den);
+  bn_mul(&t2, &q->num, &p->den);
+
+  bn_add(&r->num, &t1, &t2);
+
+  br_normalize(r);
+  bn_free_multi(&t1, &t2, NULL);
+}
+
+void br_sub(bigrat* r, const bigrat* p, const bigrat* q)
+{
+  /* p = a / c, q = b /d
+   * p - q = ad - bc / cd
+   */
+
+  bignum t1, t2;
+  bn_init_multi(&t1, &t2, NULL);
+
+  bn_mul(&r->den, &p->den, &q->den);
+  bn_mul(&t1, &p->num, &q->den);
+  bn_mul(&t2, &q->num, &p->den);
+
+  bn_sub(&r->num, &t1, &t2);
+
+  br_normalize(r);
+
+  bn_free_multi(&t1, &t2, NULL);
+}
 
 void br_print(const bigrat* r)
 {
-  bn_print(&r->num);
-  printf("/");
-  bn_println(&r->den);
+  if (bn_is_zero(&r->num)) {
+    printf("0\n");
+  } else if (bn_is_eq_i64(&r->den, 1)) {
+    bn_println(&r->num);
+  } else {
+    bn_print(&r->num);
+    printf("/");
+    bn_println(&r->den);
+  }
 }
 
 bool br_normalize(bigrat* r)
@@ -76,7 +119,7 @@ void br_mul(bigrat* r, const bigrat* p, const bigrat* q)
   return;
 }
 
-void br_div(bigrat* r, bigrat* p, bigrat* q)
+void br_div(bigrat* r, const bigrat* p, const bigrat* q)
 {
   /* p = a/c, q = b/d
    * p / q = a/c * d/b
@@ -98,6 +141,8 @@ void br_div(bigrat* r, bigrat* p, bigrat* q)
 
   bn_mul(&r->num, &a_n, &d_n);
   bn_mul(&r->den, &c_n, &b_n);
+
+  br_normalize(r);
 
   bn_free_multi(&g_1, &g_2, &a_n, &b_n, &c_n, &d_n, NULL);
 }

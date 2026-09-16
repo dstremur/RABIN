@@ -326,14 +326,14 @@ int main()
   bigmatrix_free(&RectR);
 
   bigmatrix D, ADJ;
-  bigmatrix_init(&D, 10, 10);
-  bigmatrix_init(&ADJ, 10, 10);
+  bigmatrix_init(&D, 20, 20);
+  bigmatrix_init(&ADJ, 20, 20);
   bignum tmp;
   bn_init(&tmp);
 
   // set matrix D
-  for (i64 i = 0; i < 10; i++) {
-    for (i64 j = 0; j < 10; j++) {
+  for (i64 i = 0; i < 20; i++) {
+    for (i64 j = 0; j < 20; j++) {
       bn_set_i64(&tmp, (i + j) % 10);
       bigmatrix_set(&D, &tmp, i, j);
     }

@@ -16,11 +16,11 @@ typedef struct bigrat {
 
 void br_add(bigrat* r, const bigrat* a, const bigrat* b);
 
-void br_sub(bigrat* r, bigrat* a, bigrat* b);
+void br_sub(bigrat* r, const bigrat* a, const bigrat* b);
 
 void br_mul(bigrat* r, const bigrat* a, const bigrat* b);
 
-void br_div(bigrat* r, bigrat* a, bigrat* b);
+void br_div(bigrat* r, const bigrat* a, const bigrat* b);
 
 bool br_normalize(bigrat* r);
 

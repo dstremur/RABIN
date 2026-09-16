@@ -3,18 +3,18 @@ CC = gcc
 AS = nasm
 AR = ar
 # Flags
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp  -funroll-loops -fopenmp -march=x86-64
+CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp  -funroll-loops -fopenmp 
 LDFLAGS = -fopenmp -lm -flto -lgmp
 ASFLAGS = -f elf64
 
 # Build-time AVX-512 detection: enable -mavx512f only when the compiler
-# accepts the flag and the build machine's CPU exposes avx512f.
-# HAVE_AVX512 := $(shell grep -qw avx512f /proc/cpuinfo 2>/dev/null && \
-#     printf 'int main(void){return 0;}' | $(CC) -mavx512f -x c - -o /dev/null \
-#     2>/dev/null && echo yes)
-# ifeq ($(HAVE_AVX512),yes)
-# CFLAGS += -mavx512f
-# endif
+ #accepts the flag and the build machine's CPU exposes avx512f.
+ HAVE_AVX512 := $(shell grep -qw avx512f /proc/cpuinfo 2>/dev/null && \
+     printf 'int main(void){return 0;}' | $(CC) -mavx512f -x c - -o /dev/null \
+     2>/dev/null && echo yes)
+ ifeq ($(HAVE_AVX512),yes)
+ CFLAGS += -mavx512f
+ endif
 
 # directories 
 SRC_DIR = src
