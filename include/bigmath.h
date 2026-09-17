@@ -146,6 +146,7 @@ void bn_gcd_binary(bignum* d, const bignum* a, const bignum* b);
 
 void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b);
 
+void bn_lcm(bignum* l, bignum* a, bignum* b);
 /**
  * @brief Compute the extended Euclidian algorithm
  *

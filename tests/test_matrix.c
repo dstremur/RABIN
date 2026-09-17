@@ -334,7 +334,7 @@ int main()
   // set matrix D
   for (i64 i = 0; i < 20; i++) {
     for (i64 j = 0; j < 20; j++) {
-      bn_set_i64(&tmp, (i + j) % 10);
+      bn_set_i64(&tmp, (i + j) % 20);
       bigmatrix_set(&D, &tmp, i, j);
     }
   }

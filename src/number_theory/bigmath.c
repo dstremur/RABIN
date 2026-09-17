@@ -251,6 +251,11 @@ void bn_gcd(bignum* d, const bignum* a, const bignum* b)
     return;
   }
 
+  if (a->size >= 16 || b->size >= 16) {
+    bn_gcd_lehmer(d, a, b);
+    return;
+  }
+
   bignum tmp_a, tmp_b, rem;
   bn_init_multi(&tmp_a, &tmp_b, &rem, NULL);
   bn_copy(&tmp_a, a);
@@ -277,6 +282,18 @@ void bn_gcd(bignum* d, const bignum* a, const bignum* b)
   bn_free(&tmp_a);
   bn_free(&tmp_b);
   bn_free(&rem);
+}
+
+void bn_lcm(bignum* l, bignum* a, bignum* b)
+{
+  bignum d;
+  bn_init(&d);
+
+  bn_gcd(&d, a, b);
+  bn_mul(l, a, b);
+  bn_div(l, l, &d);
+
+  bn_free(&d);
 }
 
 // Computational number theory p.15

@@ -145,6 +145,11 @@ void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col);
  */
 void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row);
 
+void bigmatrix_scalar(bigmatrix* R, const bigmatrix* A, const bignum* a);
+
+void bigmatrix_div_exact_scalar(bigmatrix* R, const bigmatrix* A,
+                                const bignum* a);
+
 /**
  * @brief Matrix-vector product: \f$r = A \cdot v\f$.
  *
@@ -229,6 +234,8 @@ void bigmatrix_hadamard(bignum* r, const bigmatrix* A);
  */
 void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
 
+void bigmatrix_sub(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
+
 /**
  * @brief Print a matrix to stdout, one row per line.
  *
@@ -298,6 +305,8 @@ void bigmatrix_det(bignum* d, const bigmatrix* A);
  * @param n
  */
 void bigmatrix_id(bigmatrix* I, const u64 n);
+
+void bigmatrix_gcd_all(bignum* g, const bigmatrix* A);
 
 void bigmatrix_swap(bigmatrix* a, bigmatrix* b);
 

@@ -41,7 +41,7 @@
 #include "../../include/primes.h"
 
 void bigmatrix_init(bigmatrix* M, u64 r, u64 c)
-{
+<%
   M->c_size = c;
   M->r_size = r;
 
@@ -119,6 +119,25 @@ void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
 
   for (u64 i = 0; i < A->c_size; i++) {
     bigvector_set(r, GET(A, row, i), i);
+  }
+}
+
+void bigmatrix_scalar(bigmatrix* R, const bigmatrix* A, const bignum* a)
+{
+  u64 total = A->r_size * A->c_size;
+
+  for (u64 x = 0; x < total; x++) {
+    bn_mul(&R->data[x], &A->data[x], a);
+  }
+}
+
+void bigmatrix_div_exact_scalar(bigmatrix* R, const bigmatrix* A,
+                                const bignum* a)
+{
+  u64 total = A->r_size * A->c_size;
+
+  for (u64 x = 0; x < total; x++) {
+    bn_div_exact(&R->data[x], &A->data[x], a);
   }
 }
 
@@ -202,6 +221,17 @@ void bigmatrix_add(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
   return;
 }
 
+void bigmatrix_sub(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
+{
+  // check if sizes match
+  if (A->c_size != B->c_size || A->r_size != B->r_size) return;
+
+  for (u64 i = 0; i < A->c_size * A->r_size; i++) {
+    bn_sub(&R->data[i], &A->data[i], &B->data[i]);
+  }
+
+  return;
+}
 void bigmatrix_print(const bigmatrix* A)
 {
   bignum temp;
@@ -378,6 +408,27 @@ void bigmatrix_charpoly_adj(bigpoly* p, bigmatrix* J, const bigmatrix* A)
   bn_free_multi(&temp, &trace, NULL);
   bigmatrix_free(&C);
   bigmatrix_free(&T);
+}
+
+void bigmatrix_gcd_all(bignum* g, const bigmatrix* A)
+{
+  u64 size = A->c_size * A->r_size;
+
+  if (size == 0) {
+    bn_set_u64(g, 1);
+    return;
+  }
+
+  // start with first element
+  bn_copy(g, &A->data[0]);
+
+  for (u64 i = 1; i < size; i++) {
+    if (bn_is_eq_i64(g, 1)) return;
+
+    if (bn_is_zero(&A->data[i])) continue;
+
+    bn_gcd(g, g, &A->data[i]);
+  }
 }
 
 void bigmatrix_id(bigmatrix* I, const u64 n)
