@@ -360,11 +360,25 @@ void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b)
   i64 a_hat, b_hat, A, B, C, D, T, q;
   bignum a_work, b_work, t, r, p1, p2;
 
+  // 1. [Initialize]
   bn_init_multi(&a_work, &b_work, &t, &r, &p1, &p2, NULL);
   bn_copy(&a_work, a);
   bn_copy(&b_work, b);
+  a_work.is_neg = false;
+  b_work.is_neg = false;
+
+  if (bn_cmp(&a_work, &b_work) < 0) {
+    bn_swap(&a_work, &b_work);
+  }
 
   while (!bn_is_zero(&b_work)) {
+    if (a_work.size - b_work.size > 1) {
+      bn_mod(&t, &a_work, &b_work);
+      bn_copy(&a_work, &b_work);
+      bn_copy(&b_work, &t);
+      continue;
+    }
+
     A = 1;
     B = 0;
     C = 0;
@@ -379,7 +393,7 @@ void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b)
         b_hat = 0;
       }
 
-      // 1. [Test Quotient]
+      // 2. [Test Quotient]
       while (true) {
         __int128 num1 = (__int128)(u64)a_hat + A;
         __int128 den1 = (__int128)(u64)b_hat + C;
@@ -389,9 +403,12 @@ void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b)
         if (den1 == 0 || den2 == 0) break;
 
         q = (i64)(num1 / den1);
+
+        if (q == 0) break;
+
         if (q != (i64)(num2 / den2)) break;
 
-        // 2. [Euclidian Step]
+        // 3. [Euclidian Step]
         T = A - q * C;
         A = C;
         C = T;
@@ -404,20 +421,31 @@ void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b)
       }
     }
 
-    // 3. [Multi-precision step]
+    // 4. [Multi-precision step]
     if (B == 0) {
-      // Replaced divmod with mod since quotient is not needed
       bn_mod(&t, &a_work, &b_work);
       bn_copy(&a_work, &b_work);
       bn_copy(&b_work, &t);
     } else {
-      bn_mul_i64(&p1, &a_work, A);
-      bn_mul_i64(&p2, &b_work, B);
-      bn_add(&t, &p1, &p2);
+      if (A > 0) {
+        // A > 0, B <= 0, C <= 0, D > 0
+        bn_mul_i64(&p1, &a_work, (u64)A);
+        bn_mul_i64(&p2, &b_work, (u64)(-B));
+        bn_sub(&t, &p1, &p2);  // t = A*a - |B|*b
 
-      bn_mul_i64(&p1, &a_work, C);
-      bn_mul_i64(&p2, &b_work, D);
-      bn_add(&r, &p1, &p2);
+        bn_mul_i64(&p1, &a_work, (u64)(-C));
+        bn_mul_i64(&p2, &b_work, (u64)D);
+        bn_sub(&r, &p2, &p1);  // r = D*b - |C|*a
+      } else {
+        // A <= 0, B > 0, C > 0, D <= 0
+        bn_mul_i64(&p1, &a_work, (u64)(-A));
+        bn_mul_i64(&p2, &b_work, (u64)B);
+        bn_sub(&t, &p2, &p1);  // t = B*b - |A|*a
+
+        bn_mul_i64(&p1, &a_work, (u64)C);
+        bn_mul_i64(&p2, &b_work, (u64)(-D));
+        bn_sub(&r, &p1, &p2);  // r = C*a - |D|*b
+      }
 
       bn_copy(&a_work, &t);
       bn_copy(&b_work, &r);
@@ -427,7 +455,6 @@ void bn_gcd_lehmer(bignum* d, const bignum* a, const bignum* b)
   bn_copy(d, &a_work);
   bn_free_multi(&a_work, &b_work, &t, &r, &p1, &p2, NULL);
 }
-
 // Computational number theory p.16
 void bn_gcd_extended(bignum* u, bignum* v, bignum* d, const bignum* a,
                      const bignum* b)

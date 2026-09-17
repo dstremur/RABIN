@@ -450,8 +450,8 @@ int main()
   //   run_det_benchmark(sizes[i], 32);
   // }
 
-  for (int i = 0; i < 8; i++) {
-    run_hermite_benchmark(sizes[i], 8);
+  for (int i = 0; i < 10; i++) {
+    run_hermite_benchmark(sizes[i], 10);
   }
 
   for (int i = 0; i < 5; i++) {
