@@ -42,6 +42,6 @@
 ### Building from Source
 
 ```bash
-git clone https://github.com/dstrebel/rabin.git
+https://github.com/dstremur/RABIN.git
 cd rabin
 make
