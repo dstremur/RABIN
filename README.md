@@ -2,12 +2,12 @@
 
 **RABIN** (Rapid Arithmetic for Big Integers and Number Theory) is a C library designed for arbitrary-precision arithmetic and number-theoretic algorithms.
 
----
+
 
 > [!WARNING]
-> This library is not safe for cryptography. It doesn't even attempt to be constant-time. If you seriously think about using this for crypto, you probably aren't smart enough to write your own crypto code.
+> This library is not safe for cryptography. It doesn't even attempt to be constant-time. If you seriously think about using this, you are definitely not smart enough to write your own crypto code.
 
----
+
 
 ## Features
 
@@ -16,7 +16,7 @@
 - Various number theory algorithms and primality tests
 - Implementation of a provable prime generation algorithm including Pocklington certificate
 
----
+
 
 ## Plan
 
@@ -29,7 +29,7 @@
 - [ ] Write CUDA/HIP kernels for highly parallel operations
 - ...
 
----
+
 
 ## Getting Started
 
@@ -37,11 +37,11 @@
 
 - A C compiler, preferably `gcc`
 - `make`
-- `gmp` for running the tests
+- `gmp` and `openssl` for running the tests
 
 ### Building from Source
 
 ```bash
 https://github.com/dstremur/RABIN.git
-cd rabin
+cd RABIN
 make
