@@ -94,6 +94,13 @@ bool bn_is_eq_i64(const bignum* n, i64 a)
   return n->limbs[0] == (uint64_t)a;
 }
 
+bool bn_is_one(const bignum* a)
+{
+  // size == 1 guards the limb access; is_neg is rejected so that -1
+  // (single limb 1, sign bit set) does not count as one
+  return !a->is_neg && a->size == 1 && a->limbs[0] == 1;
+}
+
 bool bn_alloc(bignum* r, u64 capacity)
 {
   if (capacity <= r->capacity) return true;

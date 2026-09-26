@@ -145,6 +145,127 @@ void bigmatrix_get_col(bigvector* c, const bigmatrix* A, u64 col);
  */
 void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row);
 
+/**
+ * @brief Test whether a matrix is square (\f$r = c\f$).
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If the number of rows equals the number of columns.
+ */
+bool bigmatrix_is_square(const bigmatrix* A);
+
+/**
+ * @brief Test whether all entries of a matrix are zero.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$ where \f$r =\f$ A->r_size, \f$c =\f$ A->c_size,
+ *           stopping at the first nonzero entry
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If every entry is zero.
+ */
+bool bigmatrix_is_zero(const bigmatrix* A);
+
+/**
+ * @brief Test whether a matrix is the identity matrix.
+ *
+ * The matrix must be square with 1s on the main diagonal and 0s
+ * elsewhere. Non-square matrices are rejected before any entry is
+ * inspected.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$ where \f$n =\f$ A->r_size, stopping at the first
+ *   violation
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If A is the identity matrix.
+ */
+bool bigmatrix_is_identity(const bigmatrix* A);
+
+/**
+ * @brief Test whether all off-diagonal entries of a matrix are zero.
+ *
+ * Works for rectangular matrices: the diagonal is the set of entries
+ * \f$A[i][i]\f$ with \f$i < \min(r, c)\f$; the diagonal entries
+ * themselves are not inspected.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$ in the worst case, stopping at the first
+ *   nonzero off-diagonal entry
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If all off-diagonal entries are zero.
+ */
+bool bigmatrix_is_diagonal(const bigmatrix* A);
+
+/**
+ * @brief Test whether all entries below the main diagonal are zero.
+ *
+ * Only the sub-regions \f$A[i][j]\f$ with \f$i > j\f$ are inspected.
+ *
+ * Complexity:
+ *   - Time: \f$O(\min(r, c)^2 / 2)\f$ in the worst case, stopping at the
+ *   first nonzero entry below the diagonal
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If all entries with row > col are zero.
+ */
+bool bigmatrix_is_upper_triangular(const bigmatrix* A);
+
+/**
+ * @brief Test whether all entries above the main diagonal are zero.
+ *
+ * Only the sub-regions \f$A[i][j]\f$ with \f$i < j\f$ are inspected.
+ *
+ * Complexity:
+ *   - Time: \f$O(\min(r, c)^2 / 2)\f$ in the worst case, stopping at the
+ *   first nonzero entry above the diagonal
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If all entries with row < col are zero.
+ */
+bool bigmatrix_is_lower_triangular(const bigmatrix* A);
+
+/**
+ * @brief Test whether a matrix is symmetric (\f$A[i][j] = A[j][i]\f$).
+ *
+ * The matrix must be square; only the strict upper triangle is walked,
+ * comparing each mirror pair once. Non-square matrices are rejected
+ * before any entry is inspected.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 \cdot n_{b})\f$ where \f$n =\f$ A->r_size and
+ *   \f$n_{b} =\f$ the size of the entries in limbs, stopping at the
+ *   first mismatching pair
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix.
+ *
+ * @return true If A is square and A[i][j] == A[j][i] for all (i, j).
+ */
+bool bigmatrix_is_symmetric(const bigmatrix* A);
+
 void bigmatrix_scalar(bigmatrix* R, const bigmatrix* A, const bignum* a);
 
 void bigmatrix_div_exact_scalar(bigmatrix* R, const bigmatrix* A,
@@ -432,4 +553,114 @@ void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A);
 void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D);
 
 void bigmatrix_smith(bigmatrix* S, const bigmatrix* A);
+
+/**
+ * @brief Test two matrices for entrywise equality.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot n)\f$ where \f$n =\f$ the size of the
+ *   entries in limbs, stopping at the first differing entry
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A First matrix.
+ * @param[in] B Second matrix.
+ *
+ * @return true If A and B have the same shape and equal entries.
+ */
+bool bigmatrix_equal(const bigmatrix* A, const bigmatrix* B);
+
+/**
+ * @brief Validate that H strictly satisfies the canonical Hermite normal
+ * form structure.
+ *
+ * Let \f$r =\f$ H->r_size, \f$c =\f$ H->c_size.
+ *
+ * Checks, with early exit on the first violation:
+ *   - Upper triangular: \f$H[i][j] = 0\f$ for all \f$i > j\f$.
+ *   - Positive pivots: the diagonal pivot of every nonzero row is
+ *     strictly positive.
+ *   - Reduced entries: for every nonzero row \f$i\f$, the entries right
+ *     of the pivot, \f$H[i][j]\f$ for \f$j > i\f$, satisfy
+ *     \f$0 \le H[i][j] < H[i][i]\f$. (This is the reduction invariant
+ *     of this library's column-operation HNF algorithms: each row is
+ *     reduced modulo its own pivot.)
+ *   - Zero-row order: all zero rows are grouped strictly at the bottom.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot n)\f$ where \f$n =\f$ the size of the
+ *   entries in limbs, stopping at the first violation
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] H Matrix to validate.
+ *
+ * @return true If H is in canonical Hermite normal form.
+ */
+bool bigmatrix_hnf_check_structure(const bigmatrix* H);
+
+/**
+ * @brief Verify the unimodular transformation \f$A \cdot U = H\f$.
+ *
+ * This library's HNF routines act by column operations, so the
+ * transformation matrix \f$U\f$ right-multiplies: \f$H = A \cdot U\f$.
+ *
+ * The product is computed with bigmatrix_mul() into a temporary matrix
+ * and compared entrywise with H; the temporary is freed before
+ * returning.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot n \cdot n_{b}^2)\f$ where \f$r =\f$ A->r_size,
+ *   \f$c =\f$ A->c_size, \f$n =\f$ U->c_size, \f$n_{b} =\f$ the size of
+ *   the entries in limbs
+ *   - Auxiliary memory: \f$O(r \cdot n)\f$ bignums for the product
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Original matrix.
+ * @param[in] H Claimed normal form of A.
+ * @param[in] U Transformation matrix (expected square, \f$c =\f$ A->c_size).
+ *
+ * @return true If the dimensions are compatible and A * U == H entrywise.
+ */
+bool bigmatrix_hnf_check_transformation(const bigmatrix* A, const bigmatrix* H,
+                                        const bigmatrix* U);
+
+/**
+ * @brief Verify that U is unimodular (integer matrix with
+ * \f$|\det U| = 1\f$).
+ *
+ * Complexity:
+ *   - Time: same as bigmatrix_det() for an \f$n \times n\f$ matrix
+ *   - Auxiliary memory: as in bigmatrix_det()
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] U Matrix to validate.
+ *
+ * @return true If U is square and |det(U)| == 1.
+ */
+bool bigmatrix_hnf_check_unimodular(const bigmatrix* U);
+
+/**
+ * @brief Master HNF verification: structure, transformation, and
+ * unimodularity.
+ *
+ * Runs bigmatrix_hnf_check_structure(),
+ * bigmatrix_hnf_check_transformation(), and
+ * bigmatrix_hnf_check_unimodular() in that order, returning early on the
+ * first failure.
+ *
+ * Note: the HNF routines of this library only return H; the
+ * transformation matrix U must be known independently (e.g. computed
+ * alongside the elimination). For non-square A the true U is rectangular
+ * (a column subset of a unimodular matrix), so the unimodularity check
+ * only applies to square inputs.
+ *
+ * @param[in] A Original matrix.
+ * @param[in] H Claimed Hermite normal form of A.
+ * @param[in] U Transformation matrix with H = A * U.
+ *
+ * @return true Only if all three invariants hold.
+ */
+bool bigmatrix_hnf_verify(const bigmatrix* A, const bigmatrix* H,
+                          const bigmatrix* U);
 #endif

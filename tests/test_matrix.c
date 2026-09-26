@@ -242,16 +242,6 @@ static void test_set_i64(bigmatrix* M, u64 r, u64 c, i64 v)
   bn_free(&tmp);
 }
 
-static bool test_matrix_equal(const bigmatrix* A, const bigmatrix* B)
-{
-  if (A->r_size != B->r_size || A->c_size != B->c_size) return false;
-
-  for (u64 i = 0; i < A->r_size * A->c_size; i++) {
-    if (bn_cmp(&A->data[i], &B->data[i]) != 0) return false;
-  }
-  return true;
-}
-
 void test_hermite_mod_d(void)
 {
   bignum D, val;
@@ -275,13 +265,14 @@ void test_hermite_mod_d(void)
     test_set_i64(&H, 0, 1, 1);
     test_set_i64(&H, 1, 0, 0);
     test_set_i64(&H, 1, 1, 1);
-    assert(test_matrix_equal(&W, &H));
+    assert(bigmatrix_equal(&W, &H));
+    assert(bigmatrix_hnf_check_structure(&W));
 
     // cross-check against the exact implementation
     bigmatrix V;
     bigmatrix_init(&V, 2, 2);
     bigmatrix_hermite(&V, &A);
-    assert(test_matrix_equal(&W, &V));
+    assert(bigmatrix_equal(&W, &V));
     bigmatrix_free(&V);
 
     bigmatrix_free(&A);
@@ -307,7 +298,8 @@ void test_hermite_mod_d(void)
     bn_set_u64(&D, 1);
     bigmatrix_hermite_mod_d(&W, &A, &D);
     bigmatrix_id(&H, 2);
-    assert(test_matrix_equal(&W, &H));
+    assert(bigmatrix_equal(&W, &H));
+    assert(bigmatrix_hnf_check_structure(&W));
     printf("[PASS] hermite_mod_d 2x3 unimodular (D = 1)\n");
 
     bigmatrix_free(&A);
@@ -374,12 +366,15 @@ void test_hermite_mod_d(void)
 
         // D = |det B| = the module determinant itself
         bigmatrix_hermite_mod_d(&W1, &A, &det);
-        assert(test_matrix_equal(&W1, &H));
+        assert(bigmatrix_equal(&W1, &H));
+        assert(bigmatrix_hnf_check_structure(&W1));
+        assert(bigmatrix_hnf_check_structure(&H));
 
         // D = 3 * |det B|, another valid multiple
         bn_mul(&D, &three, &det);
         bigmatrix_hermite_mod_d(&W2, &A, &D);
-        assert(test_matrix_equal(&W2, &H));
+        assert(bigmatrix_equal(&W2, &H));
+        assert(bigmatrix_hnf_check_structure(&W2));
 
         bigmatrix_free(&B);
         bigmatrix_free(&R);
@@ -411,7 +406,7 @@ void test_hermite_mod_d(void)
     bn_set_u64(&D, 1000003);
     bigmatrix_hermite_mod_d(&W, &A, &D);
     bigmatrix_hermite(&H, &A);
-    assert(test_matrix_equal(&W, &H));
+    assert(bigmatrix_equal(&W, &H));
     printf("[PASS] hermite_mod_d m > n fallback\n");
 
     bigmatrix_free(&A);
@@ -420,6 +415,219 @@ void test_hermite_mod_d(void)
   }
 
   bn_free_multi(&D, &val, NULL);
+}
+
+void test_hnf_verify(void)
+{
+  bignum val;
+  bn_init(&val);
+
+  // 1. Structure: valid 2x2 with one violation per rule
+  {
+    // [[3,1],[0,2]]: upper triangular, positive pivots, 0 <= H[0][1] = 1 < 2
+    bigmatrix H;
+    bigmatrix_init(&H, 2, 2);
+    test_set_i64(&H, 0, 0, 3);
+    test_set_i64(&H, 0, 1, 1);
+    test_set_i64(&H, 1, 1, 2);
+    assert(bigmatrix_hnf_check_structure(&H));
+
+    // violation: entry below the diagonal
+    test_set_i64(&H, 1, 0, 5);
+    assert(!bigmatrix_hnf_check_structure(&H));
+    test_set_i64(&H, 1, 0, 0);
+
+    // violation: negative pivot
+    test_set_i64(&H, 1, 1, -2);
+    assert(!bigmatrix_hnf_check_structure(&H));
+    test_set_i64(&H, 1, 1, 2);
+
+    // violation: entry right of the pivot not reduced (3 is not < 3)
+    test_set_i64(&H, 0, 1, 3);
+    assert(!bigmatrix_hnf_check_structure(&H));
+
+    // violation: negative entry right of the pivot
+    test_set_i64(&H, 0, 1, -1);
+    assert(!bigmatrix_hnf_check_structure(&H));
+    test_set_i64(&H, 0, 1, 1);
+    assert(bigmatrix_hnf_check_structure(&H));
+    bigmatrix_free(&H);
+    printf("[PASS] hnf_check_structure (2x2 rules)\n");
+
+    // zero-row order: trailing zeros ok, a nonzero row after them is not
+    bigmatrix Z;
+    bigmatrix_init(&Z, 3, 3);
+    test_set_i64(&Z, 0, 0, 1);
+    assert(bigmatrix_hnf_check_structure(&Z));
+    test_set_i64(&Z, 2, 2, 3);
+    assert(!bigmatrix_hnf_check_structure(&Z));
+    bigmatrix_free(&Z);
+
+    // zero pivot with a nonzero entry right of it: not a zero row
+    bigmatrix B;
+    bigmatrix_init(&B, 2, 2);
+    test_set_i64(&B, 0, 1, 1);
+    assert(!bigmatrix_hnf_check_structure(&B));
+    bigmatrix_free(&B);
+
+    // valid 3x3: [[2,1,0],[0,3,1],[0,0,5]]
+    bigmatrix T;
+    bigmatrix_init(&T, 3, 3);
+    test_set_i64(&T, 0, 0, 2);
+    test_set_i64(&T, 0, 1, 1);
+    test_set_i64(&T, 1, 1, 3);
+    test_set_i64(&T, 1, 2, 1);
+    test_set_i64(&T, 2, 2, 5);
+    assert(bigmatrix_hnf_check_structure(&T));
+    bigmatrix_free(&T);
+    printf("[PASS] hnf_check_structure (zero rows, 3x3)\n");
+  }
+
+  // 2. Unimodularity: det 1, det -1, shear; det 2 and non-square fail
+  {
+    bigmatrix U;
+    bigmatrix_init(&U, 2, 2);
+
+    // identity: det 1
+    test_set_i64(&U, 0, 0, 1);
+    test_set_i64(&U, 1, 1, 1);
+    assert(bigmatrix_hnf_check_unimodular(&U));
+
+    // swap: det -1, |det| = 1
+    test_set_i64(&U, 0, 0, 0);
+    test_set_i64(&U, 0, 1, 1);
+    test_set_i64(&U, 1, 0, 1);
+    test_set_i64(&U, 1, 1, 0);
+    assert(bigmatrix_hnf_check_unimodular(&U));
+
+    // shear: det 1
+    test_set_i64(&U, 0, 0, 1);
+    test_set_i64(&U, 0, 1, 1);
+    test_set_i64(&U, 1, 0, 0);
+    test_set_i64(&U, 1, 1, 1);
+    assert(bigmatrix_hnf_check_unimodular(&U));
+
+    // det 2: not unimodular
+    test_set_i64(&U, 0, 0, 2);
+    test_set_i64(&U, 1, 1, 1);
+    assert(!bigmatrix_hnf_check_unimodular(&U));
+
+    bigmatrix_free(&U);
+
+    // non-square: rejected without a determinant
+    bigmatrix R;
+    bigmatrix_init(&R, 2, 3);
+    assert(!bigmatrix_hnf_check_unimodular(&R));
+    bigmatrix_free(&R);
+    printf("[PASS] hnf_check_unimodular\n");
+  }
+
+  // 3. Transformation: the library's known example, A * U = H
+  //    A = [[1,2],[3,4]], U = [[-4,-1],[3,1]] (det -1),
+  //    A * U = [[2,1],[0,1]] = H
+  bigmatrix A, U, H;
+  bigmatrix_init(&A, 2, 2);
+  bigmatrix_init(&U, 2, 2);
+  bigmatrix_init(&H, 2, 2);
+  test_set_i64(&A, 0, 0, 1);
+  test_set_i64(&A, 0, 1, 2);
+  test_set_i64(&A, 1, 0, 3);
+  test_set_i64(&A, 1, 1, 4);
+  test_set_i64(&U, 0, 0, -4);
+  test_set_i64(&U, 0, 1, -1);
+  test_set_i64(&U, 1, 0, 3);
+  test_set_i64(&U, 1, 1, 1);
+  test_set_i64(&H, 0, 0, 2);
+  test_set_i64(&H, 0, 1, 1);
+  test_set_i64(&H, 1, 1, 1);
+
+  // sanity: A * U really is H (independent of the checker)
+  bigmatrix P;
+  bigmatrix_init(&P, 2, 2);
+  bigmatrix_mul(&P, &A, &U);
+  assert(bigmatrix_equal(&P, &H));
+  bigmatrix_free(&P);
+
+  assert(bigmatrix_hnf_check_transformation(&A, &H, &U));
+
+  // corrupt H: product mismatch
+  bigmatrix Hbad;
+  bigmatrix_init(&Hbad, 2, 2);
+  bigmatrix_copy(&Hbad, &H);
+  test_set_i64(&Hbad, 0, 1, 7);
+  assert(!bigmatrix_hnf_check_transformation(&A, &Hbad, &U));
+  bigmatrix_free(&Hbad);
+
+  // shape mismatch: U must be 2x2 for a 2x2 A
+  bigmatrix Ubad;
+  bigmatrix_init(&Ubad, 1, 2);
+  assert(!bigmatrix_hnf_check_transformation(&A, &H, &Ubad));
+  bigmatrix_free(&Ubad);
+  printf("[PASS] hnf_check_transformation\n");
+
+  // 4. Master check: the full triple passes
+  assert(bigmatrix_hnf_verify(&A, &H, &U));
+
+  // structure violation is caught first (lower triangle entry)
+  bigmatrix Hs;
+  bigmatrix_init(&Hs, 2, 2);
+  bigmatrix_copy(&Hs, &H);
+  test_set_i64(&Hs, 1, 0, 5);
+  assert(!bigmatrix_hnf_verify(&A, &Hs, &U));
+  bigmatrix_free(&Hs);
+
+  // structure-valid H, but A * U != H: [[2,0],[0,1]] is in HNF shape
+  bigmatrix Ht;
+  bigmatrix_init(&Ht, 2, 2);
+  test_set_i64(&Ht, 0, 0, 2);
+  test_set_i64(&Ht, 1, 1, 1);
+  assert(bigmatrix_hnf_check_structure(&Ht));
+  assert(!bigmatrix_hnf_verify(&A, &Ht, &U));
+  bigmatrix_free(&Ht);
+
+  // H = A * U' with U' = 2 * U (det -4): structure and transformation
+  // hold, unimodularity must be the failing check
+  bigmatrix U2, H2;
+  bigmatrix_init(&U2, 2, 2);
+  bigmatrix_init(&H2, 2, 2);
+  test_set_i64(&U2, 0, 0, -8);
+  test_set_i64(&U2, 0, 1, -2);
+  test_set_i64(&U2, 1, 0, 6);
+  test_set_i64(&U2, 1, 1, 2);
+  bigmatrix_mul(&H2, &A, &U2);
+  assert(bigmatrix_hnf_check_structure(&H2));
+  assert(bigmatrix_hnf_check_transformation(&A, &H2, &U2));
+  assert(!bigmatrix_hnf_check_unimodular(&U2));
+  assert(!bigmatrix_hnf_verify(&A, &H2, &U2));
+  bigmatrix_free(&U2);
+  bigmatrix_free(&H2);
+  printf("[PASS] hnf_verify (master)\n");
+
+  // 5. Working HNF test: bigmatrix_hermite on random square matrices
+  //    must produce matrices in HNF structure
+  for (u64 n = 2; n <= 6; n++) {
+    for (int rep = 0; rep < 3; rep++) {
+      bigmatrix R, W;
+      bigmatrix_init(&R, n, n);
+      bigmatrix_init(&W, n, n);
+      for (u64 i = 0; i < n; i++) {
+        for (u64 j = 0; j < n; j++) {
+          bn_gen_random(&val, 20);
+          bigmatrix_set(&R, &val, i, j);
+        }
+      }
+      bigmatrix_hermite(&W, &R);
+      assert(bigmatrix_hnf_check_structure(&W));
+      bigmatrix_free(&R);
+      bigmatrix_free(&W);
+    }
+  }
+  printf("[PASS] hnf structure of bigmatrix_hermite output\n");
+
+  bigmatrix_free(&A);
+  bigmatrix_free(&U);
+  bigmatrix_free(&H);
+  bn_free(&val);
 }
 
 void test_pascal_det(u64 size)
@@ -568,6 +776,164 @@ int main()
   bigmatrix_hadamard(&val, &A);
   bn_println(&val);
 
+  // 7b. Test the structural check predicates
+  {
+    // 2x2 zero matrix: square, zero, diagonal, both triangular,
+    // symmetric; not the identity
+    bigmatrix Z;
+    bigmatrix_init(&Z, 2, 2);
+    assert(bigmatrix_is_square(&Z));
+    assert(bigmatrix_is_zero(&Z));
+    assert(!bigmatrix_is_identity(&Z));
+    assert(bigmatrix_is_diagonal(&Z));
+    assert(bigmatrix_is_upper_triangular(&Z));
+    assert(bigmatrix_is_lower_triangular(&Z));
+    assert(bigmatrix_is_symmetric(&Z));
+    bigmatrix_free(&Z);
+    printf("[PASS] Checks (zero matrix)\n");
+
+    // 3x3 identity
+    bigmatrix I3;
+    bigmatrix_init(&I3, 3, 3);
+    test_set_i64(&I3, 0, 0, 1);
+    test_set_i64(&I3, 1, 1, 1);
+    test_set_i64(&I3, 2, 2, 1);
+    assert(bigmatrix_is_square(&I3));
+    assert(bigmatrix_is_identity(&I3));
+    assert(!bigmatrix_is_zero(&I3));
+    assert(bigmatrix_is_diagonal(&I3));
+    assert(bigmatrix_is_upper_triangular(&I3));
+    assert(bigmatrix_is_lower_triangular(&I3));
+    assert(bigmatrix_is_symmetric(&I3));
+    bigmatrix_free(&I3);
+    printf("[PASS] Checks (identity)\n");
+
+    // -1 on the diagonal must not count as 1 (bn_is_eq_i64(x, 1) would
+    // match it; bn_is_one must not)
+    bigmatrix N3;
+    bigmatrix_init(&N3, 3, 3);
+    test_set_i64(&N3, 0, 0, -1);
+    test_set_i64(&N3, 1, 1, 1);
+    test_set_i64(&N3, 2, 2, 1);
+    assert(!bigmatrix_is_identity(&N3));
+    assert(bigmatrix_is_diagonal(&N3));
+    assert(bigmatrix_is_symmetric(&N3));
+    bigmatrix_free(&N3);
+    printf("[PASS] Checks (negative diagonal)\n");
+
+    // 3x3 upper triangular: not diagonal, not lower, not symmetric
+    bigmatrix U3;
+    bigmatrix_init(&U3, 3, 3);
+    test_set_i64(&U3, 0, 0, 1);
+    test_set_i64(&U3, 0, 1, 2);
+    test_set_i64(&U3, 0, 2, 3);
+    test_set_i64(&U3, 1, 1, 4);
+    test_set_i64(&U3, 1, 2, 5);
+    test_set_i64(&U3, 2, 2, 6);
+    assert(bigmatrix_is_upper_triangular(&U3));
+    assert(!bigmatrix_is_lower_triangular(&U3));
+    assert(!bigmatrix_is_diagonal(&U3));
+    assert(!bigmatrix_is_symmetric(&U3));
+    assert(!bigmatrix_is_identity(&U3));
+    bigmatrix_free(&U3);
+    printf("[PASS] Checks (upper triangular)\n");
+
+    // 3x3 lower triangular: the mirror case
+    bigmatrix L3;
+    bigmatrix_init(&L3, 3, 3);
+    test_set_i64(&L3, 0, 0, 1);
+    test_set_i64(&L3, 1, 0, 2);
+    test_set_i64(&L3, 1, 1, 4);
+    test_set_i64(&L3, 2, 0, 3);
+    test_set_i64(&L3, 2, 1, 5);
+    test_set_i64(&L3, 2, 2, 6);
+    assert(bigmatrix_is_lower_triangular(&L3));
+    assert(!bigmatrix_is_upper_triangular(&L3));
+    assert(!bigmatrix_is_diagonal(&L3));
+    assert(!bigmatrix_is_symmetric(&L3));
+    bigmatrix_free(&L3);
+    printf("[PASS] Checks (lower triangular)\n");
+
+    // 3x3 symmetric, then break one mirror pair
+    bigmatrix S3;
+    bigmatrix_init(&S3, 3, 3);
+    test_set_i64(&S3, 0, 0, 1);
+    test_set_i64(&S3, 0, 1, 2);
+    test_set_i64(&S3, 0, 2, 3);
+    test_set_i64(&S3, 1, 0, 2);
+    test_set_i64(&S3, 1, 1, 4);
+    test_set_i64(&S3, 1, 2, 5);
+    test_set_i64(&S3, 2, 0, 3);
+    test_set_i64(&S3, 2, 1, 5);
+    test_set_i64(&S3, 2, 2, 6);
+    assert(bigmatrix_is_symmetric(&S3));
+    test_set_i64(&S3, 0, 2, 9);
+    assert(!bigmatrix_is_symmetric(&S3));
+    bigmatrix_free(&S3);
+    printf("[PASS] Checks (symmetric)\n");
+
+    // 2x3 zero rectangle: not square / not identity / not symmetric,
+    // the rest vacuously true
+    bigmatrix R23;
+    bigmatrix_init(&R23, 2, 3);
+    assert(!bigmatrix_is_square(&R23));
+    assert(bigmatrix_is_zero(&R23));
+    assert(!bigmatrix_is_identity(&R23));
+    assert(bigmatrix_is_diagonal(&R23));
+    assert(bigmatrix_is_upper_triangular(&R23));
+    assert(bigmatrix_is_lower_triangular(&R23));
+    assert(!bigmatrix_is_symmetric(&R23));
+    // a single sub-diagonal entry breaks upper triangularity (and
+    // diagonal/zero), but not lower triangularity
+    test_set_i64(&R23, 1, 0, 7);
+    assert(!bigmatrix_is_zero(&R23));
+    assert(!bigmatrix_is_upper_triangular(&R23));
+    assert(bigmatrix_is_lower_triangular(&R23));
+    assert(!bigmatrix_is_diagonal(&R23));
+    bigmatrix_free(&R23);
+    printf("[PASS] Checks (rectangular)\n");
+
+    // 3x4 identity-pattern: the dimension short-circuit must reject it
+    // as identity/symmetric even though the scanned sub-regions are clean
+    bigmatrix Q34;
+    bigmatrix_init(&Q34, 3, 4);
+    test_set_i64(&Q34, 0, 0, 1);
+    test_set_i64(&Q34, 1, 1, 1);
+    test_set_i64(&Q34, 2, 2, 1);
+    assert(!bigmatrix_is_square(&Q34));
+    assert(!bigmatrix_is_identity(&Q34));
+    assert(!bigmatrix_is_symmetric(&Q34));
+    assert(bigmatrix_is_diagonal(&Q34));
+    assert(bigmatrix_is_upper_triangular(&Q34));
+    assert(bigmatrix_is_lower_triangular(&Q34));
+    bigmatrix_free(&Q34);
+    printf("[PASS] Checks (non-square short-circuit)\n");
+
+    // degenerate sizes: 0x0 is vacuously everything, 0x2 is not square
+    // nor symmetric
+    bigmatrix E00, E02;
+    bigmatrix_init(&E00, 0, 0);
+    assert(bigmatrix_is_square(&E00));
+    assert(bigmatrix_is_zero(&E00));
+    assert(bigmatrix_is_identity(&E00));
+    assert(bigmatrix_is_diagonal(&E00));
+    assert(bigmatrix_is_upper_triangular(&E00));
+    assert(bigmatrix_is_lower_triangular(&E00));
+    assert(bigmatrix_is_symmetric(&E00));
+    bigmatrix_free(&E00);
+
+    bigmatrix_init(&E02, 0, 2);
+    assert(!bigmatrix_is_square(&E02));
+    assert(bigmatrix_is_zero(&E02));
+    assert(!bigmatrix_is_identity(&E02));
+    assert(bigmatrix_is_diagonal(&E02));
+    assert(bigmatrix_is_upper_triangular(&E02));
+    assert(bigmatrix_is_lower_triangular(&E02));
+    assert(!bigmatrix_is_symmetric(&E02));
+    bigmatrix_free(&E02);
+    printf("[PASS] Checks (degenerate sizes)\n");
+  }
+
   // 8. Cleanup
   bn_free(&val);
   bn_free(&check);
@@ -614,15 +980,17 @@ int main()
 
   printf("Hermite: \n ");
   bigmatrix_hermite(&ADJ, &D);
+  assert(bigmatrix_hnf_check_structure(&ADJ));
   bigmatrix_print(&ADJ);
   printf("\n");
 
   printf("Hermite GCD: \n ");
-  bigmatrix_smith(&ADJ, &D);
+  bigmatrix_hermite_gcd(&ADJ, &D);
   bigmatrix_print(&ADJ);
   printf("\n");
 
   test_hermite_mod_d();
+  test_hnf_verify();
 
   bigpoly_free(&p);
 

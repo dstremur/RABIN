@@ -184,6 +184,24 @@ bool bn_is_zero(const bignum* a);
 bool bn_is_eq_i64(const bignum* n, i64 a);
 
 /**
+ * @brief Test whether a bignum is one.
+ *
+ * Inspects only the sign flag, the size, and the single limb, so no
+ * temporary bignum needs to be allocated. Unlike bn_is_eq_i64(n, 1) this
+ * does NOT match -1, which is also stored as a single limb of 1.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] a Bignum to test.
+ *
+ * @return true If a is one, false otherwise.
+ */
+bool bn_is_one(const bignum* a);
+
+/**
  * @brief Grow the limb storage of r to at least capacity limbs.
  *
  * If r->capacity is already sufficient, nothing happens. Otherwise the

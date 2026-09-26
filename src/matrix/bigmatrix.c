@@ -4,10 +4,11 @@
  * Matrix arithmetic over bignums.
  *
  * This file implements matrices with bignum entries: initialization,
- * freeing, copying, element/row/column access, printing,
- * component-wise addition, schoolbook multiplication, matrix-vector
- * products, the Hadamard bound on the determinant, and the
- * determinant (computed via the RNS path; a direct Bareiss
+ * freeing, copying, element/row/column access, structural check
+ * predicates (square, zero, identity, diagonal, triangular, symmetric),
+ * printing, component-wise addition, schoolbook multiplication,
+ * matrix-vector products, the Hadamard bound on the determinant, and
+ * the determinant (computed via the RNS path; a direct Bareiss
  * implementation is kept below it, currently disabled).
  *
  * A bigmatrix is a row-major dynamic array of bignums with row and
@@ -121,6 +122,134 @@ void bigmatrix_get_row(bigvector* r, const bigmatrix* A, u64 row)
   for (u64 i = 0; i < A->c_size; i++) {
     bigvector_set(r, GET(A, row, i), i);
   }
+}
+
+bool bigmatrix_is_square(const bigmatrix* A) { return A->r_size == A->c_size; }
+
+bool bigmatrix_is_zero(const bigmatrix* A)
+{
+  // single sequential pass over the flat row-major storage; bn_is_zero is
+  // an O(1) size/limb inspection, so no temporary bignums are needed
+  u64 total = A->r_size * A->c_size;
+  for (u64 i = 0; i < total; i++) {
+    if (!bn_is_zero(&A->data[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool bigmatrix_is_identity(const bigmatrix* A)
+{
+  // dimension short-circuit: a non-square matrix cannot be the identity,
+  // bail out before touching any entry
+  if (!bigmatrix_is_square(A)) {
+    return false;
+  }
+
+  u64 n = A->r_size;
+  for (u64 i = 0; i < n; i++) {
+    bignum* row = &A->data[i * A->c_size];
+    for (u64 j = 0; j < n; j++) {
+      if (i == j) {
+        // diagonal entry must be exactly 1 (bn_is_one rejects -1)
+        if (!bn_is_one(&row[j])) {
+          return false;
+        }
+      } else {
+        // every off-diagonal entry must be 0
+        if (!bn_is_zero(&row[j])) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+bool bigmatrix_is_diagonal(const bigmatrix* A)
+{
+  // only the off-diagonal sub-regions can violate: in row i those are the
+  // columns left of the diagonal, j < i (capped at c_size), and the
+  // columns right of it, j > i (empty once i >= c_size). The diagonal
+  // entry (i, i) itself is never inspected
+  for (u64 i = 0; i < A->r_size; i++) {
+    bignum* row = &A->data[i * A->c_size];
+
+    // left of the diagonal: j in [0, min(i, c_size))
+    u64 left = MIN(i, A->c_size);
+    for (u64 j = 0; j < left; j++) {
+      if (!bn_is_zero(&row[j])) {
+        return false;
+      }
+    }
+
+    // right of the diagonal: j in (i, c_size)
+    for (u64 j = i + 1; j < A->c_size; j++) {
+      if (!bn_is_zero(&row[j])) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool bigmatrix_is_upper_triangular(const bigmatrix* A)
+{
+  // only the strict lower triangle (row > col) can violate; row 0 has no
+  // entries below the diagonal, so the scan starts at i = 1
+  for (u64 i = 1; i < A->r_size; i++) {
+    bignum* row = &A->data[i * A->c_size];
+
+    // below the diagonal in row i: j in [0, min(i-1, c_size-1)], i.e.
+    // j < min(i, c_size) — the cap handles tall (c < r) matrices
+    u64 limit = MIN(i, A->c_size);
+    for (u64 j = 0; j < limit; j++) {
+      if (!bn_is_zero(&row[j])) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool bigmatrix_is_lower_triangular(const bigmatrix* A)
+{
+  // only the strict upper triangle (col > row) can violate; in row i the
+  // first candidate is column i+1, and the inner loop is empty once
+  // i >= c_size, so rows below the diagonal region cost nothing
+  for (u64 i = 0; i < A->r_size; i++) {
+    bignum* row = &A->data[i * A->c_size];
+    for (u64 j = i + 1; j < A->c_size; j++) {
+      if (!bn_is_zero(&row[j])) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool bigmatrix_is_symmetric(const bigmatrix* A)
+{
+  // dimension short-circuit: a non-square matrix cannot be symmetric,
+  // bail out before touching any entry
+  if (!bigmatrix_is_square(A)) {
+    return false;
+  }
+
+  u64 n = A->r_size;
+  // walk only the strict upper triangle: each mirror pair (i, j)/(j, i)
+  // with i < j is compared exactly once; row i is swept sequentially,
+  // and GET(A, j, i) is a constant offset into row j's contiguous block
+  for (u64 i = 0; i < n; i++) {
+    bignum* row_i = &A->data[i * A->c_size];
+    for (u64 j = i + 1; j < n; j++) {
+      if (bn_cmp(&row_i[j], GET(A, j, i)) != 0) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 void bigmatrix_scalar(bigmatrix* R, const bigmatrix* A, const bignum* a)
@@ -1177,6 +1306,160 @@ cleanup:
   bn_free(&R);
   bn_free_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
   bigmatrix_free(&A_work);
+}
+
+bool bigmatrix_equal(const bigmatrix* A, const bigmatrix* B)
+{
+  if (A->r_size != B->r_size || A->c_size != B->c_size) return false;
+
+  u64 total = A->r_size * A->c_size;
+  for (u64 i = 0; i < total; i++) {
+    const bignum* a = &A->data[i];
+    const bignum* b = &B->data[i];
+
+    // bn_cmp does not normalize the two representations of zero
+    // (size 0 from bigmatrix_init vs size 1 with a zero limb), so
+    // settle the zero cases explicitly
+    bool za = bn_is_zero(a);
+    bool zb = bn_is_zero(b);
+    if (za || zb) {
+      if (za != zb) return false;
+      continue;
+    }
+    if (bn_cmp(a, b) != 0) return false;
+  }
+  return true;
+}
+
+bool bigmatrix_hnf_check_structure(const bigmatrix* H)
+{
+  u64 r = H->r_size;
+  u64 c = H->c_size;
+
+  // once a zero row is hit, every later row must be zero as well
+  bool zero_row_seen = false;
+
+  for (u64 i = 0; i < r; i++) {
+    bignum* row = &H->data[i * c];
+
+    // upper triangular: H[i][j] == 0 for all j < i (capped at c for
+    // rows below the last column)
+    u64 left = MIN(i, c);
+    for (u64 j = 0; j < left; j++) {
+      if (!bn_is_zero(&row[j])) {
+        return false;
+      }
+    }
+
+    // zero rows only in a trailing block: from here on everything must
+    // be zero
+    if (zero_row_seen) {
+      for (u64 j = 0; j < c; j++) {
+        if (!bn_is_zero(&row[j])) {
+          return false;
+        }
+      }
+      continue;
+    }
+
+    // a nonzero row needs a diagonal pivot, so rows at or beyond the
+    // last column can only be zero rows
+    if (i >= c) {
+      for (u64 j = 0; j < c; j++) {
+        if (!bn_is_zero(&row[j])) {
+          return false;
+        }
+      }
+      zero_row_seen = true;
+      continue;
+    }
+
+    bignum* pivot = &row[i];
+
+    if (bn_is_zero(pivot)) {
+      // a zero pivot may only start the trailing zero block: everything
+      // right of the pivot must also be zero
+      for (u64 j = i + 1; j < c; j++) {
+        if (!bn_is_zero(&row[j])) {
+          return false;
+        }
+      }
+      zero_row_seen = true;
+      continue;
+    }
+
+    // positive pivot
+    if (pivot->is_neg) {
+      return false;
+    }
+
+    // reduced entries: the entries right of the pivot, H[i][j] for
+    // j > i, must lie in [0, pivot) — this is the reduction invariant
+    // established by the column-operation HNF algorithms in this
+    // library (each row is reduced modulo its own pivot)
+    for (u64 j = i + 1; j < c; j++) {
+      if (row[j].is_neg || bn_cmp(&row[j], pivot) >= 0) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool bigmatrix_hnf_check_transformation(const bigmatrix* A, const bigmatrix* H,
+                                        const bigmatrix* U)
+{
+  // column-operation convention: H = A * U; bigmatrix_mul() silently
+  // no-ops unless A->c_size == U->r_size, so reject shape mismatches
+  // before allocating the product
+  if (A->r_size != H->r_size || A->c_size != U->r_size ||
+      U->c_size != H->c_size) {
+    return false;
+  }
+
+  bigmatrix P;
+  bigmatrix_init(&P, H->r_size, H->c_size);
+
+  bigmatrix_mul(&P, A, U);
+
+  bool ok = bigmatrix_equal(&P, H);
+
+  bigmatrix_free(&P);
+  return ok;
+}
+
+bool bigmatrix_hnf_check_unimodular(const bigmatrix* U)
+{
+  if (!bigmatrix_is_square(U)) {
+    return false;
+  }
+  // the empty matrix acts as the identity transformation
+  if (U->r_size == 0) {
+    return true;
+  }
+
+  bignum det;
+  bn_init(&det);
+
+  bigmatrix_det(&det, U);
+
+  // |det| == 1: clear the sign flag and use the O(1) one-check
+  det.is_neg = false;
+  bool ok = bn_is_one(&det);
+
+  bn_free(&det);
+  return ok;
+}
+
+bool bigmatrix_hnf_verify(const bigmatrix* A, const bigmatrix* H,
+                          const bigmatrix* U)
+{
+  // order matters: the cheap structure check runs first, the
+  // multiplication and the determinant only if it passes
+  return bigmatrix_hnf_check_structure(H) &&
+         bigmatrix_hnf_check_transformation(A, H, U) &&
+         bigmatrix_hnf_check_unimodular(U);
 }
 
 // void bigmatrix_LLL(bigmatrix* B, u64 n, double delta, bigmatrix* H)
