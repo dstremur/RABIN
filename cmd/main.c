@@ -169,6 +169,9 @@ int main()
   bn_div_euclid(&c, &a, &b);
   printf("DIV euclid: ");
   bn_println(&c);
+  bn_div_exact(&c, &a, &b);
+  printf("DIV exact: ");
+  bn_println(&c);
   bn_mod(&c, &a, &b);
   printf("MOD: ");
   bn_println(&c);

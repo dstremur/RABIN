@@ -509,6 +509,113 @@ void bigmatrix_det(bignum* d, const bigmatrix* A)
   return;
 }
 
+void bigmatrix_det_bareiss(bignum* det, const bigmatrix* A)
+{
+  if (!bigmatrix_is_square(A)) {
+    printf("Matrix must be square\n");
+    return;
+  }
+
+  u64 n = A->r_size;
+
+  if (n == 0) {
+    bn_set_u64(det, 1);
+    return;
+  }
+
+  if (n == 1) {
+    bn_copy(det, GET(A, 0, 0));
+    return;
+  }
+
+  // Work on a local copy of the matrix to preserve the input
+  bigmatrix T;
+  bigmatrix_init(&T, n, n);
+  bigmatrix_copy(&T, A);
+
+  bignum p0;
+  bn_init(&p0);
+  bn_set_u64(&p0, 1);
+
+  int sign = 1;
+  bool det_zero = false;
+
+#pragma omp parallel
+  {
+    // Each thread gets its own private temporary bignums initialized once
+    // to avoid heap allocation churn inside the nested loops.
+    bignum prod1, prod2, diff;
+    bn_init_multi(&prod1, &prod2, &diff, NULL);
+
+    for (u64 k = 0; k < n - 1; k++) {
+      // 1. Sequential Pivot Selection & Row Swap (executed by one thread)
+#pragma omp single
+      {
+        if (bn_is_zero(GET(&T, k, k))) {
+          u64 pivot_row = n;
+          for (u64 i = k + 1; i < n; i++) {
+            if (!bn_is_zero(GET(&T, i, k))) {
+              pivot_row = i;
+              break;
+            }
+          }
+
+          if (pivot_row == n) {
+            det_zero = true;
+          } else {
+            for (u64 col = 0; col < n; col++) {
+              bn_swap(GET(&T, k, col), GET(&T, pivot_row, col));
+            }
+            sign = -sign;
+          }
+        }
+      }  // Implicit barrier here ensures row swap and det_zero flag are visible
+         // to all threads
+
+      if (det_zero) {
+        // Fast-forward through remaining steps if pivot search failed
+        continue;
+      }
+
+      // 2. Parallel Bareiss Update Step
+      // Row k and Column k entries are read-only; each (i, j) cell is modified
+      // by exactly one thread.
+#pragma omp for collapse(2) schedule(dynamic)
+      for (u64 i = k + 1; i < n; i++) {
+        for (u64 j = k + 1; j < n; j++) {
+          bn_mul(&prod1, GET(&T, k, k), GET(&T, i, j));
+          bn_mul(&prod2, GET(&T, i, k), GET(&T, k, j));
+          bn_sub(&diff, &prod1, &prod2);
+
+          // Exact division guaranteed by Bareiss property
+          bn_div_exact(GET(&T, i, j), &diff, &p0);
+        }
+      }
+
+      // 3. Update division factor p0 for step k+1
+#pragma omp single
+      {
+        bn_copy(&p0, GET(&T, k, k));
+      }  // Implicit barrier ensures p0 is updated before step k+1 starts
+    }
+
+    bn_free_multi(&prod1, &prod2, &diff, NULL);
+  }
+
+  // Set final result
+  if (det_zero) {
+    bn_set_u64(det, 0);
+  } else {
+    bn_copy(det, GET(&T, n - 1, n - 1));
+    if (sign < 0) {
+      bn_neg(det, det);
+    }
+  }
+
+  bn_free(&p0);
+  bigmatrix_free(&T);
+}
+
 void bigmatrix_neg(const bigmatrix* A)
 {
   for (u64 i = 0; i < A->r_size; i++) {

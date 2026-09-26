@@ -59,6 +59,7 @@ void run_det_benchmark(u64 size, u64 bits)
 
   // printf("rns: ");
   // bn_println(&det);
+  printf("size of result: %llu bits \n", bn_bit_length(&det));
 
   bigmatrix_free(&M);
   bn_free(&det);
@@ -116,7 +117,7 @@ void run_hermite_benchmark(u64 size, u64 bits)
     }
   }
 
-  bigmatrix_det(&det, &M); 
+  bigmatrix_det(&det, &M);
 
   det.is_neg = false;
   printf(
@@ -124,10 +125,10 @@ void run_hermite_benchmark(u64 size, u64 bits)
       size, size, bits);
 
   double start = get_time();
-bigmatrix_hermite_mod_d(&H, &M, &det);
+  bigmatrix_hermite_mod_d(&H, &M, &det);
   double end = get_time();
 
-//bigmatrix_print_tail(&H);
+  // bigmatrix_print_tail(&H);
 
   printf("Time: %f seconds\n", end - start);
 
@@ -1295,6 +1296,11 @@ int main()
 
   bigmatrix_det_rns(&tmp, &D, &ctx);
 
+  printf("Det rns: ");
+  bn_println(&tmp);
+
+  bigmatrix_det_bareiss(&tmp, &D);
+  printf("Det bareiss: ");
   bn_println(&tmp);
 
   rns_context_free(&ctx);
@@ -1364,12 +1370,12 @@ int main()
   //   run_hadamard_benchmark(sizes[i], 32);
   // }
 
-  // for (int i = 0; i < 11; i++) {
-  //   run_det_benchmark(sizes[i], 32);
-  // }
+  for (int i = 0; i < 9; i++) {
+    run_det_benchmark(sizes[i], 32);
+  }
 
   for (int i = 0; i < 7; i++) {
-    run_hermite_benchmark(sizes[i], 10);
+    run_hermite_benchmark(sizes[i], 100);
   }
 
   // HNF mod D (2.4.8) vs exact (2.4.5): on the smaller sizes both are timed
@@ -1380,7 +1386,7 @@ int main()
     run_hermite_mod_d_benchmark(sizes[i], 10, i < 4);
   }
 
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 10; i++) {
     run_mul_benchmark(sizes[i], 64);
   }
 

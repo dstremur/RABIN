@@ -463,6 +463,8 @@ void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B);
  */
 void bigmatrix_det(bignum* d, const bigmatrix* A);
 
+void bigmatrix_det_bareiss(bignum* det, const bigmatrix* A);
+
 /**
  * @brief Returns the identity matrix
  *
