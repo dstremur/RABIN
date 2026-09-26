@@ -40,13 +40,17 @@ typedef struct {
 } rns_num;
 
 /**
- * @brief Estimate how many 62-bit primes are needed to represent a bignum.
+ * @brief Estimate how many primes are needed to represent a bignum.
  *
  * Let \f$k =\f$ bit length of \f$a\f$.
  *
- * Returns \f$\lceil k / 62 \rceil\f$, i.e. the number of 62-bit primes whose
- * product has at least \f$k\f$ bits. (The header declares this as
- * bigrns_estimate_primes().)
+ * Returns \f$\lceil k / 59 \rceil\f$, i.e. the number of primes from
+ * RNS_PRIMES / RNS_PRIMES2 whose product has at least \f$k\f$ bits. Every
+ * prime in those tables is \f$\ge 2^{59}\f$, so the product of
+ * \f$\lceil k / 59 \rceil\f$ of them strictly exceeds \f$2^k \ge a\f$;
+ * budgeting more bits per prime (e.g. 62, while the leading primes are only
+ * 60-bit) lets the product fall short of \f$a\f$ and makes CRT
+ * reconstruction wrap silently.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of \f$a\f$ in limbs
@@ -55,7 +59,7 @@ typedef struct {
  *
  * @param[in] a Bignum to estimate the prime count for.
  *
- * @return The number of 62-bit primes needed (\f$\lceil k / 62 \rceil\f$).
+ * @return The number of primes needed (\f$\lceil k / 59 \rceil\f$).
  */
 u64 rns_estimate_primes(const bignum* a);
 
@@ -164,8 +168,7 @@ void rns_to_bignum(bignum* a, rns_num* v, const ctx_rns* ctx);
  *
  * Uses the Hadamard bound on \f$|\det(A)|\f$, doubles it to cover the range
  * \f$[-M, M]\f$ (so the sign can be recovered from the CRT result), and
- * returns the number of 62-bit primes whose product exceeds that
- * bound.
+ * returns the number of primes whose product exceeds that bound.
  *
  * Complexity:
  *   - Time: \f$O(n^3 \cdot k^2)\f$ where \f$k =\f$ the size of the entries in
@@ -175,7 +178,7 @@ void rns_to_bignum(bignum* a, rns_num* v, const ctx_rns* ctx);
  *
  * @param[in] A Matrix to estimate the prime count for.
  *
- * @return The number of 62-bit primes needed.
+ * @return The number of primes needed.
  */
 u64 rns_estimate_determinant(bigmatrix* A);
 

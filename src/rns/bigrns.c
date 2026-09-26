@@ -43,7 +43,12 @@
 u64 rns_estimate_primes(const bignum* a)
 {
   u64 k = bn_bit_length(a);
-  u64 res = (k + 62) / 62;
+
+  // every prime in RNS_PRIMES and RNS_PRIMES2 is >= 2^59, so the product
+  // of k of them has > 59k bits; budgeting fewer than 62 bits per prime
+  // would let the product fall short of a (e.g. 2 primes cover 120 bits,
+  // not 124) and the CRT reconstruction would silently wrap
+  u64 res = (k + 58) / 59;
 
   return res;
 }

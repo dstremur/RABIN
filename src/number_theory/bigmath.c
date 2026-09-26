@@ -524,6 +524,35 @@ void bn_gcd_extended_lehmer(bignum* u, bignum* v, bignum* d, const bignum* a,
   a_work.is_neg = false;
   b_work.is_neg = false;
 
+  // zero-argument guards: the loop below reads the top limb of a_work,
+  // which does not exist for a size-0 bignum
+  if (bn_is_zero(a)) {
+    // u = 0, v = sign(b), d = |b|
+    bn_set_u64(u, 0);
+    if (b->is_neg) {
+      bn_set_i64(v, -1);
+    } else {
+      bn_set_u64(v, 1);
+    }
+    bn_copy(d, b);
+    d->is_neg = false;
+    bn_free_multi(&a_work, &b_work, &t, &r, &v_1, &Q, &p1, &p2, NULL);
+    return;
+  }
+  if (bn_is_zero(b)) {
+    // u = sign(a), v = 0, d = |a|
+    if (a->is_neg) {
+      bn_set_i64(u, -1);
+    } else {
+      bn_set_u64(u, 1);
+    }
+    bn_set_u64(v, 0);
+    bn_copy(d, a);
+    d->is_neg = false;
+    bn_free_multi(&a_work, &b_work, &t, &r, &v_1, &Q, &p1, &p2, NULL);
+    return;
+  }
+
   // 1. [Initialize]
   bn_set_u64(u, 1);
   bn_set_u64(&v_1, 0);

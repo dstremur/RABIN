@@ -795,6 +795,85 @@ static void bigmatrix_hnf_centered_mod(bignum* r, const bignum* x,
   }
 }
 
+// Cohen's "Important Remark" after Algorithm 2.4.5: the Euclidean steps of
+// the HNF algorithms need the Bezout pair (u, v) of u*a + v*b = d with
+// small coefficients. All solutions are (u0 + t*(b/d), v0 - t*(a/d)), so
+// this rewrites the pair in place to the unique one with v in the centered
+// half-period (-|a/d|/2, |a/d|/2] (which minimizes |v|); when a | b
+// (d = |a|) the book's essential condition v = 0, u = sign(a) applies
+// instead. The identity u*a + v*b = d is preserved in all cases.
+static void hnf_bezout_minimal(bignum* u, bignum* v, const bignum* d,
+                               const bignum* a, const bignum* b)
+{
+  bignum p, pmag, half, quot, r, t, two;
+  bn_init_multi(&p, &pmag, &half, &quot, &r, &t, &two, NULL);
+
+  if (bn_is_zero(a)) {
+    // v*sign(b) = d/|b| = 1 is forced; u is free, take u = 0
+    bn_set_u64(u, 0);
+    if (bn_is_zero(b)) {
+      bn_set_u64(v, 0);
+    } else if (b->is_neg) {
+      bn_set_i64(v, -1);
+    } else {
+      bn_set_u64(v, 1);
+    }
+    goto cleanup;
+  }
+
+  if (bn_is_zero(b)) {
+    // u*sign(a) = 1 is forced; v = 0
+    if (a->is_neg) {
+      bn_set_i64(u, -1);
+    } else {
+      bn_set_u64(u, 1);
+    }
+    bn_set_u64(v, 0);
+    goto cleanup;
+  }
+
+  bn_copy(&p, a);
+  p.is_neg = false;
+
+  // a | b  =>  d = |a|  =>  v = 0, u = sign(a)  (the book's essential
+  // condition; it also keeps the Euclidean step from stalling)
+  if (bn_cmp(&p, d) == 0) {
+    if (a->is_neg) {
+      bn_set_i64(u, -1);
+    } else {
+      bn_set_u64(u, 1);
+    }
+    bn_set_u64(v, 0);
+    goto cleanup;
+  }
+
+  // centered half-period: v = v0 - t*(a/d) with |a/d| >= 2 and
+  // v in (-|a/d|/2, |a/d|/2]; recompute u = (d - v*b)/a (exact)
+  bn_div_exact(&p, a, d);
+  bn_copy(&pmag, &p);
+  pmag.is_neg = false;
+  bn_set_u64(&two, 2);
+  bn_div(&half, &pmag, &two);
+
+  // r = v0 mod |p| in [0, |p|)
+  bn_divmod(&quot, &r, v, &pmag);  // |r| < |p|, sign(r) = sign(v0)
+  if (r.is_neg) {
+    bn_add(&r, &r, &pmag);
+  }
+  if (bn_cmp(&r, &half) > 0) {
+    bn_sub(v, &r, &pmag);  // v in (-|p|/2, 0)
+  } else {
+    bn_copy(v, &r);  // v in [0, |p|/2]
+  }
+
+  bn_mul(&t, v, b);
+  bn_sub(&t, d, &t);
+  bn_div_exact(u, &t, a);
+
+cleanup:
+  bn_free_multi(&p, &pmag, &half, &quot, &r, &t, &two, NULL);
+}
+
 void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D)
 {
   // 1. [Initialize]
@@ -843,18 +922,7 @@ void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D)
 
       bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k),
                              GET(&A_work, i, j));
-
-      // if d == |a_{i,k}| (i.e. a_{i,k} | a_{i,j}), force v = 0 to avoid
-      // an infinite loop
-      bn_copy(&t1, GET(&A_work, i, k));
-      t1.is_neg = false;
-      if (bn_cmp(&d, &t1) == 0) {
-        bn_set_u64(&v, 0);
-        bn_set_u64(&u, 1);
-        if (GET(&A_work, i, k)->is_neg) {
-          bn_set_i64(&u, -1);
-        }
-      }
+      hnf_bezout_minimal(&u, &v, &d, GET(&A_work, i, k), GET(&A_work, i, j));
 
       // B = u*A_k + v*A_j, reduced into (-R/2, R/2]
       for (u64 x = 0; x < m; x++) {
@@ -882,6 +950,7 @@ void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D)
     // 4. [Next row]
     // u*a_{i,k} + v*R = d = gcd(a_{i,k}, R)
     bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k), &R);
+    hnf_bezout_minimal(&u, &v, &d, GET(&A_work, i, k), &R);
 
     // W_i = u*A_k mod R, taken in [0, R)
     for (u64 x = 0; x < m; x++) {
@@ -971,21 +1040,7 @@ step2:
 
   // 3. [Euclidean step]
   bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k), GET(&A_work, i, j));
-
-  bignum a_abs;
-  bn_init(&a_abs);
-  bn_copy(&a_abs, GET(&A_work, i, k));
-  a_abs.is_neg = false;
-
-  // if d == |a_{i,k}|, force v == 0, u = sign(a_{i,k})
-  if (bn_cmp(&d, &a_abs) == 0) {
-    bn_set_u64(&v, 0);
-    bn_set_u64(&u, 1);
-    if (GET(&A_work, i, k)->is_neg) {
-      bn_set_i64(&u, -1);
-    }
-  }
-  bn_free(&a_abs);
+  hnf_bezout_minimal(&u, &v, &d, GET(&A_work, i, k), GET(&A_work, i, j));
 
   for (u64 x = 0; x < m; x++) {
     bn_mul(&B[x], &u, GET(&A_work, x, k));
