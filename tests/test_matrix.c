@@ -123,6 +123,8 @@ void run_hermite_benchmark(u64 size, u64 bits)
   bigmatrix_smith(&H, &M);
   double end = get_time();
 
+  bigmatrix_print_full(&H);
+
   printf("Time: %f seconds\n", end - start);
 
   bigmatrix_free(&M);
@@ -167,6 +169,257 @@ void run_mul_benchmark(u64 size, u64 bits)
   bigmatrix_free(&B);
   bn_free(&det);
   bn_free(&val);
+}
+
+void run_hermite_mod_d_benchmark(u64 size, u64 bits, bool with_exact)
+{
+  bigmatrix M, H;
+  bignum D, val;
+
+  bn_init(&D);
+  bn_init(&val);
+  bigmatrix_init(&M, size, size);
+  bigmatrix_init(&H, size, size);
+
+  // Populate with random data to prevent "easy" zeros
+  for (u64 i = 0; i < size; i++) {
+    for (u64 j = 0; j < size; j++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&M, &val, i, j);
+    }
+  }
+
+  // D must be a multiple of the module determinant; for square M the
+  // module determinant is |det M|, so use that
+  for (int rep = 0; rep < 20; rep++) {
+    bigmatrix_det(&D, &M);
+    if (!bn_is_zero(&D)) break;
+    for (u64 i = 0; i < size; i++) {
+      bn_gen_random(&val, bits);
+      bigmatrix_set(&M, &val, i, i);
+    }
+  }
+  D.is_neg = false;
+
+  if (with_exact) {
+    printf(
+        "Benchmarking %llu x %llu (%llu-bit entries) Hermite normal form "
+        "(exact 2.4.5)... ",
+        size, size, bits);
+    fflush(stdout);
+
+    double start = get_time();
+    bigmatrix_hermite_gcd(&H, &M);
+    double end = get_time();
+
+    printf("Time: %f seconds\n", end - start);
+  }
+
+  printf(
+      "Benchmarking %llu x %llu (%llu-bit entries) Hermite normal form "
+      "(mod D 2.4.8)... ",
+      size, size, bits);
+  fflush(stdout);
+
+  double start = get_time();
+  bigmatrix_hermite_mod_d(&H, &M, &D);
+  double end = get_time();
+
+  printf("Time: %f seconds\n", end - start);
+
+  bigmatrix_free(&M);
+  bigmatrix_free(&H);
+  bn_free(&D);
+  bn_free(&val);
+}
+
+static void test_set_i64(bigmatrix* M, u64 r, u64 c, i64 v)
+{
+  bignum tmp;
+  bn_init(&tmp);
+  bn_set_i64(&tmp, v);
+  bigmatrix_set(M, &tmp, r, c);
+  bn_free(&tmp);
+}
+
+static bool test_matrix_equal(const bigmatrix* A, const bigmatrix* B)
+{
+  if (A->r_size != B->r_size || A->c_size != B->c_size) return false;
+
+  for (u64 i = 0; i < A->r_size * A->c_size; i++) {
+    if (bn_cmp(&A->data[i], &B->data[i]) != 0) return false;
+  }
+  return true;
+}
+
+void test_hermite_mod_d(void)
+{
+  bignum D, val;
+  bn_init_multi(&D, &val, NULL);
+
+  // 1. 2x2 with known HNF: A = [[1,2],[3,4]] -> W = [[2,1],[0,1]]
+  {
+    bigmatrix A, W, H;
+    bigmatrix_init(&A, 2, 2);
+    bigmatrix_init(&W, 2, 2);
+    bigmatrix_init(&H, 2, 2);
+    test_set_i64(&A, 0, 0, 1);
+    test_set_i64(&A, 0, 1, 2);
+    test_set_i64(&A, 1, 0, 3);
+    test_set_i64(&A, 1, 1, 4);
+
+    // D = 4 = 2*|det A|, a multiple of the module determinant
+    bn_set_u64(&D, 4);
+    bigmatrix_hermite_mod_d(&W, &A, &D);
+    test_set_i64(&H, 0, 0, 2);
+    test_set_i64(&H, 0, 1, 1);
+    test_set_i64(&H, 1, 0, 0);
+    test_set_i64(&H, 1, 1, 1);
+    assert(test_matrix_equal(&W, &H));
+
+    // cross-check against the exact implementation
+    bigmatrix V;
+    bigmatrix_init(&V, 2, 2);
+    bigmatrix_hermite(&V, &A);
+    assert(test_matrix_equal(&W, &V));
+    bigmatrix_free(&V);
+
+    bigmatrix_free(&A);
+    bigmatrix_free(&W);
+    bigmatrix_free(&H);
+    printf("[PASS] hermite_mod_d 2x2 known example\n");
+  }
+
+  // 2. 2x3 with unimodular column module: gcd of the 2x2 minors is 1,
+  //    so D = 1 is valid and the HNF must be the 2x2 identity
+  {
+    bigmatrix A, W, H;
+    bigmatrix_init(&A, 2, 3);
+    bigmatrix_init(&W, 2, 2);
+    bigmatrix_init(&H, 2, 2);
+    test_set_i64(&A, 0, 0, 6);
+    test_set_i64(&A, 0, 1, 4);
+    test_set_i64(&A, 0, 2, 9);
+    test_set_i64(&A, 1, 0, 8);
+    test_set_i64(&A, 1, 1, 1);
+    test_set_i64(&A, 1, 2, 6);
+
+    bn_set_u64(&D, 1);
+    bigmatrix_hermite_mod_d(&W, &A, &D);
+    bigmatrix_id(&H, 2);
+    assert(test_matrix_equal(&W, &H));
+    printf("[PASS] hermite_mod_d 2x3 unimodular (D = 1)\n");
+
+    bigmatrix_free(&A);
+    bigmatrix_free(&W);
+    bigmatrix_free(&H);
+  }
+
+  // 3. Random cross-checks against the exact implementation (HNF is unique).
+  //    D must be a multiple of the module determinant Delta (GCD of the
+  //    m x m minors); build A = [B | B R] so that Delta = |det B|:
+  {
+    u64 shapes[][2] = {{2, 2}, {2, 3}, {3, 3}, {3, 4}, {4, 4}, {2, 5}};
+    u64 n_shapes = sizeof(shapes) / sizeof(shapes[0]);
+    bignum det, three;
+    bn_init(&det);
+    bn_set_u64(&three, 3);
+    for (u64 s = 0; s < n_shapes; s++) {
+      u64 m = shapes[s][0];
+      u64 n = shapes[s][1];
+      for (u64 trial = 0; trial < 4; trial++) {
+        bigmatrix B, R, C, A, H, W1, W2;
+        bigmatrix_init(&B, m, m);
+        bigmatrix_init(&R, m, n - m);
+        bigmatrix_init(&C, m, n - m);
+        bigmatrix_init(&A, m, n);
+        bigmatrix_init(&H, m, m);
+        bigmatrix_init(&W1, m, m);
+        bigmatrix_init(&W2, m, m);
+
+        for (int rep = 0; rep < 10; rep++) {
+          for (u64 i = 0; i < m; i++) {
+            for (u64 j = 0; j < m; j++) {
+              bn_gen_random(&val, 20);
+              bigmatrix_set(&B, &val, i, j);
+            }
+          }
+          bigmatrix_det(&det, &B);
+          if (!bn_is_zero(&det)) break;
+        }
+        assert(!bn_is_zero(&det));
+        det.is_neg = false;
+
+        for (u64 i = 0; i < m; i++) {
+          for (u64 j = 0; j < n - m; j++) {
+            bn_gen_random(&val, 20);
+            bigmatrix_set(&R, &val, i, j);
+          }
+        }
+        if (m < n) {
+          bigmatrix_mul(&C, &B, &R);
+        }
+        // A = [B | B R]
+        for (u64 i = 0; i < m; i++) {
+          for (u64 j = 0; j < m; j++) {
+            bigmatrix_set(&A, &B.data[i * m + j], i, j);
+          }
+          for (u64 j = 0; j < n - m; j++) {
+            bigmatrix_set(&A, &C.data[i * (n - m) + j], i, m + j);
+          }
+        }
+
+        bigmatrix_hermite(&H, &A);
+        assert(H.r_size == m && H.c_size == m);
+
+        // D = |det B| = the module determinant itself
+        bigmatrix_hermite_mod_d(&W1, &A, &det);
+        assert(test_matrix_equal(&W1, &H));
+
+        // D = 3 * |det B|, another valid multiple
+        bn_mul(&D, &three, &det);
+        bigmatrix_hermite_mod_d(&W2, &A, &D);
+        assert(test_matrix_equal(&W2, &H));
+
+        bigmatrix_free(&B);
+        bigmatrix_free(&R);
+        bigmatrix_free(&C);
+        bigmatrix_free(&A);
+        bigmatrix_free(&H);
+        bigmatrix_free(&W1);
+        bigmatrix_free(&W2);
+      }
+      printf("[PASS] hermite_mod_d random %llux%llu vs exact\n", m, n);
+    }
+    bn_free(&det);
+    bn_free(&three);
+  }
+
+  // 4. m > n falls back to the exact implementation
+  {
+    u64 m = 4, n = 3;
+    bigmatrix A, W, H;
+    bigmatrix_init(&A, m, n);
+    bigmatrix_init(&W, m, n);
+    bigmatrix_init(&H, m, n);
+    for (u64 i = 0; i < m; i++) {
+      for (u64 j = 0; j < n; j++) {
+        bn_gen_random(&val, 20);
+        bigmatrix_set(&A, &val, i, j);
+      }
+    }
+    bn_set_u64(&D, 1000003);
+    bigmatrix_hermite_mod_d(&W, &A, &D);
+    bigmatrix_hermite(&H, &A);
+    assert(test_matrix_equal(&W, &H));
+    printf("[PASS] hermite_mod_d m > n fallback\n");
+
+    bigmatrix_free(&A);
+    bigmatrix_free(&W);
+    bigmatrix_free(&H);
+  }
+
+  bn_free_multi(&D, &val, NULL);
 }
 
 void test_pascal_det(u64 size)
@@ -368,6 +621,9 @@ int main()
   bigmatrix_smith(&ADJ, &D);
   bigmatrix_print(&ADJ);
   printf("\n");
+
+  test_hermite_mod_d();
+
   bigpoly_free(&p);
 
   bigmatrix_free(&ADJ);
@@ -452,6 +708,14 @@ int main()
 
   for (int i = 0; i < 10; i++) {
     run_hermite_benchmark(sizes[i], 10);
+  }
+
+  // HNF mod D (2.4.8) vs exact (2.4.5): on the smaller sizes both are timed
+  // on the same random matrix, on the larger ones only the mod D version
+  u64 hnf_sizes[] = {4, 8, 16, 32, 64, 128};
+  int n_hnf = sizeof(hnf_sizes) / sizeof(hnf_sizes[0]);
+  for (int i = 0; i < 10; i++) {
+    run_hermite_mod_d_benchmark(sizes[i], 10, i < 4);
   }
 
   for (int i = 0; i < 5; i++) {

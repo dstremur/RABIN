@@ -34,6 +34,7 @@
 
 #include <omp.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "../../include/bigmath.h"
 #include "../../include/bigpoly.h"
@@ -232,20 +233,85 @@ void bigmatrix_sub(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
 
   return;
 }
-void bigmatrix_print(const bigmatrix* A)
+// maximum printed width of a single entry in the truncated modes
+#define BIGMATRIX_PRINT_MAX_WIDTH 16
+
+// upper bound on the printed width (digits plus sign) of a single entry,
+// computed without a decimal conversion: ceil(bits * log10(2)) using the
+// rational over-approximation 30103/100000 > log10(2), so the result is
+// always at least the true digit count
+static size_t bigmatrix_entry_width(const bignum* x)
 {
-  bignum temp;
-  bn_init(&temp);
+  if (bn_is_zero(x)) return 1;
+
+  size_t bits = (size_t)bn_bit_length(x);
+  size_t w = (bits * 30103 + 99999) / 100000;
+  if (x->is_neg) w++;
+  return w;
+}
+
+static void bigmatrix_print_impl(const bigmatrix* A, bool full, bool tail)
+{
+  if (A->r_size == 0 || A->c_size == 0) return;
+
+  // per-column width: widest entry of the column, capped in the truncated
+  // modes. A single outlier (e.g. the last invariant factor of a Smith form
+  // sitting in a column of zeros) must not inflate the column, so in the
+  // truncated modes outliers are excluded from the column width; they are
+  // rendered at the capped width and simply overflow the column to the
+  // right
+  size_t cap = BIGMATRIX_PRINT_MAX_WIDTH;
+  size_t* colw = calloc(A->c_size, sizeof(size_t));
   for (u64 i = 0; i < A->r_size; i++) {
     for (u64 j = 0; j < A->c_size; j++) {
-      bigmatrix_get(&temp, A, i, j);
-      bn_print(&temp);
+      size_t xw = bigmatrix_entry_width(GET(A, i, j));
+      if (!full && xw > cap) continue;
+      if (xw > colw[j]) colw[j] = xw;
+    }
+  }
+
+  for (u64 i = 0; i < A->r_size; i++) {
+    for (u64 j = 0; j < A->c_size; j++) {
+      char* s = bn_to_string(GET(A, i, j));
+      size_t len = strlen(s);
+      size_t w = colw[j];
+
+      if (full || len <= w) {
+        printf("%*s", (int)w, s);
+      } else if (len <= cap) {
+        // fits within the cap: print it whole, overflowing by its own width
+        printf("%s", s);
+      } else if (tail) {
+        size_t sign = (s[0] == '-') ? 1 : 0;
+        if (sign) fputc('-', stdout);
+        size_t keep = cap - 1 - sign;
+        printf("\u2026%.*s", (int)keep, s + len - keep);
+      } else {
+        printf("%.*s\u2026", (int)(cap - 1), s);
+      }
+
+      free(s);
       printf(" ");
     }
     printf("\n");
   }
 
-  bn_free(&temp);
+  free(colw);
+}
+
+void bigmatrix_print(const bigmatrix* A)
+{
+  bigmatrix_print_impl(A, false, false);
+}
+
+void bigmatrix_print_full(const bigmatrix* A)
+{
+  bigmatrix_print_impl(A, true, false);
+}
+
+void bigmatrix_print_tail(const bigmatrix* A)
+{
+  bigmatrix_print_impl(A, false, true);
 }
 
 void bigmatrix_mul(bigmatrix* R, const bigmatrix* A, const bigmatrix* B)
@@ -586,8 +652,153 @@ step6:
   bigmatrix_free(&A_work);
 }
 
+static void bigmatrix_hnf_centered_mod(bignum* r, const bignum* x,
+                                       const bignum* R, const bignum* half)
+{
+  if (bn_cmp_abs(x, half) <= 0) {
+    bn_copy(r, x);
+    return;
+  }
+
+  bn_mod_pos(r, x, R);
+  if (bn_cmp(r, half) > 0) {
+    bn_sub(r, r, R);
+  }
+}
+
 void bigmatrix_hermite_mod_d(bigmatrix* W, const bigmatrix* A, const bignum* D)
 {
+  // 1. [Initialize]
+  u64 m = A->r_size;
+  u64 n = A->c_size;
+  if (m == 0 || n == 0) return;
+
+  if (m > n) {
+    bigmatrix_hermite_gcd(W, A);
+    return;
+  }
+
+  bigmatrix A_work;
+  bigmatrix_init(&A_work, m, n);
+  bigmatrix_copy(&A_work, A);
+
+  bignum R, u, v, d, q, t1, t2, t3, half;
+  bn_init_multi(&R, &u, &v, &d, &q, &t1, &t2, &t3, &half, NULL);
+  bn_copy(&R, D);
+  R.is_neg = false;
+  bn_rshift(&half, &R, 1);
+
+  // reduce the input entries into (-R/2, R/2]; all column operations are
+  // taken modulo R, so only the classes modulo R matter
+  for (u64 x = 0; x < m * n; x++) {
+    bigmatrix_hnf_centered_mod(&A_work.data[x], &A_work.data[x], &R, &half);
+  }
+
+  bignum* B;
+  B = malloc(m * sizeof(bignum));
+  for (u64 x = 0; x < m; x++) {
+    bn_init(&B[x]);
+  }
+
+  bigmatrix W_local;
+  bigmatrix_init(&W_local, m, m);
+
+  for (i64 i = (i64)m - 1; i >= 0; i--) {
+    i64 k = (i64)n - (i64)m + i;
+
+    // 2. [Check zero] / 3. [Euclidean step]
+    for (i64 j = k - 1; j >= 0; j--) {
+      if (bn_is_zero(GET(&A_work, i, j))) {
+        continue;
+      }
+
+      bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k),
+                             GET(&A_work, i, j));
+
+      // if d == |a_{i,k}| (i.e. a_{i,k} | a_{i,j}), force v = 0 to avoid
+      // an infinite loop
+      bn_copy(&t1, GET(&A_work, i, k));
+      t1.is_neg = false;
+      if (bn_cmp(&d, &t1) == 0) {
+        bn_set_u64(&v, 0);
+        bn_set_u64(&u, 1);
+        if (GET(&A_work, i, k)->is_neg) {
+          bn_set_i64(&u, -1);
+        }
+      }
+
+      // B = u*A_k + v*A_j, reduced into (-R/2, R/2]
+      for (u64 x = 0; x < m; x++) {
+        bn_mul(&B[x], &u, GET(&A_work, x, k));
+        bn_mul(&t2, &v, GET(&A_work, x, j));
+        bn_add(&B[x], &B[x], &t2);
+        bigmatrix_hnf_centered_mod(&B[x], &B[x], &R, &half);
+      }
+
+      // A_j = (a_{i,k}/d)*A_j - (a_{i,j}/d)*A_k, reduced into (-R/2, R/2]
+      bn_div_exact(&t2, GET(&A_work, i, k), &d);
+      bn_div_exact(&q, GET(&A_work, i, j), &d);
+      for (u64 x = 0; x < m; x++) {
+        bn_mul(&t3, &t2, GET(&A_work, x, j));
+        bn_mul(&t1, &q, GET(&A_work, x, k));
+        bn_sub(&t1, &t3, &t1);
+        bigmatrix_hnf_centered_mod(GET(&A_work, x, j), &t1, &R, &half);
+        bn_copy(GET(&A_work, x, k), &B[x]);
+      }
+
+      // a_{i,k} = u*a_{i,k} + v*a_{i,j} = d exactly
+      bn_copy(GET(&A_work, i, k), &d);
+    }
+
+    // 4. [Next row]
+    // u*a_{i,k} + v*R = d = gcd(a_{i,k}, R)
+    bn_gcd_extended_lehmer(&u, &v, &d, GET(&A_work, i, k), &R);
+
+    // W_i = u*A_k mod R, taken in [0, R)
+    for (u64 x = 0; x < m; x++) {
+      bn_mul(&t1, &u, GET(&A_work, x, k));
+      bn_mod_pos(GET(&W_local, x, i), &t1, &R);
+    }
+
+    // if d = R (i.e. R | a_{i,k}) the diagonal entry would be 0; set it to d
+    if (bn_cmp(&d, &R) == 0) {
+      bn_copy(GET(&W_local, i, i), &d);
+    }
+
+    // final reductions: W_j -= floor(W_{i,j}/W_{i,i}) * W_i for j > i
+    for (u64 j = (u64)i + 1; j < m; j++) {
+      if (bn_is_zero(GET(&W_local, i, j))) {
+        continue;
+      }
+      bn_div_euclid(&q, GET(&W_local, i, j), GET(&W_local, i, i));
+      for (u64 x = 0; x <= (u64)i; x++) {
+        bn_mul(&t1, &q, GET(&W_local, x, i));
+        bn_sub(GET(&W_local, x, j), GET(&W_local, x, j), &t1);
+      }
+    }
+
+    R.is_neg = false;
+    bn_div_exact(&R, &R, &d);
+    bn_rshift(&half, &R, 1);
+
+    if (i > 0) {
+      // working modulo R, a_{i-1,k-1} may have reduced to zero; replace it
+      // by any nonzero multiple of R
+      if (bn_is_zero(GET(&A_work, i - 1, k - 1))) {
+        bn_copy(GET(&A_work, i - 1, k - 1), &R);
+      }
+    }
+  }
+
+  bigmatrix_swap(W, &W_local);
+  bigmatrix_free(&W_local);
+
+  bn_free_multi(&R, &u, &v, &d, &q, &t1, &t2, &t3, &half, NULL);
+  for (u64 x = 0; x < m; x++) {
+    bn_free(&B[x]);
+  }
+  free(B);
+  bigmatrix_free(&A_work);
 }
 
 void bigmatrix_hermite_gcd(bigmatrix* W, const bigmatrix* A)
