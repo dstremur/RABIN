@@ -41,6 +41,6 @@ It is also a learning project that aims to implement as many algorithms as possi
 - **Cross-Referencing:** Always include trailing parentheses when mentioning functions (e.g., `rz_add()`) to trigger auto-linking. Use `@see` at the end of the block for related functions.
 
 # Agent Workflow Requirements
-- Run tests after completing any modification to ensure zero regressions.
+- Run tests after completing any modification to ensure zero regressions. DONT RUN TEST_LOGIC, IF A TEST TIMES OUT; STOP AND ASK FOR HELP
 - Keep modifications scoped strictly to the requested feature or bug fix.
 - Do not introduce external library dependencies (e.g., OpenSSL, GMP) under any circumstances.

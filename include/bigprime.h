@@ -283,88 +283,41 @@ void gen_rns_primes(u64 count);
 u64 optimal_table_len(u64 n, u64 B);
 
 /**
- * @brief  Generates a provable prime of approximately @p n bits.
+ * @brief Generates a provable prime of approximately @p n bits.
  *
  * @details
- * This function recursively constructs a prime number @p p with roughly @p n
- * bits using a Pocklington-style primality proof.
+ * Recursively constructs a prime number @p p using a Pocklington-style 
+ * primality proof. For small @p n, this delegates to bn_gen_prime().
+ * 
+ * For larger @p n, the function performs the following:
+ *  1. Recursively generates a provable prime F of \f$ \approx n/2 \f$ bits.
+ *  2. Chooses a random integer t such that:
+ *     \f$ 2^{(n - 2)}/F < t < 2^{(n - 1)}/F - s \cdot n \f$
+ *  3. Constructs an arithmetic progression \f$ N_i = N_0 + i \cdot a \f$
+ *     where \f$ a = 2F \f$ and \f$ N_0 = t \cdot a + 1 \f$.
+ *  4. Sieves candidates and applies a base-2 Rabin-Miller filter.
+ *  5. Proves primality using Pocklington's lemma with the known factor F.
  *
- * For small values of @p n, the function delegates directly to bn_gen_prime().
+ * @param[out] p        Initialized bignum receiving the provable prime.
+ * @param[out] cert_out Initialized certificate struct. If NULL, no cert is stored.
+ * @param[in]  n        Desired approximate bit length.
+ * 
+ * @return RABIN_SUCCESS on success, or an appropriate error code (e.g., 
+ *         RABIN_ERR_OUT_OF_MEMORY).
  *
- * For larger values of @p n, the function performs the following steps:
+ * @pre The bignum library and random-number subsystem must be initialized. 
+ *      The global small-prime table must contain enough primes for trial division.
  *
- *  1. Recursively generates a smaller provable prime @c F with approximately
- *     \f$n / 2\f$ bits.
- *  2. Chooses a random integer @c t such that:
+ * @warning This function is recursive. High @p n values require significant stack 
+ *          depth and dynamic allocations. It loops until a prime is found, meaning 
+ *          execution time is theoretically unbounded.
+ * 
+ * @par Algorithm Reference:
+ * U. Maurer, "Fast Generation of Prime Numbers and Secure Public-Key 
+ * Cryptographic Parameters," Journal of Cryptology, vol. 8, pp. 123–155, 1995.
  *
- *         \f$2^{(n - 2)}/F < t < 2^{(n - 1)}/F - s \cdot n\f$
- *
- *     where @c s is the sieve/table length returned by optimal_table_len().
- *
- *  3. Constructs an arithmetic progression of candidate integers:
- *
- *         \f$N_i = N_0 + i\cdota\f$
- *
- *     where:
- *
- *         \f$a = 2F\f$
- *         \f$N_0 = t\cdota + 1\f$
- *         \f$0 \le i \le s\f$
- *
- *  4. Sieves candidates using small primes up to a bound proportional to @p n.
- *
- *  5. Applies a Rabin-Miller test, currently with base \f$2\f$, as a fast
- *     compositeness filter.
- *
- *  6. For candidates that pass the probable-prime test, attempts to prove
- *     primality using Pocklington's lemma with the known large factor @c F
- *     of @c N-1.
- *
- * The function returns by storing the first verified prime found in @p p.
- *
- * @param[out] p  Destination bignum receiving the generated provable prime.
- *                The caller is responsible for managing its lifetime according
- *                to the conventions of the bignum library.
- *
- * @param[out] cert_out Destination pocklington_cert to store the certificate.
- *                      If set to NULL, function will create/store a
- * certificate.
- *
- * @param[in]  n  Desired approximate bit length of the output prime.
- *
- * @pre The bignum library must be initialized.
- *
- * @pre The global small-prime table used by this function must be valid and
- *      must contain enough primes to support the trial-division bound used
- *      internally.
- *
- * @pre The random-number subsystem must be initialized if the internal
- *      bn_gen_random_range() function depends on it.
- *
- * @post On successful completion, @p p contains a prime number of approximately
- *       @p n bits.
- *
- * @note This function is recursive. Its stack usage and runtime grow with @p n.
- *
- * @note The primality proof relies on @c F satisfying the Pocklington condition
- *       \f$F > \sqrt{N - 1}\f$, or an equivalent sufficient condition. If this
- *       condition is not guaranteed by the caller or by the size bounds,
- *       the generated number may be probable-prime but not formally proven
- *       prime by this routine.
- *
- * @warning The current implementation may use variable-length array allocations
- *          and repeated temporary bignum allocations. For large @p n, this may
- *          lead to high stack usage or degraded performance.
- *
- * @warning If no suitable prime is found in the generated arithmetic
- *          progression, the function retries with a new random @c t. It has
- *          no explicit iteration limit and may therefore run for an unbounded
- *          amount of time.
- *
- * @see optimal_table_len
- * @see bn_gen_prime
- * @see bn_rabin
- * @see bn_mod_exp
+ * @see optimal_table_len()
+ * @see bn_gen_prime()
  */
 void gen_provable_primes_arithmetic(bignum* p, u64 n,
                                     pocklington_cert** cert_out);
