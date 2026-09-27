@@ -53,13 +53,6 @@ void bigmatrixrat_add(bigmatrixrat* R, const bigmatrixrat* A,
   bn_free_multi(&l, &sA, &sB);
 }
 
-void bigmatrixrat_get_element(bigrat* out, const bigmatrixrat* A, u64 i, u64 j)
-{
-  bigmatrix_get(&out->num, &A->M, i, j);
-  bn_copy(&out->den, &A->den);
-  br_normalize(out);
-}
-
 void bigmatrixrat_print(const bigmatrixrat* A)
 {
   bignum temp;

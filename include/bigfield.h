@@ -17,6 +17,7 @@ typedef struct {
   fp_ctx field;  // The underlying finite field
 } ec_curve;
 
+// TODO: Not yet implemented (placeholder declaration).
 void ec_point_add(bignum res, bignum p, bignum q, const ec_curve* curve);
 
 /*

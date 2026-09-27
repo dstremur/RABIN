@@ -486,6 +486,8 @@ void bigmatrix_trace(bignum* t, const bigmatrix* A);
 /**
  * @brief Compute the LLL algorithm on the basis matrix B
  *
+ * @note TODO: Not yet implemented (placeholder declaration).
+ *
  * @param B
  * @param n
  * @param delta

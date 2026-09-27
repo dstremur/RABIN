@@ -73,6 +73,8 @@ void pocklington_cert_free(pocklington_cert* cert);
  * base_case_bound is the size threshold up to which a prime factor is
  * accepted without a child certificate.
  *
+ * @note TODO: Not yet implemented (placeholder declaration).
+ *
  * Complexity:
  *   - Time: \f$O(m \cdot N^2 \log N)\f$, where \f$m\f$ = number of elements,
  *     \f$N\f$ = size in 64-bit limbs
@@ -89,8 +91,7 @@ void pocklington_cert_free(pocklington_cert* cert);
  */
 bool pocklington_cert_verify(const pocklington_cert* cert, u64 base_case_bound);
 
-// TODO: implement these
-
+// TODO: Not yet implemented (placeholder declarations).
 bool pocklington_cert_add_elem(pocklington_cert* cert, const bignum* q,
                                const bignum* alpha_q, pocklington_cert* q_cert);
 

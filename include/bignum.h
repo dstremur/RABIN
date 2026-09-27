@@ -85,7 +85,6 @@ vpshufd
  *    bigprime.h   prime tests, generation, proving   (src/number_theory)
  *    bigrabin.h   Miller-Rabin tests                 (src/number_theory)
  *    bigrand.h    random bignum generation           (src/number_theory)
- *    bigpseudo.h  strong pseudoprime generation      (src/number_theory)
  *    bigfactor.h  factorization (rho, p-1, trial)    (src/number_theory)
  *    bigmath.h    Jacobi / Tonelli-Shanks / gcd      (src/number_theory)
  *    biglucas.h   Lucas sequences                    (src/number_theory)
@@ -107,7 +106,6 @@ vpshufd
 #include "bigntt.h"
 #include "bigpoly.h"
 #include "bigprime.h"
-#include "bigpseudo.h"
 #include "bigrabin.h"
 #include "bigrand.h"
 #include "bigrns.h"

@@ -1,5 +1,5 @@
-#ifndef BIGU64_H
-#define BIGU64_H
+#ifndef U64_H
+#define U64_H
 
 #include <stdio.h>
 #include <string.h>

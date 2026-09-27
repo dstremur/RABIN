@@ -28,8 +28,8 @@ extern bignum BN_ONE;
 extern bignum BN_TWO;
 extern bignum BN_ZERO;
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b));
-#define MIN(a, b) ((a) < (b) ? (a) : (b));
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // bigconst.c
 /**
@@ -397,6 +397,8 @@ int bn_cmp(const bignum* a, const bignum* b);
  *
  * Same semantics as bn_cmp, but this function always compares
  * all limbs to ensure constant time.
+ *
+ * @note TODO: Not yet implemented (placeholder declaration).
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ always, where \f$n =\f$ max(a->size, b->size)

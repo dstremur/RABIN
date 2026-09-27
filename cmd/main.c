@@ -34,9 +34,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
+#include "../include/bigmatrix.h"
 #include "../include/bigntt.h"
-#include "../include/bigmatrix.h" 
+#include "../include/bignum.h"
 #include "ctype.h"
 #include "string.h"
 
@@ -62,44 +62,57 @@ typedef struct {
  *
  * @param[in] ctx NTT context to print.
  */
-void bigntt_ctx_print_debug(const ntt_ctx *ctx)
+void bigntt_ctx_print_debug(const ntt_ctx* ctx)
 {
-    if (!ctx) {
-        printf("Context is NULL\n");
-        return;
-    }
+  if (!ctx) {
+    printf("Context is NULL\n");
+    return;
+  }
 
-    printf("=========================================\n");
-    printf("         NTT CONTEXT DEBUG LOG           \n");
-    printf("=========================================\n");
-    printf("Transform Length (n) : %lu\n", ctx->n);
-    printf("Modulus (q)          : "); bn_println(&ctx->q);
-    printf("N Inverse (n_inv)    : "); bn_println(&ctx->n_inv);
-    
-    printf("\n--- OMEGA POWERS (w^i mod q) ---\n");
-    printf("omega[0]       (Expected: 1)   : "); bn_println(&ctx->omega_powers[0]);
-    printf("omega[1]       (Base Root)     : "); bn_println(&ctx->omega_powers[1]);
-    printf("omega[n/2]     (Expected: q-1) : "); bn_println(&ctx->omega_powers[ctx->n / 2]);
-    printf("omega[n-1]                     : "); bn_println(&ctx->omega_powers[ctx->n - 1]);
+  printf("=========================================\n");
+  printf("         NTT CONTEXT DEBUG LOG           \n");
+  printf("=========================================\n");
+  printf("Transform Length (n) : %lu\n", ctx->n);
+  printf("Modulus (q)          : ");
+  bn_println(&ctx->q);
+  printf("N Inverse (n_inv)    : ");
+  bn_println(&ctx->n_inv);
 
-    printf("\n--- OMEGA INVERSE POWERS (w^-i mod q) ---\n");
-    printf("omega_inv[0]   (Expected: 1)   : "); bn_println(&ctx->omega_inv_powers[0]);
-    printf("omega_inv[1]   (Base Inv Root) : "); bn_println(&ctx->omega_inv_powers[1]);
-    printf("omega_inv[n/2] (Expected: q-1) : "); bn_println(&ctx->omega_inv_powers[ctx->n / 2]);
+  printf("\n--- OMEGA POWERS (w^i mod q) ---\n");
+  printf("omega[0]       (Expected: 1)   : ");
+  bn_println(&ctx->omega_powers[0]);
+  printf("omega[1]       (Base Root)     : ");
+  bn_println(&ctx->omega_powers[1]);
+  printf("omega[n/2]     (Expected: q-1) : ");
+  bn_println(&ctx->omega_powers[ctx->n / 2]);
+  printf("omega[n-1]                     : ");
+  bn_println(&ctx->omega_powers[ctx->n - 1]);
 
-    if (ctx->psi_powers != NULL) {
-        printf("\n--- PSI POWERS (psi^i mod q) ---\n");
-        printf("psi[0]         (Expected: 1)   : "); bn_println(&ctx->psi_powers[0]);
-        printf("psi[1]         (Base Psi Root) : "); bn_println(&ctx->psi_powers[1]);
-        printf("psi[n/2]       (Square rt of -1): "); bn_println(&ctx->psi_powers[ctx->n / 2]);
-    }
+  printf("\n--- OMEGA INVERSE POWERS (w^-i mod q) ---\n");
+  printf("omega_inv[0]   (Expected: 1)   : ");
+  bn_println(&ctx->omega_inv_powers[0]);
+  printf("omega_inv[1]   (Base Inv Root) : ");
+  bn_println(&ctx->omega_inv_powers[1]);
+  printf("omega_inv[n/2] (Expected: q-1) : ");
+  bn_println(&ctx->omega_inv_powers[ctx->n / 2]);
 
-    printf("\n--- BIT REVERSAL INDICES (First 8 Samples) ---\n");
-    u64 max_samples = (ctx->n < 8) ? ctx->n : 8;
-    for (u64 i = 0; i < max_samples; i++) {
-        printf("  Index [%lu] ---> Bit-Reversed Index [%lu]\n", i, ctx->bit_rev_indices[i]);
-    }
-    printf("=========================================\n");
+  if (ctx->psi_powers != NULL) {
+    printf("\n--- PSI POWERS (psi^i mod q) ---\n");
+    printf("psi[0]         (Expected: 1)   : ");
+    bn_println(&ctx->psi_powers[0]);
+    printf("psi[1]         (Base Psi Root) : ");
+    bn_println(&ctx->psi_powers[1]);
+    printf("psi[n/2]       (Square rt of -1): ");
+    bn_println(&ctx->psi_powers[ctx->n / 2]);
+  }
+
+  printf("\n--- BIT REVERSAL INDICES (First 8 Samples) ---\n");
+  u64 max_samples = (ctx->n < 8) ? ctx->n : 8;
+  for (u64 i = 0; i < max_samples; i++) {
+    printf("  Index [%lu] ---> Bit-Reversed Index [%lu]\n", i,
+           ctx->bit_rev_indices[i]);
+  }
+  printf("=========================================\n");
 }
 
 /**
@@ -124,7 +137,7 @@ int main()
 {
   bn_init_constants();
 
-  //gen_rns_primes(500);
+  // gen_rns_primes(500);
   bignum a, b, c, psi, omega;
   bn_init_multi(&a, &b, &c, &psi, &omega, NULL);
   char buf1[1024];
@@ -155,8 +168,8 @@ int main()
   printf("ISQRT (a): ");
   bn_println(&c);
   bn_ln(&c, &a);
-  printf("LN (a): "); 
-  bn_println(&c); 
+  printf("LN (a): ");
+  bn_println(&c);
   bn_mul(&c, &a, &b);
   printf("MUL: ");
   bn_println(&c);
@@ -182,9 +195,9 @@ int main()
   bn_lshift(&c, &a, 32);
   bn_println(&c);
   printf("Pow: ");
-  //bn_pow(&c, &a, &b);
+  // bn_pow(&c, &a, &b);
   bn_println(&c);
-  bn_mul_i64(&c, &a, 3); 
+  bn_mul_i64(&c, &a, 3);
   printf("3 * a: ");
   bn_println(&c);
 
@@ -197,16 +210,16 @@ int main()
   bn_println(&x);
   printf("v: ");
   bn_println(&y);
-  printf("d: " );
+  printf("d: ");
   bn_println(&z);
 
-  if (bn_is_square(&c, &a)){
+  if (bn_is_square(&c, &a)) {
     printf("a is square \n");
   } else {
     printf("a is not square \n");
   }
 
-  if (bn_is_prime_power(&c, &a)){
+  if (bn_is_prime_power(&c, &a)) {
     printf("a is prime power \n");
   } else {
     printf("a is not a prime power\n");
@@ -218,21 +231,18 @@ int main()
 
   j = bn_kronecker(&a, &b);
 
-
   printf("KRONECKER: %lli\n", (long long)j);
-
 
   bn_cornacchia(&x, &y, &a, &b);
   printf("Diophantine eq x^2 + by^2 = a solutions\n");
-  printf("x: "); 
+  printf("x: ");
   bn_println(&x);
-  printf("y: "); 
+  printf("y: ");
   bn_println(&y);
-
 
   bn_free_multi(&x, &y, &z);
 
-  bn_gen_safe_prime(&c, 512); 
+  bn_gen_safe_prime(&c, 512);
 
   printf("Safe prime: ");
   bn_println(&c);
@@ -250,11 +260,10 @@ int main()
 
   ntt_ctx ctx;
 
-  //bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
+  // bigntt_ctx_init(&ctx, 512, &n1, &omega, &psi);
   bigntt_ctx_init_golden(&ctx, 8);
-  //bigntt_ctx_init_simple(&ctx, 8, 4294967295);
+  // bigntt_ctx_init_simple(&ctx, 8, 4294967295);
   bigntt_ctx_print_debug(&ctx);
-
 
   bigntt_ctx_free(&ctx);
 
@@ -265,14 +274,12 @@ int main()
     printf("No non-trivial factor found (Number might be prime).\n");
   }
 
-  if (bn_pollard_p_minus_one(&c, &a)){
-	  printf("Factor found p - 1: ");
-	  bn_println(&c);
+  if (bn_pollard_p_minus_one(&c, &a)) {
+    printf("Factor found p - 1: ");
+    bn_println(&c);
   } else {
-	  printf("p - 1 fail \n" );
+    printf("p - 1 fail \n");
   }
-
-
 
   bignum n, d;
   bn_init_multi(&n, &d, NULL);
@@ -291,8 +298,6 @@ int main()
   } else {
     printf("a is not prime to base b \n");
   }
-
-  
 
   bignum r;
   bn_init(&r);
@@ -323,15 +328,15 @@ int main()
     fprintf(stderr, "Failed to generate prime or read from /dev/urandom\n");
   }
 
-//  printf("Generating 512-bit provable prime...\n");
- //// bn_provable_prime(&my_prime, 512);
+  //  printf("Generating 512-bit provable prime...\n");
+  //// bn_provable_prime(&my_prime, 512);
 
- // printf("Result: ");
- // bn_println(&my_prime);
+  // printf("Result: ");
+  // bn_println(&my_prime);
 
   // avxtest();
 
-  // 
+  //
   //
   bigpoly_test();
   //
