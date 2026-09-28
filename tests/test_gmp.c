@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // ADAPTER FOR YOUR LIBRARY
@@ -12,13 +12,13 @@
 
 // IMPORTANT: Replace the inside of this function with your library's actual
 // string export method. This is required for correctness checking!
-char* bn_to_str(bignum* bn)
+char* rz_to_str(rz_t* bn)
 {
-  // Example: return bn_get_string(bn, 10);
+  // Example: return rz_get_string(bn, 10);
   // For now, returning a dummy string to prevent compilation failure if
   // missing. If your library does not have a string export, you will need to
   // write one.
-  return bn_to_string(bn);
+  return rz_to_string(bn);
 }
 
 // =============================================================================
@@ -58,11 +58,11 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
          size_info, avg_custom, avg_gmp, ratio);
 }
 
-// Verifies that your bignum matches GMP's result exactly.
-void assert_match(bignum* bn, mpz_t mpz, const char* context)
+// Verifies that your rz_t matches GMP's result exactly.
+void assert_match(rz_t* bn, mpz_t mpz, const char* context)
 {
   char* gmp_str = mpz_get_str(NULL, 10, mpz);
-  char* custom_str = bn_to_str(bn);
+  char* custom_str = rz_to_str(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", context);
@@ -75,7 +75,7 @@ void assert_match(bignum* bn, mpz_t mpz, const char* context)
   free(custom_str);
 }
 
-void generate_random_pair(bignum* bn_a, bignum* bn_b, mpz_t mpz_a, mpz_t mpz_b,
+void generate_random_pair(rz_t* rz_a, rz_t* rz_b, mpz_t mpz_a, mpz_t mpz_b,
                           int bits_a, int bits_b, gmp_randstate_t state)
 {
   mpz_urandomb(mpz_a, state, bits_a);
@@ -89,8 +89,8 @@ void generate_random_pair(bignum* bn_a, bignum* bn_b, mpz_t mpz_a, mpz_t mpz_b,
 
   char* s_a = mpz_get_str(NULL, 10, mpz_a);
   char* s_b = mpz_get_str(NULL, 10, mpz_b);
-  bn_init_val(bn_a, s_a);
-  bn_init_val(bn_b, s_b);
+  rz_init_val(rz_a, s_a);
+  rz_init_val(rz_b, s_b);
   free(s_a);
   free(s_b);
 }
@@ -104,16 +104,16 @@ typedef enum { OP_ADD, OP_SUB, OP_MUL, OP_DIV } OpType;
 void run_edge_case(const char* name, OpType op, const char* a_str,
                    const char* b_str)
 {
-  bignum bn_a, bn_b, bn_res;
+  rz_t rz_a, rz_b, rz_res;
   mpz_t mpz_a, mpz_b, mpz_res;
 
-  bn_init(&bn_a);
-  bn_init(&bn_b);
-  bn_init(&bn_res);
+  rz_init(&rz_a);
+  rz_init(&rz_b);
+  rz_init(&rz_res);
 
-  bn_init_val(&bn_a, a_str);
-  bn_init_val(&bn_b, b_str);
-  bn_init(&bn_res);
+  rz_init_val(&rz_a, a_str);
+  rz_init_val(&rz_b, b_str);
+  rz_init(&rz_res);
 
   mpz_init_set_str(mpz_a, a_str, 10);
   mpz_init_set_str(mpz_b, b_str, 10);
@@ -121,28 +121,28 @@ void run_edge_case(const char* name, OpType op, const char* a_str,
 
   switch (op) {
     case OP_ADD:
-      bn_add(&bn_res, &bn_a, &bn_b);
+      rz_add(&rz_res, &rz_a, &rz_b);
       mpz_add(mpz_res, mpz_a, mpz_b);
       break;
     case OP_SUB:
-      bn_sub(&bn_res, &bn_a, &bn_b);
+      rz_sub(&rz_res, &rz_a, &rz_b);
       mpz_sub(mpz_res, mpz_a, mpz_b);
       break;
     case OP_MUL:
-      bn_mul(&bn_res, &bn_a, &bn_b);
+      rz_mul(&rz_res, &rz_a, &rz_b);
       mpz_mul(mpz_res, mpz_a, mpz_b);
       break;
     case OP_DIV:
-      bn_div(&bn_res, &bn_a, &bn_b);
+      rz_div(&rz_res, &rz_a, &rz_b);
       mpz_tdiv_q(mpz_res, mpz_a, mpz_b);
       break;
   }
 
-  assert_match(&bn_res, mpz_res, name);
+  assert_match(&rz_res, mpz_res, name);
 
-  bn_free(&bn_a);
-  bn_free(&bn_b);
-  bn_free(&bn_res);
+  rz_clear(&rz_a);
+  rz_clear(&rz_b);
+  rz_clear(&rz_res);
   mpz_clears(mpz_a, mpz_b, mpz_res, NULL);
 }
 
@@ -177,13 +177,13 @@ void run_edge_case_suite()
 #define MAKE_BENCHMARK(func_name, op_name, custom_func, gmp_func)        \
   void func_name(int bits, double target_sec, gmp_randstate_t state)     \
   {                                                                      \
-    bignum bn_a, bn_b, bn_res;                                           \
+    rz_t rz_a, rz_b, rz_res;                                             \
     mpz_t mpz_a, mpz_b, mpz_res;                                         \
-    bn_init(&bn_a);                                                      \
-    bn_init(&bn_b);                                                      \
-    bn_init(&bn_res);                                                    \
+    rz_init(&rz_a);                                                      \
+    rz_init(&rz_b);                                                      \
+    rz_init(&rz_res);                                                    \
     mpz_inits(mpz_a, mpz_b, mpz_res, NULL);                              \
-    generate_random_pair(&bn_a, &bn_b, mpz_a, mpz_b, bits, bits, state); \
+    generate_random_pair(&rz_a, &rz_b, mpz_a, mpz_b, bits, bits, state); \
                                                                          \
     struct timespec start, end;                                          \
     int ops_custom = 0, ops_gmp = 0;                                     \
@@ -192,7 +192,7 @@ void run_edge_case_suite()
     /* Benchmark Custom */                                               \
     clock_gettime(CLOCK_MONOTONIC, &start);                              \
     do {                                                                 \
-      custom_func(&bn_res, &bn_a, &bn_b);                                \
+      custom_func(&rz_res, &rz_a, &rz_b);                                \
       ops_custom++;                                                      \
       clock_gettime(CLOCK_MONOTONIC, &end);                              \
       total_custom = get_elapsed_time(start, end);                       \
@@ -208,35 +208,35 @@ void run_edge_case_suite()
     } while (total_gmp < target_sec);                                    \
                                                                          \
     /* Validate Correctness before reporting */                          \
-    assert_match(&bn_res, mpz_res, op_name);                             \
+    assert_match(&rz_res, mpz_res, op_name);                             \
                                                                          \
     char size_info[32];                                                  \
     snprintf(size_info, sizeof(size_info), "%d bits", bits);             \
     print_table_row(op_name, size_info, total_custom / ops_custom,       \
                     total_gmp / ops_gmp);                                \
                                                                          \
-    bn_free(&bn_a);                                                      \
-    bn_free(&bn_b);                                                      \
-    bn_free(&bn_res);                                                    \
+    rz_clear(&rz_a);                                                     \
+    rz_clear(&rz_b);                                                     \
+    rz_clear(&rz_res);                                                   \
     mpz_clears(mpz_a, mpz_b, mpz_res, NULL);                             \
   }
 
-MAKE_BENCHMARK(benchmark_add, "Addition", bn_add, mpz_add)
-MAKE_BENCHMARK(benchmark_sub, "Subtraction", bn_sub, mpz_sub)
-MAKE_BENCHMARK(benchmark_mul, "Multiply", bn_mul, mpz_mul)
-MAKE_BENCHMARK(benchmark_div, "Division", bn_div, mpz_tdiv_q)
+MAKE_BENCHMARK(benchmark_add, "Addition", rz_add, mpz_add)
+MAKE_BENCHMARK(benchmark_sub, "Subtraction", rz_sub, mpz_sub)
+MAKE_BENCHMARK(benchmark_mul, "Multiply", rz_mul, mpz_mul)
+MAKE_BENCHMARK(benchmark_div, "Division", rz_div, mpz_tdiv_q)
 
-MAKE_BENCHMARK(benchmark_gcd, "GCD", bn_gcd_lehmer, mpz_gcd)
+MAKE_BENCHMARK(benchmark_gcd, "GCD", rz_gcd_lehmer, mpz_gcd)
 
 void benchmark_mod_exp(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b, bn_m, bn_res;
+  rz_t rz_a, rz_b, rz_m, rz_res;
   mpz_t mpz_a, mpz_b, mpz_m, mpz_res;
 
-  bn_init(&bn_a);
-  bn_init(&bn_b);
-  bn_init(&bn_m);
-  bn_init(&bn_res);
+  rz_init(&rz_a);
+  rz_init(&rz_b);
+  rz_init(&rz_m);
+  rz_init(&rz_res);
   mpz_inits(mpz_a, mpz_b, mpz_m, mpz_res, NULL);
 
   mpz_urandomb(mpz_a, state, bits);
@@ -247,9 +247,9 @@ void benchmark_mod_exp(int bits, double target_sec, gmp_randstate_t state)
   char* s_a = mpz_get_str(NULL, 10, mpz_a);
   char* s_b = mpz_get_str(NULL, 10, mpz_b);
   char* s_m = mpz_get_str(NULL, 10, mpz_m);
-  bn_init_val(&bn_a, s_a);
-  bn_init_val(&bn_b, s_b);
-  bn_init_val(&bn_m, s_m);
+  rz_init_val(&rz_a, s_a);
+  rz_init_val(&rz_b, s_b);
+  rz_init_val(&rz_m, s_m);
   free(s_a);
   free(s_b);
   free(s_m);
@@ -260,7 +260,7 @@ void benchmark_mod_exp(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_mod_exp(&bn_res, &bn_a, &bn_b, &bn_m);
+    rz_mod_exp(&rz_res, &rz_a, &rz_b, &rz_m);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -274,26 +274,26 @@ void benchmark_mod_exp(int bits, double target_sec, gmp_randstate_t state)
     total_gmp = get_elapsed_time(start, end);
   } while (total_gmp < target_sec);
 
-  assert_match(&bn_res, mpz_res, "ModExp");
+  assert_match(&rz_res, mpz_res, "ModExp");
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
   print_table_row("ModExp", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free(&bn_a);
-  bn_free(&bn_b);
-  bn_free(&bn_m);
-  bn_free(&bn_res);
+  rz_clear(&rz_a);
+  rz_clear(&rz_b);
+  rz_clear(&rz_m);
+  rz_clear(&rz_res);
   mpz_clears(mpz_a, mpz_b, mpz_m, mpz_res, NULL);
 }
 
 void benchmark_bpsw(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_n;
+  rz_t rz_n;
   mpz_t mpz_n;
 
-  bn_init(&bn_n);
+  rz_init(&rz_n);
   mpz_init(mpz_n);
 
   // Generate a random probable prime or odd number of the given bit length
@@ -301,7 +301,7 @@ void benchmark_bpsw(int bits, double target_sec, gmp_randstate_t state)
   mpz_setbit(mpz_n, 0);  // Ensure odd number
 
   char* s_n = mpz_get_str(NULL, 10, mpz_n);
-  bn_init_val(&bn_n, s_n);
+  rz_init_val(&rz_n, s_n);
   free(s_n);
 
   struct timespec start, end;
@@ -311,8 +311,8 @@ void benchmark_bpsw(int bits, double target_sec, gmp_randstate_t state)
   // Benchmark Custom BPSW test
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    // bn_bpsw returns bool: true if probable prime, false if composite
-    volatile bool custom_res = bn_bpsw(&bn_n);
+    // rz_bpsw returns bool: true if probable prime, false if composite
+    volatile bool custom_res = rz_bpsw(&rz_n);
     (void)custom_res;
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
@@ -331,7 +331,7 @@ void benchmark_bpsw(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Correctness Cross-Check: Both should agree on primality status
-  bool custom_prime = trialdiv(&bn_n, 10000) && bn_bpsw(&bn_n);
+  bool custom_prime = rz_trialdiv(&rz_n, 10000) && rz_bpsw(&rz_n);
   int gmp_prime = mpz_probab_prime_p(mpz_n, 25);
 
   if ((custom_prime && gmp_prime == 0) || (!custom_prime && gmp_prime > 0)) {
@@ -344,7 +344,7 @@ void benchmark_bpsw(int bits, double target_sec, gmp_randstate_t state)
   print_table_row("BPSW Primality", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free(&bn_n);
+  rz_clear(&rz_n);
   mpz_clear(mpz_n);
 }
 

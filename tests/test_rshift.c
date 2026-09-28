@@ -1,9 +1,9 @@
 /*
  * test_rshift.c
  *
- * Unified GMP-verified test suite for bn_rshift.
+ * Unified GMP-verified test suite for rz_rshift.
  *
- * bn_rshift truncates toward zero (sign preserved), so:
+ * rz_rshift truncates toward zero (sign preserved), so:
  *   - non-negative operands are verified against mpz_fdiv_q_2exp
  *   - negative operands are verified against mpz_tdiv_q_2exp
  *
@@ -22,7 +22,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -64,7 +64,7 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 // truncated = true  -> compare against mpz_tdiv_q_2exp (negative operands)
 // truncated = false -> compare against mpz_fdiv_q_2exp (non-negative)
 void assert_rshift_match(const char* op, const char* a_str, int shift,
-                         bool truncated, const bignum* r, mpz_t a)
+                         bool truncated, const rz_t* r, mpz_t a)
 {
   mpz_t expected;
   mpz_init(expected);
@@ -74,7 +74,7 @@ void assert_rshift_match(const char* op, const char* a_str, int shift,
     mpz_fdiv_q_2exp(expected, a, (size_t)shift);
 
   char* exp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(r);
+  char* custom_str = rz_to_string(r);
 
   if (strcmp(exp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -106,34 +106,34 @@ char* random_mpz_str(mpz_t z, int bits, bool negative, gmp_randstate_t state)
 static void run_case(const char* name, const char* a_str, int shift,
                      bool truncated)
 {
-  bignum a, res;
+  rz_t a, res;
   mpz_t za;
   char detail[256];
 
-  bn_init_multi(&a, &res, NULL);
+  rz_init_multi(&a, &res, NULL);
   mpz_init(za);
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_rshift [%s] a=%s shift=%d", name, a_str,
+  snprintf(detail, sizeof(detail), "rz_rshift [%s] a=%s shift=%d", name, a_str,
            shift);
 
   // non-aliased
-  bn_rshift(&res, &a, shift);
+  rz_rshift(&res, &a, shift);
   assert_rshift_match(detail, a_str, shift, truncated, &res, za);
 
   // aliasing: result == a
-  bn_init_val(&a, a_str);
-  bn_rshift(&a, &a, shift);
-  assert_rshift_match("bn_rshift (r==a)", a_str, shift, truncated, &a, za);
+  rz_init_val(&a, a_str);
+  rz_rshift(&a, &a, shift);
+  assert_rshift_match("rz_rshift (r==a)", a_str, shift, truncated, &a, za);
 
-  bn_free_multi(&a, &res, NULL);
+  rz_clear_multi(&a, &res, NULL);
   mpz_clear(za);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_rshift: edge cases ---\n");
+  printf("\n--- rz_rshift: edge cases ---\n");
 
   run_case("zero", "0", 123, false);
   run_case("one shift 0", "1", 0, false);
@@ -166,53 +166,53 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_rshift: %d non-negative cases vs mpz_fdiv_q_2exp ---\n",
+  printf("\n--- rz_rshift: %d non-negative cases vs mpz_fdiv_q_2exp ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     int shift = rand() % 8192;
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za;
     char* sa;
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_init(za);
 
     sa = random_mpz_str(za, bits, false, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
 
-    bn_rshift(&res, &a, shift);
-    assert_rshift_match("bn_rshift (random, >=0)", sa, shift, false, &res, za);
+    rz_rshift(&res, &a, shift);
+    assert_rshift_match("rz_rshift (random, >=0)", sa, shift, false, &res, za);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clear(za);
   }
 
-  printf("--- bn_rshift: %d negative cases vs mpz_tdiv_q_2exp ---\n",
+  printf("--- rz_rshift: %d negative cases vs mpz_tdiv_q_2exp ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     int shift = rand() % 8192;
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za;
     char* sa;
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_init(za);
 
     sa = random_mpz_str(za, bits, true, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
 
-    bn_rshift(&res, &a, shift);
-    assert_rshift_match("bn_rshift (random, <0)", sa, shift, true, &res, za);
+    rz_rshift(&res, &a, shift);
+    assert_rshift_match("rz_rshift (random, <0)", sa, shift, true, &res, za);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clear(za);
   }
 
@@ -226,14 +226,14 @@ static void run_random(gmp_randstate_t state)
 static void benchmark_rshift(int bits, double target_sec, gmp_randstate_t state)
 {
   const int shift = 123;  // fixed limb-crossing shift
-  bignum bn_a, bn_res;
+  rz_t rz_a, rz_res;
   mpz_t mpz_a, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_res, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, false, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
 
   struct timespec start, end;
@@ -242,7 +242,7 @@ static void benchmark_rshift(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_rshift(&bn_res, &bn_a, shift);
+    rz_rshift(&rz_res, &rz_a, shift);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -257,15 +257,15 @@ static void benchmark_rshift(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_rshift_match("bn_rshift (benchmark)", "(bench input)", shift, false,
-                      &bn_res, mpz_a);
+  assert_rshift_match("rz_rshift (benchmark)", "(bench input)", shift, false,
+                      &rz_res, mpz_a);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_rshift", size_info, total_custom / ops_custom,
+  print_table_row("rz_rshift", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_res, NULL);
 }
 

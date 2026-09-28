@@ -3,18 +3,18 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../include/bigcert.h"
-#include "../include/bignum.h"
+#include "../include/rabin.h"
+#include "../include/rzcert.h"
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
   int num_to_generate = 20;
   int bits = 2048;
 
-  bignum p;
-  bn_init(&p);
+  rz_t p;
+  rz_init(&p);
 
   printf("Benchmarking: Generating %d primes at %d-bits...\n", num_to_generate,
          bits);
@@ -23,22 +23,22 @@ int main()
   struct timespec start, end;
   double total_time = 0;
 
-  pocklington_cert* cert = NULL;
+  rzcert_t* cert = NULL;
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    gen_provable_primes_arithmetic(&p, bits, NULL);
+    rz_gen_provable_arithmetic(&p, bits, NULL);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed =
         (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     total_time += elapsed;
 
-    bn_println(&p);
+    rz_println(&p);
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
 
     // print_pocklington_cert(cert);
-    pocklington_cert_free(cert);
+    rzcert_clear(cert);
   }
 
   printf("--------------------------------------------------\n");
@@ -46,8 +46,8 @@ int main()
   printf("Average Time: %.4f seconds per prime\n",
          total_time / num_to_generate);
 
-  bn_free(&p);
+  rz_clear(&p);
 
-  bn_free_constants();
+  rz_clear_constants();
   return 0;
 }

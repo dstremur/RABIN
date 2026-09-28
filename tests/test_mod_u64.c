@@ -1,9 +1,9 @@
 /*
  * test_mod_u64.c
  *
- * Unified GMP-verified test suite for bn_mod_u64.
+ * Unified GMP-verified test suite for rz_mod_u64.
  *
- * bn_mod_u64 returns the nonnegative residue in [0, d), so it is verified
+ * rz_mod_u64 returns the nonnegative residue in [0, d), so it is verified
  * against mpz_mod_ui (floor-style reduction).
  *
  *   1. Edge cases: 0, negative a, d = 1, max u64 divisor
@@ -23,7 +23,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -114,32 +114,32 @@ static uint64_t random_u64_nonzero(gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, uint64_t d)
 {
-  bignum a;
+  rz_t a;
   mpz_t za, zd, zr;
 
-  bn_init(&a);
-  bn_init_val(&a, a_str);
+  rz_init(&a);
+  rz_init_val(&a, a_str);
 
   mpz_inits(za, zd, zr, NULL);
   mpz_set_str(za, a_str, 10);
   set_mpz_u64(zd, d);
 
-  // GMP nonnegative residue matches bn_mod_u64
+  // GMP nonnegative residue matches rz_mod_u64
   mpz_mod_ui(zr, za, (unsigned long)d);
   uint64_t gmp_res = mpz_to_u64(zr);
-  uint64_t custom_res = bn_mod_u64(&a, d);
+  uint64_t custom_res = rz_mod_u64(&a, d);
 
   char detail[256];
-  snprintf(detail, sizeof(detail), "bn_mod_u64 [%s]", name);
+  snprintf(detail, sizeof(detail), "rz_mod_u64 [%s]", name);
   assert_mod_u64(detail, a_str, d, custom_res, gmp_res);
 
-  bn_free(&a);
+  rz_clear(&a);
   mpz_clears(za, zd, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_mod_u64: edge cases ---\n");
+  printf("\n--- rz_mod_u64: edge cases ---\n");
 
   run_case("zero mod", "0", 12345);
   run_case("neg a", "-999999999999999", 7);
@@ -163,34 +163,34 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_mod_u64: %d randomized cases vs mpz_mod_ui ---\n",
+  printf("\n--- rz_mod_u64: %d randomized cases vs mpz_mod_ui ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     uint64_t d = random_u64_nonzero(state);
 
-    bignum a;
+    rz_t a;
     mpz_t za, zd, zr;
     char* sa;
     char detail[64];
 
-    bn_init(&a);
+    rz_init(&a);
     mpz_inits(za, zd, zr, NULL);
 
     sa = random_a(za, bits, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
     set_mpz_u64(zd, d);
 
     mpz_mod_ui(zr, za, (unsigned long)d);
     uint64_t gmp_res = mpz_to_u64(zr);
-    uint64_t custom_res = bn_mod_u64(&a, d);
+    uint64_t custom_res = rz_mod_u64(&a, d);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits)", i, bits);
     assert_mod_u64(detail, sa, d, custom_res, gmp_res);
 
     free(sa);
-    bn_free(&a);
+    rz_clear(&a);
     mpz_clears(za, zd, zr, NULL);
   }
 
@@ -206,14 +206,14 @@ static void benchmark_mod_u64(int bits, double target_sec,
 {
   uint64_t d = random_u64_nonzero(state);
 
-  bignum bn_a;
+  rz_t rz_a;
   mpz_t mpz_a, mpz_d, mpz_res;
 
-  bn_init(&bn_a);
+  rz_init(&rz_a);
   mpz_inits(mpz_a, mpz_d, mpz_res, NULL);
 
   char* sa = random_a(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
   set_mpz_u64(mpz_d, d);
 
@@ -224,7 +224,7 @@ static void benchmark_mod_u64(int bits, double target_sec,
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    v_rem = bn_mod_u64(&bn_a, d);
+    v_rem = rz_mod_u64(&rz_a, d);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -239,15 +239,15 @@ static void benchmark_mod_u64(int bits, double target_sec,
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_mod_u64("bn_mod_u64 (benchmark)", "(bench input)", d, v_rem,
+  assert_mod_u64("rz_mod_u64 (benchmark)", "(bench input)", d, v_rem,
                  mpz_to_u64(mpz_res));
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_mod_u64", size_info, total_custom / ops_custom,
+  print_table_row("rz_mod_u64", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free(&bn_a);
+  rz_clear(&rz_a);
   mpz_clears(mpz_a, mpz_d, mpz_res, NULL);
 }
 

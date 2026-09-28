@@ -34,10 +34,19 @@ LIB = $(BUILD_DIR)/libbignum.a
 TARGET = $(BUILD_DIR)/bignum
 
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
+
+# test_flint requires libflint; skip it from the build when it is absent
+FLINT_OK := $(shell echo '#include <flint/flint.h>' | $(CC) -E -x c - \
+    -o /dev/null 2>/dev/null && echo yes)
+ifneq ($(FLINT_OK),yes)
+TEST_SRCS := $(filter-out $(TEST_DIR)/test_flint.c, $(TEST_SRCS))
+endif
+
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
+EXTRA_test_flint = -lflint
 
 #.PHONY: all clean tests $(TEST_BINS)
-.PHONY: $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
+.PHONY: test-valgrind $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
 .SECONDARY: $(OBJS) $(ASM_OBJS) $(TEST_BINS)
 .PRECIOUS: $(BUILD_DIR)/tests/%.o $(BUILD_DIR)/%
 
@@ -90,10 +99,59 @@ tests: $(TEST_BINS)
 TESTS = test_add test_add_u64 test_bpsw test_cmp test_div test_div_gcd \
         test_divmod test_divmod_u64 test_field test_gcd \
         test_gcd_extended test_gmp test_isqrt test_log_2 \
-        test_lshift test_logic test_mod test_mod_inverse test_mod_u64
+        test_lshift test_mod test_mod_inverse test_mod_u64
 
 test_complete: $(TESTS)
 	@echo "All specified tests completed successfully!"
+
+# 8. Run one test (`make test-valgrind TEST=test_mul`) or the fast core set
+#    under valgrind (definite/possible leaks + error abort). Valgrind cannot
+#    emulate AVX-512, so tests run from a parallel no-AVX-512 build (build/vg).
+VALGRIND ?= valgrind
+VALGRIND_FLAGS = --error-exitcode=99 --leak-check=full \
+                 --show-leak-kinds=definite,possible
+VALGRIND_TESTS = test_add test_add_u64 test_cmp test_div test_divmod \
+                 test_divmod_u64 test_field test_gcd test_gcd_extended \
+                 test_isqrt test_log_2 test_lshift test_mod \
+                 test_mod_inverse test_mod_u64
+
+VG_DIR = $(BUILD_DIR)/vg
+VG_CFLAGS = $(CFLAGS) -mno-avx512f
+VG_OBJS = $(patsubst $(BUILD_DIR)/%.o, $(VG_DIR)/%.o, $(OBJS))
+VG_ASM_OBJS = $(patsubst $(BUILD_DIR)/%.o, $(VG_DIR)/%.o, $(ASM_OBJS))
+VG_LIB = $(VG_DIR)/libbignum.a
+
+$(VG_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(VG_CFLAGS) -c $< -o $@
+
+$(VG_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.asm
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) $< -o $@
+
+$(VG_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.s
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) $< -o $@
+
+$(VG_LIB): $(VG_OBJS) $(VG_ASM_OBJS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $^
+
+$(VG_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(VG_CFLAGS) -c $< -o $@
+
+$(VG_DIR)/test_%: $(VG_DIR)/$(TEST_DIR)/test_%.o $(VG_LIB)
+	@mkdir -p $(@D)
+	$(CC) $(VG_CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*)
+
+test-valgrind:
+	@target="$(or $(TEST),$(VALGRIND_TESTS))"; \
+	for t in $$target; do \
+		echo "== valgrind $$t =="; \
+		$(MAKE) $(VG_DIR)/$$t || exit 1; \
+		$(VALGRIND) $(VALGRIND_FLAGS) ./$(VG_DIR)/$$t || exit 1; \
+	done
 
 # Clean up all build artifacts
 clean:

@@ -1,7 +1,7 @@
 /*
  * test_mul_i64.c
  *
- * Unified GMP-verified test suite for bn_mul_i64.
+ * Unified GMP-verified test suite for rz_mul_i64.
  *
  * GMP's mpz_mul_si only takes an int, so the 64-bit operand is built as an
  * mpz via its decimal string for the reference computation.
@@ -22,7 +22,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -68,11 +68,11 @@ void mpz_set_i64(mpz_t z, int64_t c)
   mpz_set_str(z, buf, 10);
 }
 
-void assert_match(const char* op, const char* a_str, int64_t c,
-                  const bignum* bn, mpz_t expected)
+void assert_match(const char* op, const char* a_str, int64_t c, const rz_t* bn,
+                  mpz_t expected)
 {
   char* gmp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -112,36 +112,36 @@ static int64_t random_i64(gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, int64_t c)
 {
-  bignum a, res;
+  rz_t a, res;
   mpz_t za, zc, zr;
   char detail[256];
 
-  bn_init_multi(&a, &res, NULL);
+  rz_init_multi(&a, &res, NULL);
   mpz_inits(za, zc, zr, NULL);
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_i64(zc, c);
 
-  snprintf(detail, sizeof(detail), "bn_mul_i64 [%s] a=%s c=%lld", name, a_str,
+  snprintf(detail, sizeof(detail), "rz_mul_i64 [%s] a=%s c=%lld", name, a_str,
            (long long)c);
 
   // non-aliased
-  bn_mul_i64(&res, &a, c);
+  rz_mul_i64(&res, &a, c);
   mpz_mul(zr, za, zc);
   assert_match(detail, a_str, c, &res, zr);
 
   // aliasing: r == a
-  bn_init_val(&a, a_str);
-  bn_mul_i64(&a, &a, c);
-  assert_match("bn_mul_i64 (r==a)", a_str, c, &a, zr);
+  rz_init_val(&a, a_str);
+  rz_mul_i64(&a, &a, c);
+  assert_match("rz_mul_i64 (r==a)", a_str, c, &a, zr);
 
-  bn_free_multi(&a, &res, NULL);
+  rz_clear_multi(&a, &res, NULL);
   mpz_clears(za, zc, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_mul_i64: edge cases ---\n");
+  printf("\n--- rz_mul_i64: edge cases ---\n");
 
   run_case("zero * anything", "0", 12345);
   run_case("one * one", "1", 1);
@@ -165,33 +165,33 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_mul_i64: %d randomized cases vs mpz_mul ---\n",
+  printf("\n--- rz_mul_i64: %d randomized cases vs mpz_mul ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     int64_t c = random_i64(state);
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za, zc, zr;
     char* sa;
     char detail[64];
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_inits(za, zc, zr, NULL);
 
     sa = random_a(za, bits, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
     mpz_set_i64(zc, c);
 
-    bn_mul_i64(&res, &a, c);
+    rz_mul_i64(&res, &a, c);
     mpz_mul(zr, za, zc);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits)", i, bits);
     assert_match(detail, sa, c, &res, zr);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clears(za, zc, zr, NULL);
   }
 
@@ -206,14 +206,14 @@ static void benchmark_mul_i64(int bits, double target_sec,
                               gmp_randstate_t state)
 {
   const int64_t c = 0x123456789abcdef0LL;
-  bignum bn_a, bn_res;
+  rz_t rz_a, rz_res;
   mpz_t mpz_a, mpz_c, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_c, mpz_res, NULL);
 
   char* sa = random_a(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
   mpz_set_i64(mpz_c, c);
 
@@ -223,7 +223,7 @@ static void benchmark_mul_i64(int bits, double target_sec,
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_mul_i64(&bn_res, &bn_a, c);
+    rz_mul_i64(&rz_res, &rz_a, c);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -238,14 +238,14 @@ static void benchmark_mul_i64(int bits, double target_sec,
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_match("bn_mul_i64 (benchmark)", "(bench input)", c, &bn_res, mpz_res);
+  assert_match("rz_mul_i64 (benchmark)", "(bench input)", c, &rz_res, mpz_res);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_mul_i64", size_info, total_custom / ops_custom,
+  print_table_row("rz_mul_i64", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_c, mpz_res, NULL);
 }
 

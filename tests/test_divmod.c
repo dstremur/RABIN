@@ -1,7 +1,7 @@
 /*
  * test_divmod.c
  *
- * Unified GMP-verified test suite for bn_divmod (truncated division).
+ * Unified GMP-verified test suite for rz_divmod (truncated division).
  *
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries, truncation sign
  *      semantics (q toward 0, sign(r) = sign(a)) + pointer aliasing
@@ -19,7 +19,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -59,10 +59,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 void assert_bn_eq_mpz(const char* op, const char* a_str, const char* b_str,
-                      const bignum* bn, const char* label, mpz_t expected)
+                      const rz_t* bn, const char* label, mpz_t expected)
 {
   char* gmp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -80,8 +80,8 @@ void assert_bn_eq_mpz(const char* op, const char* a_str, const char* b_str,
 }
 
 static void assert_divmod_values(const char* op, const char* a_str,
-                                 const char* b_str, const bignum* q,
-                                 const bignum* r, mpz_t zq, mpz_t zr)
+                                 const char* b_str, const rz_t* q,
+                                 const rz_t* r, mpz_t zq, mpz_t zr)
 {
   assert_bn_eq_mpz(op, a_str, b_str, q, "Q", zq);
   assert_bn_eq_mpz(op, a_str, b_str, r, "R", zr);
@@ -100,74 +100,74 @@ static char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, const char* b_str)
 {
-  bignum a, b, q, r, t, u;
+  rz_t a, b, q, r, t, u;
   mpz_t za, zb, zq, zr;
   char detail[256];
 
-  bn_init_multi(&a, &b, &q, &r, &t, &u, NULL);
+  rz_init_multi(&a, &b, &q, &r, &t, &u, NULL);
   mpz_inits(za, zb, zq, zr, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zb, b_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_divmod [%s] a=%s b=%s", name, a_str,
+  snprintf(detail, sizeof(detail), "rz_divmod [%s] a=%s b=%s", name, a_str,
            b_str);
 
   // non-aliased
-  bn_divmod(&q, &r, &a, &b);
+  rz_divmod(&q, &r, &a, &b);
   mpz_tdiv_qr(zq, zr, za, zb);
   assert_divmod_values(detail, a_str, b_str, &q, &r, zq, zr);
 
   // internal invariant: q * b + r == a (computed with the custom lib)
-  bn_mul(&t, &q, &b);
-  bn_add(&u, &t, &r);
-  assert_bn_eq_mpz("bn_divmod invariant q*b+r==a", a_str, b_str, &u, "Q*B+R",
+  rz_mul(&t, &q, &b);
+  rz_add(&u, &t, &r);
+  assert_bn_eq_mpz("rz_divmod invariant q*b+r==a", a_str, b_str, &u, "Q*B+R",
                    za);
 
   // aliasing: q == a
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(&a, &r, &a, &b);
-  assert_divmod_values("bn_divmod (q==a)", a_str, b_str, &a, &r, zq, zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(&a, &r, &a, &b);
+  assert_divmod_values("rz_divmod (q==a)", a_str, b_str, &a, &r, zq, zr);
 
   // aliasing: r == b
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(&q, &b, &a, &b);
-  assert_divmod_values("bn_divmod (r==b)", a_str, b_str, &q, &b, zq, zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(&q, &b, &a, &b);
+  assert_divmod_values("rz_divmod (r==b)", a_str, b_str, &q, &b, zq, zr);
 
   // aliasing: q == b
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(&b, &r, &a, &b);
-  assert_divmod_values("bn_divmod (q==b)", a_str, b_str, &b, &r, zq, zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(&b, &r, &a, &b);
+  assert_divmod_values("rz_divmod (q==b)", a_str, b_str, &b, &r, zq, zr);
 
   // aliasing: r == a
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(&q, &a, &a, &b);
-  assert_divmod_values("bn_divmod (r==a)", a_str, b_str, &q, &a, zq, zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(&q, &a, &a, &b);
+  assert_divmod_values("rz_divmod (r==a)", a_str, b_str, &q, &a, zq, zr);
 
   // NULL quotient: remainder only
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(NULL, &r, &a, &b);
-  assert_bn_eq_mpz("bn_divmod (q=NULL)", a_str, b_str, &r, "R", zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(NULL, &r, &a, &b);
+  assert_bn_eq_mpz("rz_divmod (q=NULL)", a_str, b_str, &r, "R", zr);
 
   // NULL remainder: quotient only
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_divmod(&q, NULL, &a, &b);
-  assert_bn_eq_mpz("bn_divmod (r=NULL)", a_str, b_str, &q, "Q", zq);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_divmod(&q, NULL, &a, &b);
+  assert_bn_eq_mpz("rz_divmod (r=NULL)", a_str, b_str, &q, "Q", zq);
 
-  bn_free_multi(&a, &b, &q, &r, &t, &u, NULL);
+  rz_clear_multi(&a, &b, &q, &r, &t, &u, NULL);
   mpz_clears(za, zb, zq, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_divmod: edge cases ---\n");
+  printf("\n--- rz_divmod: edge cases ---\n");
 
   run_case("zero / one", "0", "1");
   run_case("one / one", "1", "1");
@@ -196,20 +196,20 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_divmod: %d randomized cases vs mpz_tdiv_qr ---\n",
+  printf("\n--- rz_divmod: %d randomized cases vs mpz_tdiv_qr ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_b = 1 + (rand() % 4096);
 
-    bignum a, b, q, r;
+    rz_t a, b, q, r;
     mpz_t za, zb, zq, zr;
     char* sa;
     char* sb;
     char detail[64];
 
-    bn_init_multi(&a, &b, &q, &r, NULL);
+    rz_init_multi(&a, &b, &q, &r, NULL);
     mpz_inits(za, zb, zq, zr, NULL);
 
     sa = random_mpz_str(za, bits_a, state);
@@ -222,10 +222,10 @@ static void run_random(gmp_randstate_t state)
       sb = mpz_get_str(NULL, 10, zb);
     }
 
-    bn_init_val(&a, sa);
-    bn_init_val(&b, sb);
+    rz_init_val(&a, sa);
+    rz_init_val(&b, sb);
 
-    bn_divmod(&q, &r, &a, &b);
+    rz_divmod(&q, &r, &a, &b);
     mpz_tdiv_qr(zq, zr, za, zb);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
@@ -234,7 +234,7 @@ static void run_random(gmp_randstate_t state)
 
     free(sa);
     free(sb);
-    bn_free_multi(&a, &b, &q, &r, NULL);
+    rz_clear_multi(&a, &b, &q, &r, NULL);
     mpz_clears(za, zb, zq, zr, NULL);
   }
 
@@ -247,16 +247,16 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_divmod(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b, bn_q, bn_r;
+  rz_t rz_a, rz_b, rz_q, rz_r;
   mpz_t mpz_a, mpz_b, mpz_q, mpz_r;
 
-  bn_init_multi(&bn_a, &bn_b, &bn_q, &bn_r, NULL);
+  rz_init_multi(&rz_a, &rz_b, &rz_q, &rz_r, NULL);
   mpz_inits(mpz_a, mpz_b, mpz_q, mpz_r, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
   char* sb = random_mpz_str(mpz_b, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_b, sb);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_b, sb);
   free(sa);
   free(sb);
 
@@ -266,7 +266,7 @@ static void benchmark_divmod(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_divmod(&bn_q, &bn_r, &bn_a, &bn_b);
+    rz_divmod(&rz_q, &rz_r, &rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -281,15 +281,15 @@ static void benchmark_divmod(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_divmod_values("bn_divmod (benchmark)", "(bench input)",
-                       "(bench input)", &bn_q, &bn_r, mpz_q, mpz_r);
+  assert_divmod_values("rz_divmod (benchmark)", "(bench input)",
+                       "(bench input)", &rz_q, &rz_r, mpz_q, mpz_r);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_divmod", size_info, total_custom / ops_custom,
+  print_table_row("rz_divmod", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_b, &bn_q, &bn_r, NULL);
+  rz_clear_multi(&rz_a, &rz_b, &rz_q, &rz_r, NULL);
   mpz_clears(mpz_a, mpz_b, mpz_q, mpz_r, NULL);
 }
 

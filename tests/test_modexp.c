@@ -1,9 +1,9 @@
 /*
  * test_modexp.c
  *
- * Unified GMP-verified test suite for bn_mod_exp (a^b mod m).
+ * Unified GMP-verified test suite for rz_mod_exp (a^b mod m).
  *
- * Operands are non-negative: bn_mod_exp does not normalize negative bases
+ * Operands are non-negative: rz_mod_exp does not normalize negative bases
  * into [0, m), which is outside its contract (GMP's mpz_powm would).
  *
  *   1. Edge cases: 0^0, e = 0, e = 1, m = 1, m = 2, odd/even moduli,
@@ -22,7 +22,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -62,10 +62,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 void assert_match(const char* op, const char* a_str, const char* e_str,
-                  const char* m_str, const bignum* bn, mpz_t expected)
+                  const char* m_str, const rz_t* bn, mpz_t expected)
 {
   char* gmp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -97,45 +97,45 @@ static char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 static void run_case(const char* name, const char* a_str, const char* e_str,
                      const char* m_str)
 {
-  bignum a, e, m, r;
+  rz_t a, e, m, r;
   mpz_t za, ze, zm, zr;
   char detail[512];
 
-  bn_init_multi(&a, &e, &m, &r, NULL);
+  rz_init_multi(&a, &e, &m, &r, NULL);
   mpz_inits(za, ze, zm, zr, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&e, e_str);
-  bn_init_val(&m, m_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&e, e_str);
+  rz_init_val(&m, m_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(ze, e_str, 10);
   mpz_set_str(zm, m_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_mod_exp [%s] a=%s e=%s m=%s", name,
+  snprintf(detail, sizeof(detail), "rz_mod_exp [%s] a=%s e=%s m=%s", name,
            a_str, e_str, m_str);
 
   // non-aliased
-  bn_mod_exp(&r, &a, &e, &m);
+  rz_mod_exp(&r, &a, &e, &m);
   mpz_powm(zr, za, ze, zm);
   assert_match(detail, a_str, e_str, m_str, &r, zr);
 
   // aliasing: r == a
-  bn_init_val(&a, a_str);
-  bn_mod_exp(&a, &a, &e, &m);
-  assert_match("bn_mod_exp (r==a)", a_str, e_str, m_str, &a, zr);
+  rz_init_val(&a, a_str);
+  rz_mod_exp(&a, &a, &e, &m);
+  assert_match("rz_mod_exp (r==a)", a_str, e_str, m_str, &a, zr);
 
   // aliasing: r == b (exponent)
-  bn_init_val(&a, a_str);
-  bn_init_val(&e, e_str);
-  bn_mod_exp(&e, &a, &e, &m);
-  assert_match("bn_mod_exp (r==e)", a_str, e_str, m_str, &e, zr);
+  rz_init_val(&a, a_str);
+  rz_init_val(&e, e_str);
+  rz_mod_exp(&e, &a, &e, &m);
+  assert_match("rz_mod_exp (r==e)", a_str, e_str, m_str, &e, zr);
 
-  bn_free_multi(&a, &e, &m, &r, NULL);
+  rz_clear_multi(&a, &e, &m, &r, NULL);
   mpz_clears(za, ze, zm, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_mod_exp: edge cases ---\n");
+  printf("\n--- rz_mod_exp: edge cases ---\n");
 
   run_case("one ^ zero", "1", "0", "5");
   run_case("zero ^ zero (= 1)", "0", "0", "5");
@@ -166,7 +166,7 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_mod_exp: %d randomized cases vs mpz_powm ---\n",
+  printf("\n--- rz_mod_exp: %d randomized cases vs mpz_powm ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
@@ -174,14 +174,14 @@ static void run_random(gmp_randstate_t state)
     int bits_m = 1 + (rand() % 4096);
     int bits_e = 1 + (rand() % 512);  // keep exponents tractable
 
-    bignum a, e, m, r;
+    rz_t a, e, m, r;
     mpz_t za, ze, zm, zr;
     char* sa;
     char* se;
     char* sm;
     char detail[64];
 
-    bn_init_multi(&a, &e, &m, &r, NULL);
+    rz_init_multi(&a, &e, &m, &r, NULL);
     mpz_inits(za, ze, zm, zr, NULL);
 
     sa = random_mpz_str(za, bits_a, state);
@@ -195,11 +195,11 @@ static void run_random(gmp_randstate_t state)
       se_use = "0";
     }
 
-    bn_init_val(&a, sa);
-    bn_init_val(&e, se_use);
-    bn_init_val(&m, sm);
+    rz_init_val(&a, sa);
+    rz_init_val(&e, se_use);
+    rz_init_val(&m, sm);
 
-    bn_mod_exp(&r, &a, &e, &m);
+    rz_mod_exp(&r, &a, &e, &m);
     mpz_powm(zr, za, ze, zm);
 
     snprintf(detail, sizeof(detail),
@@ -210,7 +210,7 @@ static void run_random(gmp_randstate_t state)
     free(sa);
     free(se);
     free(sm);
-    bn_free_multi(&a, &e, &m, &r, NULL);
+    rz_clear_multi(&a, &e, &m, &r, NULL);
     mpz_clears(za, ze, zm, zr, NULL);
   }
 
@@ -223,19 +223,19 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_modexp(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_e, bn_m, bn_r;
+  rz_t rz_a, rz_e, rz_m, rz_r;
   mpz_t mpz_a, mpz_e, mpz_m, mpz_r;
 
-  bn_init_multi(&bn_a, &bn_e, &bn_m, &bn_r, NULL);
+  rz_init_multi(&rz_a, &rz_e, &rz_m, &rz_r, NULL);
   mpz_inits(mpz_a, mpz_e, mpz_m, mpz_r, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
   char* se = random_mpz_str(mpz_e, bits, state);
   mpz_setbit(mpz_m, 0);  // Ensure odd modulus (Montgomery path)
   char* sm = random_mpz_str(mpz_m, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_e, se);
-  bn_init_val(&bn_m, sm);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_e, se);
+  rz_init_val(&rz_m, sm);
   free(sa);
   free(se);
   free(sm);
@@ -246,7 +246,7 @@ static void benchmark_modexp(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_mod_exp(&bn_r, &bn_a, &bn_e, &bn_m);
+    rz_mod_exp(&rz_r, &rz_a, &rz_e, &rz_m);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -261,15 +261,15 @@ static void benchmark_modexp(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_match("bn_mod_exp (benchmark)", "(bench input)", "(bench input)",
-               "(bench input)", &bn_r, mpz_r);
+  assert_match("rz_mod_exp (benchmark)", "(bench input)", "(bench input)",
+               "(bench input)", &rz_r, mpz_r);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_mod_exp", size_info, total_custom / ops_custom,
+  print_table_row("rz_mod_exp", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_e, &bn_m, &bn_r, NULL);
+  rz_clear_multi(&rz_a, &rz_e, &rz_m, &rz_r, NULL);
   mpz_clears(mpz_a, mpz_e, mpz_m, mpz_r, NULL);
 }
 

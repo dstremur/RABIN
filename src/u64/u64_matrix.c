@@ -29,15 +29,15 @@
 #include "../../include/u64.h"
 #define TILE_SIZE 64
 
-u64 matrix_u64_det(matrix_u64* M)
+u64 u64_mat_det(u64_mat_t* M)
 {
-  if (M->r_size != M->c_size) {
+  if (M->rows != M->cols) {
     printf("Not square\n");
   }
 
   u64 p = M->modulus;
   u64 det = 1;
-  u64 n = M->r_size;
+  u64 n = M->rows;
 
   u64* mat = malloc(sizeof(u64) * n * n);
   memcpy(mat, M->data, sizeof(u64) * n * n);
@@ -61,20 +61,20 @@ u64 matrix_u64_det(matrix_u64* M)
         mat[pivot * n + j] = tmp;
       }
       // swapping multiplies det by -1 or p-1 mod p
-      det = mod_sub(0, det, p);
+      det = u64_mod_sub(0, det, p);
     }
 
     // multiply det by pivot
     u64 pivot_val = mat[i * n + i];
-    det = mod_mul(det, pivot_val, p);
+    det = u64_mod_mul(det, pivot_val, p);
 
     // eliminate below pivot
-    u64 inv = mod_inverse_euclid(pivot_val, p);
+    u64 inv = u64_mod_inverse_euclid(pivot_val, p);
     for (u64 j = i + 1; j < n; j++) {
-      u64 factor = mod_mul(mat[j * n + i], inv, p);
+      u64 factor = u64_mod_mul(mat[j * n + i], inv, p);
       for (u64 k = i; k < n; k++) {
-        u64 sub = mod_mul(factor, mat[i * n + k], p);
-        mat[j * n + k] = mod_sub(mat[j * n + k], sub, p);
+        u64 sub = u64_mod_mul(factor, mat[i * n + k], p);
+        mat[j * n + k] = u64_mod_sub(mat[j * n + k], sub, p);
       }
     }
   }
@@ -82,14 +82,14 @@ u64 matrix_u64_det(matrix_u64* M)
   return det;
 }
 
-u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
+u64 u64_mat_det_optimized(u64* mat, u64 n, const u64_mont_ctx_t* ctx)
 {
-  u64 det = mont_in(1, ctx);
+  u64 det = u64_mont_in(1, ctx);
   u64 p = ctx->p;
 
   // convert matrix to montgomery form
   for (u64 i = 0; i < n * n; i++) {
-    mat[i] = mont_in(mat[i], ctx);
+    mat[i] = u64_mont_in(mat[i], ctx);
   }
 
   for (u64 i = 0; i < n; i++) {
@@ -109,20 +109,20 @@ u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
         row_i[j] = row_p[j];
         row_p[j] = tmp;
       }
-      det = mod_sub(0, det, p);
+      det = u64_mod_sub(0, det, p);
     }
 
     u64 pivot_val = mat[i * n + i];
-    det = mont_mul(det, pivot_val, ctx);
+    det = u64_mont_mul(det, pivot_val, ctx);
 
-    u64 pivot_real = mont_out(pivot_val, ctx);
-    u64 inv_real = mod_inverse_euclid(pivot_real, p);
-    u64 inv = mont_in(inv_real, ctx);
+    u64 pivot_real = u64_mont_out(pivot_val, ctx);
+    u64 inv_real = u64_mod_inverse_euclid(pivot_real, p);
+    u64 inv = u64_mont_in(inv_real, ctx);
 
     u64* row_i = mat + i * n;
 
     for (u64 j = i + 1; j < n; j++) {
-      u64 factor = mont_mul(mat[j * n + i], inv, ctx);
+      u64 factor = u64_mont_mul(mat[j * n + i], inv, ctx);
       if (factor == 0) continue;
       u64* row_j = mat + j * n;
 
@@ -131,18 +131,18 @@ u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx)
       for (; k <= (n >= TILE_SIZE ? n - TILE_SIZE : 0); k += TILE_SIZE) {
         for (u64 tk = 0; tk < TILE_SIZE; tk++) {
           u64 idx = k + tk;
-          u64 prod = mont_mul(factor, row_i[idx], ctx);
-          row_j[idx] = mod_sub(row_j[idx], prod, p);
+          u64 prod = u64_mont_mul(factor, row_i[idx], ctx);
+          row_j[idx] = u64_mod_sub(row_j[idx], prod, p);
         }
       }
 
       // process remaining elements
       for (; k < n; k++) {
-        u64 prod = mont_mul(factor, row_i[k], ctx);
-        row_j[k] = mod_sub(row_j[k], prod, p);
+        u64 prod = u64_mont_mul(factor, row_i[k], ctx);
+        row_j[k] = u64_mod_sub(row_j[k], prod, p);
       }
     }
   }
 
-  return mont_out(det, ctx);
+  return u64_mont_out(det, ctx);
 }

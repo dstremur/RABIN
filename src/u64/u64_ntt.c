@@ -32,7 +32,7 @@
 
 #include "../../include/u64.h"
 
-void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
+void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
@@ -42,7 +42,7 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
     // Convert to Montgomery form right as we load the data
-    a_hat[rev] = mont_in(a[i], &ctx->mctx);
+    a_hat[rev] = u64_mont_in(a[i], &ctx->mctx);
   }
 
   // 2. Cooley-Tukey Butterfly
@@ -59,20 +59,21 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
         u64 odd = i + j + half;
 
         // t = a_hat[odd] * twiddle (Montgomery multiplication)
-        u64 t = mont_mul(a_hat[odd], twiddle, &ctx->mctx);
+        u64 t = u64_mont_mul(a_hat[odd], twiddle, &ctx->mctx);
         u64 u = a_hat[even];
 
         // Montgomery form preserves addition and subtraction natively
-        a_hat[even] = mod_add(u, t, q);
-        a_hat[odd] = mod_sub(u, t, q);
+        a_hat[even] = u64_mod_add(u, t, q);
+        a_hat[odd] = u64_mod_sub(u, t, q);
       }
     }
   }
 }
 
-bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k)
+rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k)
 {
-  if (k > 54) return false;
+  if (ctx == NULL) return RABIN_ERR_NULL_PTR;
+  if (k > 54) return RABIN_ERR_INVALID_ARG;
 
   // p = 5 * 2^55 + 1
   u64 p = 180143985094819841ULL;
@@ -83,13 +84,13 @@ bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k)
   u64 exp = 5ULL << (55 - (k + 1));
 
   // psi = g^exp mod p
-  u64 psi = mod_pow(g, exp, p);
+  u64 psi = u64_mod_pow(g, exp, p);
 
   // omega = psi^2 mod p
-  u64 omega = mod_mul(psi, psi, p);
+  u64 omega = u64_mod_mul(psi, psi, p);
 
   // Initialize the Montgomery NTT context
-  return ntt_ctx_u64_init(ctx, p, k, omega, psi);
+  return u64_ntt_ctx_init(ctx, p, k, omega, psi);
 }
 
 /*
@@ -100,17 +101,17 @@ bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k)
  * forever after. Contexts are read-only after initialization, so they
  * can be shared across threads.
  */
-static ntt_ctx_u64 golden_ctxs[55];
+static u64_ntt_ctx_t golden_ctxs[55];
 static bool golden_ctx_ready[55] = {false};
 static pthread_mutex_t golden_ctx_lock = PTHREAD_MUTEX_INITIALIZER;
 
-ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k)
+u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k)
 {
   if (k > 54) return NULL;
 
   pthread_mutex_lock(&golden_ctx_lock);
   if (!golden_ctx_ready[k]) {
-    if (!ntt_ctx_u64_init_golden(&golden_ctxs[k], k)) {
+    if (u64_ntt_ctx_init_golden(&golden_ctxs[k], k) != RABIN_SUCCESS) {
       pthread_mutex_unlock(&golden_ctx_lock);
       return NULL;
     }
@@ -121,35 +122,52 @@ ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k)
   return &golden_ctxs[k];
 }
 
-bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi)
+rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
+                             u64 psi)
 {
+  (void)psi;  // Accepted for interface compatibility; only omega is used.
+  if (ctx == NULL) return RABIN_ERR_NULL_PTR;
+  if (k >= 64) return RABIN_ERR_INVALID_ARG;
+
   u64 n = (1ULL << k);
+  *ctx = (u64_ntt_ctx_t){0};
   ctx->n = n;
   ctx->k = k;
   ctx->q = p;
 
-  mont_init(&ctx->mctx, p);
+  u64_mont_init(&ctx->mctx, p);
 
   ctx->omega_powers = malloc(sizeof(u64) * n);
   ctx->omega_inv_powers = malloc(sizeof(u64) * n);
   ctx->bit_rev_indices = malloc(sizeof(u64) * n);
 
+  if (ctx->omega_powers == NULL || ctx->omega_inv_powers == NULL ||
+      ctx->bit_rev_indices == NULL) {
+    free(ctx->omega_powers);
+    free(ctx->omega_inv_powers);
+    free(ctx->bit_rev_indices);
+    ctx->omega_powers = NULL;
+    ctx->omega_inv_powers = NULL;
+    ctx->bit_rev_indices = NULL;
+    return RABIN_ERR_OUT_OF_MEMORY;
+  }
+
   // Calculate n^-1 mod q and put it in Montgomery form
-  u64 n_inv_standard = mod_inverse_euclid(n, p);
-  ctx->n_inv = mont_in(n_inv_standard, &ctx->mctx);
+  u64 n_inv_standard = u64_mod_inverse_euclid(n, p);
+  ctx->n_inv = u64_mont_in(n_inv_standard, &ctx->mctx);
 
   // Precompute powers and move to Montgomery form immediately
   u64 current_omega = 1;
-  u64 omega_inv = mod_inverse_euclid(omega, p);
+  u64 omega_inv = u64_mod_inverse_euclid(omega, p);
   u64 current_omega_inv = 1;
 
   for (u64 i = 0; i < n; i++) {
-    ctx->omega_powers[i] = mont_in(current_omega, &ctx->mctx);
-    ctx->omega_inv_powers[i] = mont_in(current_omega_inv, &ctx->mctx);
+    ctx->omega_powers[i] = u64_mont_in(current_omega, &ctx->mctx);
+    ctx->omega_inv_powers[i] = u64_mont_in(current_omega_inv, &ctx->mctx);
 
-    current_omega =
-        mod_mul(current_omega, omega, p);  // Standard mod_mul for precalc
-    current_omega_inv = mod_mul(current_omega_inv, omega_inv, p);
+    current_omega = u64_mod_mul(current_omega, omega,
+                                p);  // Standard u64_mod_mul for precalc
+    current_omega_inv = u64_mod_mul(current_omega_inv, omega_inv, p);
   }
 
   // Precompute Bit-Reversal
@@ -164,17 +182,22 @@ bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi)
     ctx->bit_rev_indices[i] = rev;
   }
 
-  return true;
+  return RABIN_SUCCESS;
 }
 
-void ntt_ctx_u64_free(ntt_ctx_u64* ctx)
+void u64_ntt_ctx_clear(u64_ntt_ctx_t* ctx)
 {
-  if (ctx->omega_powers) free(ctx->omega_powers);
-  if (ctx->omega_inv_powers) free(ctx->omega_inv_powers);
-  if (ctx->bit_rev_indices) free(ctx->bit_rev_indices);
+  if (ctx == NULL) return;
+
+  free(ctx->omega_powers);
+  free(ctx->omega_inv_powers);
+  free(ctx->bit_rev_indices);
+  ctx->omega_powers = NULL;
+  ctx->omega_inv_powers = NULL;
+  ctx->bit_rev_indices = NULL;
 }
 
-void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
+void u64_ntt_cyclic_inverse(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
@@ -182,7 +205,7 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
   // 1. Bit-reversal permutation AND entering Montgomery space
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
-    a_hat[rev] = mont_in(a[i], &ctx->mctx);
+    a_hat[rev] = u64_mont_in(a[i], &ctx->mctx);
   }
 
   // 2. Cooley-Tukey Butterfly
@@ -198,11 +221,11 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
         u64 even = i + j;
         u64 odd = i + j + half;
 
-        u64 t = mont_mul(a_hat[odd], twiddle, &ctx->mctx);
+        u64 t = u64_mont_mul(a_hat[odd], twiddle, &ctx->mctx);
         u64 u = a_hat[even];
 
-        a_hat[even] = mod_add(u, t, q);
-        a_hat[odd] = mod_sub(u, t, q);
+        a_hat[even] = u64_mod_add(u, t, q);
+        a_hat[odd] = u64_mod_sub(u, t, q);
       }
     }
   }
@@ -210,15 +233,15 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx)
   // 3. Scale by n^-1 mod q AND exit Montgomery space
   for (u64 i = 0; i < n; i++) {
     // Multiply by n_inv (which is in Montgomery form)
-    a_hat[i] = mont_mul(a_hat[i], ctx->n_inv, &ctx->mctx);
+    a_hat[i] = u64_mont_mul(a_hat[i], ctx->n_inv, &ctx->mctx);
 
     // Exit Montgomery space to get the final standard integer
-    a_hat[i] = mont_out(a_hat[i], &ctx->mctx);
+    a_hat[i] = u64_mont_out(a_hat[i], &ctx->mctx);
   }
 }
 
-void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
-                                          const ntt_ctx_u64* ctx)
+void u64_ntt_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
+                                          const u64_ntt_ctx_t* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
@@ -242,11 +265,11 @@ void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
         u64 even = i + j;
         u64 odd = i + j + half;
 
-        u64 t = mont_mul(a_hat[odd], twiddle, &ctx->mctx);
+        u64 t = u64_mont_mul(a_hat[odd], twiddle, &ctx->mctx);
         u64 u = a_hat[even];
 
-        a_hat[even] = mod_add(u, t, q);
-        a_hat[odd] = mod_sub(u, t, q);
+        a_hat[even] = u64_mod_add(u, t, q);
+        a_hat[odd] = u64_mod_sub(u, t, q);
       }
     }
   }
@@ -254,9 +277,9 @@ void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
   // 3. Scale by n^-1 mod q AND exit Montgomery space
   for (u64 i = 0; i < n; i++) {
     // Multiply by n_inv (which is in Montgomery form)
-    a_hat[i] = mont_mul(a_hat[i], ctx->n_inv, &ctx->mctx);
+    a_hat[i] = u64_mont_mul(a_hat[i], ctx->n_inv, &ctx->mctx);
 
     // Exit Montgomery space to get the final standard integer
-    a_hat[i] = mont_out(a_hat[i], &ctx->mctx);
+    a_hat[i] = u64_mont_out(a_hat[i], &ctx->mctx);
   }
 }

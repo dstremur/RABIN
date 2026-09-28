@@ -1,7 +1,7 @@
 /*
  * test_divmod_u64.c
  *
- * Unified GMP-verified test suite for bn_divmod_u64.
+ * Unified GMP-verified test suite for rz_divmod_u64.
  *
  * The quotient follows truncated (C) semantics like mpz_tdiv_qr_ui; the
  * returned remainder is the magnitude |a mod d|, so the GMP reference
@@ -23,7 +23,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -79,11 +79,11 @@ uint64_t mpz_to_u64(mpz_t z)
 
 // q compared as string, remainder as magnitude |r|
 static void assert_divmod_u64(const char* op, const char* a_str, uint64_t d,
-                              const bignum* q, uint64_t custom_rem, mpz_t gq,
+                              const rz_t* q, uint64_t custom_rem, mpz_t gq,
                               mpz_t gr)
 {
   char* gmp_q = mpz_get_str(NULL, 10, gq);
-  char* custom_q = bn_to_string(q);
+  char* custom_q = rz_to_string(q);
   mpz_abs(gr, gr);
   uint64_t gmp_rem = mpz_to_u64(gr);
 
@@ -127,13 +127,13 @@ static uint64_t random_u64_nonzero(gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, uint64_t d)
 {
-  bignum a, q, alias;
+  rz_t a, q, alias;
   mpz_t za, zd, gq, gr;
   char detail[256];
 
-  bn_init_multi(&a, &q, &alias, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&alias, a_str);
+  rz_init_multi(&a, &q, &alias, NULL);
+  rz_init_val(&a, a_str);
+  rz_init_val(&alias, a_str);
 
   mpz_inits(za, zd, gq, gr, NULL);
   mpz_set_str(za, a_str, 10);
@@ -142,24 +142,24 @@ static void run_case(const char* name, const char* a_str, uint64_t d)
   // GMP truncated division with a 64-bit divisor
   mpz_tdiv_qr_ui(gq, gr, za, (unsigned long)d);
 
-  snprintf(detail, sizeof(detail), "bn_divmod_u64 [%s]", name);
+  snprintf(detail, sizeof(detail), "rz_divmod_u64 [%s]", name);
 
   // Test 1: Non-aliased
-  uint64_t custom_rem = bn_divmod_u64(&q, &a, d);
+  uint64_t custom_rem = rz_divmod_u64(&q, &a, d);
   assert_divmod_u64(detail, a_str, d, &q, custom_rem, gq, gr);
 
   // Test 2: Aliased (q == a)
-  uint64_t alias_rem = bn_divmod_u64(&alias, &alias, d);
-  assert_divmod_u64("bn_divmod_u64 (q==a)", a_str, d, &alias, alias_rem, gq,
+  uint64_t alias_rem = rz_divmod_u64(&alias, &alias, d);
+  assert_divmod_u64("rz_divmod_u64 (q==a)", a_str, d, &alias, alias_rem, gq,
                     gr);
 
-  bn_free_multi(&a, &q, &alias, NULL);
+  rz_clear_multi(&a, &q, &alias, NULL);
   mpz_clears(za, zd, gq, gr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_divmod_u64: edge cases ---\n");
+  printf("\n--- rz_divmod_u64: edge cases ---\n");
 
   run_case("zero div", "0", 12345);
   run_case("neg a", "-999999999999999", 7);
@@ -184,41 +184,41 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_divmod_u64: %d randomized cases vs mpz_tdiv_qr_ui ---\n",
+  printf("\n--- rz_divmod_u64: %d randomized cases vs mpz_tdiv_qr_ui ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     uint64_t d = random_u64_nonzero(state);
 
-    bignum a, q, alias;
+    rz_t a, q, alias;
     mpz_t za, zd, gq, gr;
     char* sa;
     char detail[64];
 
-    bn_init_multi(&a, &q, &alias, NULL);
+    rz_init_multi(&a, &q, &alias, NULL);
     mpz_inits(za, zd, gq, gr, NULL);
 
     sa = random_a(za, bits, state);
-    bn_init_val(&a, sa);
-    bn_init_val(&alias, sa);
+    rz_init_val(&a, sa);
+    rz_init_val(&alias, sa);
     set_mpz_u64(zd, d);
 
     mpz_tdiv_qr_ui(gq, gr, za, (unsigned long)d);
 
     // non-aliased
-    uint64_t custom_rem = bn_divmod_u64(&q, &a, d);
+    uint64_t custom_rem = rz_divmod_u64(&q, &a, d);
     snprintf(detail, sizeof(detail), "case %d (a=%d bits)", i, bits);
     assert_divmod_u64(detail, sa, d, &q, custom_rem, gq, gr);
 
     // aliased (q == a) every 10th case
     if (i % 10 == 0) {
-      uint64_t alias_rem = bn_divmod_u64(&alias, &alias, d);
+      uint64_t alias_rem = rz_divmod_u64(&alias, &alias, d);
       assert_divmod_u64("case (q==a)", sa, d, &alias, alias_rem, gq, gr);
     }
 
     free(sa);
-    bn_free_multi(&a, &q, &alias, NULL);
+    rz_clear_multi(&a, &q, &alias, NULL);
     mpz_clears(za, zd, gq, gr, NULL);
   }
 
@@ -232,14 +232,14 @@ static void run_random(gmp_randstate_t state)
 static void benchmark_divmod_u64(int bits, double target_sec,
                                  gmp_randstate_t state)
 {
-  bignum bn_a, bn_q;
+  rz_t rz_a, rz_q;
   mpz_t mpz_a, mpz_d, mpz_q, mpz_rem;
 
-  bn_init_multi(&bn_a, &bn_q, NULL);
+  rz_init_multi(&rz_a, &rz_q, NULL);
   mpz_inits(mpz_a, mpz_d, mpz_q, mpz_rem, NULL);
 
   char* sa = random_a(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
 
   uint64_t d = random_u64_nonzero(state);
@@ -252,7 +252,7 @@ static void benchmark_divmod_u64(int bits, double target_sec,
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    v_rem = bn_divmod_u64(&bn_q, &bn_a, d);
+    v_rem = rz_divmod_u64(&rz_q, &rz_a, d);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -267,15 +267,15 @@ static void benchmark_divmod_u64(int bits, double target_sec,
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_divmod_u64("bn_divmod_u64 (benchmark)", "(bench input)", d, &bn_q,
+  assert_divmod_u64("rz_divmod_u64 (benchmark)", "(bench input)", d, &rz_q,
                     v_rem, mpz_q, mpz_rem);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_divmod_u64", size_info, total_custom / ops_custom,
+  print_table_row("rz_divmod_u64", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_q, NULL);
+  rz_clear_multi(&rz_a, &rz_q, NULL);
   mpz_clears(mpz_a, mpz_d, mpz_q, mpz_rem, NULL);
 }
 

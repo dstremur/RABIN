@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bigcore.h"
+#include "rz.h"
 
 typedef unsigned __int128 u128;
 
@@ -12,14 +12,14 @@ typedef struct {
   u64 p;
   u64 p_inv;
   u64 r2_mod_p;  // 2^128 mod p, R = 2^64
-} mont_ctx;
+} u64_mont_ctx_t;
 
 typedef struct {
   u64* data;
-  u64 r_size;
-  u64 c_size;
+  u64 rows;
+  u64 cols;
   u64 modulus;  // The prime for this specific slice
-} matrix_u64;
+} u64_mat_t;
 
 typedef struct {
   u64 n;
@@ -29,8 +29,8 @@ typedef struct {
   u64* omega_powers;      // all in Montgomery form
   u64* omega_inv_powers;  // all in Montgomery form
   u64* bit_rev_indices;
-  mont_ctx mctx;
-} ntt_ctx_u64;
+  u64_mont_ctx_t mctx;
+} u64_ntt_ctx_t;
 
 // u64.c
 /**
@@ -50,7 +50,7 @@ typedef struct {
  *
  * @return \f$(a + b) \bmod p\f$.
  */
-u64 mod_add(u64 a, u64 b, u64 p);
+u64 u64_mod_add(u64 a, u64 b, u64 p);
 
 /**
  * @brief Modular subtraction: \f$(a - b) \bmod p\f$, with \f$0 \le a, b < p\f$.
@@ -69,7 +69,7 @@ u64 mod_add(u64 a, u64 b, u64 p);
  *
  * @return \f$(a - b) \bmod p\f$.
  */
-u64 mod_sub(u64 a, u64 b, u64 p);
+u64 u64_mod_sub(u64 a, u64 b, u64 p);
 
 /**
  * @brief Modular multiplication: \f$(a \cdot b) \bmod p\f$, with \f$0 \le a, b
@@ -88,7 +88,7 @@ u64 mod_sub(u64 a, u64 b, u64 p);
  *
  * @return \f$(a \cdot b) \bmod p\f$.
  */
-u64 mod_mul(u64 a, u64 b, u64 p);
+u64 u64_mod_mul(u64 a, u64 b, u64 p);
 
 /**
  * @brief Modular exponentiation: \f$base^exp \bmod p\f$.
@@ -106,7 +106,7 @@ u64 mod_mul(u64 a, u64 b, u64 p);
  *
  * @return \f$base^exp \bmod p\f$.
  */
-u64 mod_pow(u64 base, u64 exp, u64 p);
+u64 u64_mod_pow(u64 base, u64 exp, u64 p);
 
 /**
  * @brief Modular inverse via the extended Euclidean algorithm:
@@ -125,7 +125,7 @@ u64 mod_pow(u64 base, u64 exp, u64 p);
  *
  * @return \f$a^{-1} \bmod p\f$, or \f$0\f$ if \f$a\f$ is \f$0\f$.
  */
-u64 mod_inverse_euclid(u64 a, u64 p);
+u64 u64_mod_inverse_euclid(u64 a, u64 p);
 
 /**
  * @brief Modular inverse via Fermat's little theorem: \f$a^{-1} = a^{p - 2}
@@ -143,7 +143,7 @@ u64 mod_inverse_euclid(u64 a, u64 p);
  *
  * @return \f$n^{-1} \bmod p\f$.
  */
-u64 mod_inverse(u64 n, u64 p);
+u64 u64_mod_inverse(u64 n, u64 p);
 
 /**
  * @brief Compute the Barrett reduction constant \f$\mu = \lfloor (2^{128} - 1)
@@ -158,7 +158,7 @@ u64 mod_inverse(u64 n, u64 p);
  *
  * @return The Barrett reduction constant \f$\mu\f$.
  */
-u64 compute_mu(u64 q);
+u64 u64_compute_mu(u64 q);
 
 /**
  * @brief Barrett reduction: \f$c \bmod q\f$, where \f$\mu = \lfloor (2^{128} -
@@ -180,7 +180,7 @@ u64 compute_mu(u64 q);
  *
  * @return \f$c \bmod q\f$.
  */
-u64 barrett_reduction(u128 c, u64 q, u64 mu);
+u64 u64_barrett(u128 c, u64 q, u64 mu);
 
 /**
  * @brief Goldilocks field reduction: \f$c \bmod p\f$ with \f$p = 2^{64} -
@@ -200,7 +200,7 @@ u64 barrett_reduction(u128 c, u64 q, u64 mu);
  *
  * @return \f$c \bmod p\f$, where \f$p = 2^{64} - 2^{32} + 1\f$.
  */
-u64 goldilock_red(u128 c);
+u64 u64_goldilock_red(u128 c);
 
 // u64_mont.c
 /**
@@ -222,7 +222,7 @@ u64 goldilock_red(u128 c);
  * @param[out] ctx Montgomery context to initialize.
  * @param[in]  p   Prime modulus (odd).
  */
-void mont_init(mont_ctx* ctx, u64 p);
+void u64_mont_init(u64_mont_ctx_t* ctx, u64 p);
 
 /**
  * @brief Single-limb Montgomery reduction (REDC).
@@ -245,7 +245,7 @@ void mont_init(mont_ctx* ctx, u64 p);
  *
  * @return \f$T \cdot R^{-1} \bmod p\f$.
  */
-u64 mont_redc(unsigned __int128 T, const mont_ctx* ctx);
+u64 u64_mont_redc(unsigned __int128 T, const u64_mont_ctx_t* ctx);
 
 /**
  * @brief Montgomery multiplication: \f$(a \cdot b \cdot R^{-1}) \bmod p\f$.
@@ -264,7 +264,7 @@ u64 mont_redc(unsigned __int128 T, const mont_ctx* ctx);
  *
  * @return \f$(a \cdot b \cdot R^{-1}) \bmod p\f$.
  */
-u64 mont_mul(u64 a, u64 b, const mont_ctx* ctx);
+u64 u64_mont_mul(u64 a, u64 b, const u64_mont_ctx_t* ctx);
 
 /**
  * @brief Convert a value from the normal domain into the Montgomery domain:
@@ -282,7 +282,7 @@ u64 mont_mul(u64 a, u64 b, const mont_ctx* ctx);
  *
  * @return \f$a \cdot R \bmod p\f$ (Montgomery form).
  */
-u64 mont_in(u64 a, const mont_ctx* ctx);
+u64 u64_mont_in(u64 a, const u64_mont_ctx_t* ctx);
 
 /**
  * @brief Convert a value from the Montgomery domain back to the normal
@@ -300,7 +300,7 @@ u64 mont_in(u64 a, const mont_ctx* ctx);
  *
  * @return \f$a_{hat} \cdot R^{-1} \bmod p\f$ (normal domain).
  */
-u64 mont_out(u64 a_hat, const mont_ctx* ctx);
+u64 u64_mont_out(u64 a_hat, const u64_mont_ctx_t* ctx);
 
 /**
  * @brief Modular inverse of a value given in the Montgomery domain.
@@ -318,7 +318,7 @@ u64 mont_out(u64 a_hat, const mont_ctx* ctx);
  *
  * @return The modular inverse, in the Montgomery domain.
  */
-u64 mont_inverse(u64 a_mont, const mont_ctx* ctx);
+u64 u64_mont_inverse(u64 a_mont, const u64_mont_ctx_t* ctx);
 
 // u64_ntt.c
 /**
@@ -335,7 +335,7 @@ u64 mont_inverse(u64 a_mont, const mont_ctx* ctx);
  *      Montgomery multiplication.
  *
  * The output \f$a_{hat}\f$ is in the Montgomery domain; pair it with
- * ntt_u64_cyclic_inverse() (or the montgomery_in variant) to recover
+ * u64_ntt_cyclic_inverse() (or the montgomery_in variant) to recover
  * standard integers.
  *
  * \f$a_{hat}\f$ must not alias \f$a\f$.
@@ -349,7 +349,7 @@ u64 mont_inverse(u64 a_mont, const mont_ctx* ctx);
  * @param[in]      a Input array.
  * @param[in]    ctx NTT context.
  */
-void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
+void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx);
 
 /**
  * @brief Initialize an NTT context for the Goldilocks field \f$p = 5 \cdot
@@ -365,9 +365,7 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
  * root)
  *   \f$\omega = \psi^2 \bmod p\f$              (primitive \f$k\f$-th root)
  *
- * and delegates to ntt_ctx_u64_init().
- *
- * Returns false (and leaves ctx unchanged) if \f$k > 54\f$.
+ * and delegates to u64_ntt_ctx_init().
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ for the precomputed tables, plus \f$O(\log p)\f$ for the
@@ -379,10 +377,9 @@ void ntt_u64_cyclic_forward(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
  * @param[in]    k Logarithm to base 2 of the transform length (\f$n = 2^k\f$,
  *                 \f$k \le 54\f$).
  *
- * @return true  On success.
- * @return false If \f$k > 54\f$.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_INVALID_ARG if \f$k > 54\f$.
  */
-bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);
+rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k);
 
 /**
  * @brief Return the shared Goldilocks NTT context for transform length
@@ -403,7 +400,7 @@ bool ntt_ctx_u64_init_golden(ntt_ctx_u64* ctx, u64 k);
  *
  * @return The shared context, or NULL if \f$k > 54\f$ or initialization fails.
  */
-ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k);
+u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k);
 
 /**
  * @brief Initialize a u64 NTT context for a prime \f$p\f$ and transform
@@ -435,10 +432,11 @@ ntt_ctx_u64* ntt_ctx_u64_golden_cached(u64 k);
  * @param[in]   psi   (Accepted for interface compatibility; unused for
  *                    tables.)
  *
- * @return true  On success.
- * @return false On allocation failure.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_OUT_OF_MEMORY on allocation
+ * failure.
  */
-bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi);
+rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
+                             u64 psi);
 
 /**
  * @brief Free the precomputed tables of a u64 NTT context.
@@ -450,7 +448,7 @@ bool ntt_ctx_u64_init(ntt_ctx_u64* ctx, u64 p, u64 k, u64 omega, u64 psi);
  *
  * @param[in,out] ctx NTT context to free.
  */
-void ntt_ctx_u64_free(ntt_ctx_u64* ctx);
+void u64_ntt_ctx_clear(u64_ntt_ctx_t* ctx);
 
 /**
  * @brief Inverse cyclic NTT: \f$a_{hat} = NTT^{-1}(a)\f$.
@@ -473,7 +471,7 @@ void ntt_ctx_u64_free(ntt_ctx_u64* ctx);
  * @param[in]      a Input array.
  * @param[in]    ctx NTT context.
  */
-void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
+void u64_ntt_cyclic_inverse(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx);
 
 /**
  * @brief Inverse cyclic NTT with Montgomery-domain input:
@@ -482,8 +480,8 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
  *
  * Let \f$n =\f$ ctx->n = \f$2^k\f$.
  *
- * Identical to ntt_u64_cyclic_inverse() except that step 1 performs
- * only the bit-reversal permutation (no mont_in), so the input must
+ * Identical to u64_ntt_cyclic_inverse() except that step 1 performs
+ * only the bit-reversal permutation (no u64_mont_in()), so the input must
  * already be in the Montgomery domain. This saves one Montgomery
  * multiplication per entry when chaining forward and inverse
  * transforms. The output contains standard (non-Montgomery) integers.
@@ -499,14 +497,14 @@ void ntt_u64_cyclic_inverse(u64* a_hat, const u64* a, const ntt_ctx_u64* ctx);
  * @param[in]      a Input array (Montgomery domain).
  * @param[in]    ctx NTT context.
  */
-void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
-                                          const ntt_ctx_u64* ctx);
+void u64_ntt_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
+                                          const u64_ntt_ctx_t* ctx);
 
 // u64_matrix.c
 /**
  * @brief Determinant of a square u64 matrix modulo the prime M->modulus.
  *
- * Let \f$n =\f$ M->r_size = M->c_size.
+ * Let \f$n =\f$ M->rows = M->cols.
  *
  * Performs Gaussian elimination with partial pivoting on a copy of the
  * matrix: for each column a nonzero pivot is searched for (rows are
@@ -515,7 +513,7 @@ void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
  * eliminated. Returns \f$0\f$ if the matrix is singular.
  *
  * The matrix must be square; a message is printed otherwise (the
- * computation still proceeds with \f$n =\f$ r_size).
+ * computation still proceeds with \f$n =\f$ rows).
  *
  * Complexity:
  *   - Time: \f$O(n^3)\f$
@@ -526,14 +524,14 @@ void ntt_u64_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
  *
  * @return The determinant modulo M->modulus, or \f$0\f$ if singular.
  */
-u64 matrix_u64_det(matrix_u64* M);
+u64 u64_mat_det(u64_mat_t* M);
 
 /**
  * @brief Determinant of a u64 matrix modulo ctx->p, in the Montgomery domain.
  *
  * Let \f$n =\f$ the matrix dimension.
  *
- * Same Gaussian elimination as matrix_u64_det(), but all entries are
+ * Same Gaussian elimination as u64_mat_det(), but all entries are
  * converted to the Montgomery domain up front so that the inner loop
  * uses fast Montgomery multiplication. The row updates are processed
  * in TILE_SIZE-wide blocks to improve cache behaviour.
@@ -551,6 +549,6 @@ u64 matrix_u64_det(matrix_u64* M);
  *
  * @return The determinant modulo ctx->p, or \f$0\f$ if singular.
  */
-u64 matrix_u64_det_optimized(u64* mat, u64 n, const mont_ctx* ctx);
+u64 u64_mat_det_optimized(u64* mat, u64 n, const u64_mont_ctx_t* ctx);
 
 #endif

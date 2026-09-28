@@ -4,7 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 int main()
 {
@@ -23,13 +23,13 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     struct timespec start, end;
 
-    // Each thread must have its own bignum to work with
-    bignum p;
-    bn_init(&p);
+    // Each thread must have its own rz_t to work with
+    rz_t p;
+    rz_init(&p);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    if (bn_gen_prime(&p, bits)) {
+    if (rz_gen_prime(&p, bits) == RABIN_SUCCESS) {
       clock_gettime(CLOCK_MONOTONIC, &end);
 
       double elapsed =
@@ -48,7 +48,7 @@ int main()
       }
     }
 
-    bn_free(&p);
+    rz_clear(&p);
   }
 
   clock_gettime(CLOCK_MONOTONIC, &global_end);

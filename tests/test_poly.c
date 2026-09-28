@@ -1,39 +1,39 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "../include/bignum.h"
-#include "../include/bigpoly.h"
+#include "../include/rabin.h"
+#include "../include/rpol.h"
 #define ITERATIONS 1
 // #define POLY_SIZE 512
 
 void benchmark_mul(u64 n)
 {
-  bigpoly a, b, r_std, r_ntt, r_ntt_big;
-  bigpoly_init(&a);
-  bigpoly_init(&b);
-  bigpoly_init(&r_std);
-  bigpoly_init(&r_ntt);
-  bigpoly_init(&r_ntt_big);
+  rpol_t a = {0}, b = {0}, r_std = {0}, r_ntt = {0}, r_ntt_big = {0};
+  rpol_init(&a);
+  rpol_init(&b);
+  rpol_init(&r_std);
+  rpol_init(&r_ntt);
+  rpol_init(&r_ntt_big);
 
-  bigpoly_alloc(&a, n);
-  bigpoly_alloc(&b, n);
+  rpol_alloc(&a, n);
+  rpol_alloc(&b, n);
   a.deg = b.deg = n - 1;
 
   // Initialize coefficients
-  bignum* C = malloc(sizeof(bignum) * n);
+  rz_t* C = malloc(sizeof(rz_t) * n);
   for (u64 i = 0; i < n; i++) {
-    bn_init(&C[i]);
-    bn_set_u64(&C[i], i + 1);  // Avoid all zeros
+    rz_init(&C[i]);
+    rz_set_u64(&C[i], i + 1);  // Avoid all zeros
   }
-  bigpoly_set(&a, C, n - 1);
-  bigpoly_set(&b, C, n - 1);
+  rpol_set(&a, C, n - 1);
+  rpol_set(&b, C, n - 1);
 
   printf("--- Benchmarking Polynomial Multiplication (N = %llu) ---\n", n);
 
   // 1. Standard Multiplication Timing
   clock_t start_std = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    // bigpoly_mul(&r_std, &a, &b);  // Standard O(N^2)
+    // rpol_mul(&r_std, &a, &b);  // Standard O(N^2)
   }
   clock_t end_std = clock();
   double time_std = (double)(end_std - start_std) / CLOCKS_PER_SEC;
@@ -41,25 +41,25 @@ void benchmark_mul(u64 n)
   // 2. NTT Multiplication Timing
   clock_t start_ntt = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    bigpoly_mul_ntt_u64(&r_ntt, &a, &b);  // NTT O(N log N)
+    rpol_mul_ntt_u64(&r_ntt, &a, &b);  // NTT O(N log N)
   }
   clock_t end_ntt = clock();
   double time_ntt = (double)(end_ntt - start_ntt) / CLOCKS_PER_SEC;
 
   clock_t start_ntt_big = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    bigpoly_mul_ntt(&r_ntt_big, &a, &b);  // NTT O(N log N)
+    rpol_mul_ntt(&r_ntt_big, &a, &b);  // NTT O(N log N)
   }
   clock_t end_ntt_big = clock();
   double time_ntt_big = (double)(end_ntt_big - start_ntt_big) / CLOCKS_PER_SEC;
 
-  if (bigpoly_equal(&r_ntt_big, &r_ntt)) {
+  if (rpol_equal(&r_ntt_big, &r_ntt)) {
     printf("Verification: [PASSED] (NTT results match Standard)\n");
   } else {
     printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
     // Optional: print first few coefficients to debug
-    // bigpoly_print(&r_std);
-    // bigpoly_print(&r_ntt);
+    // rpol_print(&r_std);
+    // rpol_print(&r_ntt);
   }
 
   // Results Output
@@ -70,7 +70,7 @@ void benchmark_mul(u64 n)
 
   if (time_ntt < time_std) {
     printf("Result: NTT is %.2fx faster than Standard.\n", time_std / time_ntt);
-    printf("Result: NTT is %.2fx faster than NTT bignum.\n",
+    printf("Result: NTT is %.2fx faster than NTT rz_t.\n",
            time_ntt_big / time_ntt);
     printf("Result: NTT big is %.2fx faster than Std.\n",
            time_std / time_ntt_big);
@@ -79,51 +79,51 @@ void benchmark_mul(u64 n)
   }
 
   // Cleanup
-  for (u64 i = 0; i < n; i++) bn_free(&C[i]);
+  for (u64 i = 0; i < n; i++) rz_clear(&C[i]);
   free(C);
-  bigpoly_free(&a);
-  bigpoly_free(&b);
-  bigpoly_free(&r_std);
-  bigpoly_free(&r_ntt);
-  bigpoly_free(&r_ntt_big);
+  rpol_clear(&a);
+  rpol_clear(&b);
+  rpol_clear(&r_std);
+  rpol_clear(&r_ntt);
+  rpol_clear(&r_ntt_big);
 }
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
   u64 n = 16;
-  bigpoly a, b, r;
-  bigpoly_init(&a);
-  bigpoly_init(&b);
-  bigpoly_init(&r);
-  bigpoly_alloc(&a, n);
-  bigpoly_alloc(&b, n);
+  rpol_t a = {0}, b = {0}, r = {0};
+  rpol_init(&a);
+  rpol_init(&b);
+  rpol_init(&r);
+  rpol_alloc(&a, n);
+  rpol_alloc(&b, n);
   a.deg = b.deg = n - 1;
 
-  bignum* C = malloc(sizeof(bignum) * n);
+  rz_t* C = malloc(sizeof(rz_t) * n);
 
   for (u64 i = 0; i < n; i++) {
-    bn_init(&C[i]);
-    bn_set_u64(&C[i], i);
+    rz_init(&C[i]);
+    rz_set_u64(&C[i], i);
   }
 
-  bigpoly_set(&a, C, n - 1);
-  bigpoly_set(&b, C, n - 1);
+  rpol_set(&a, C, n - 1);
+  rpol_set(&b, C, n - 1);
 
-  bigpoly_print(&a);
-  bigpoly_print(&b);
+  rpol_print(&a);
+  rpol_print(&b);
 
-  bigpoly_mul_ntt(&r, &a, &b);
-  bigpoly_print(&r);
+  rpol_mul_ntt(&r, &a, &b);
+  rpol_print(&r);
 
   for (u64 i = 0; i < n; i++) {
-    bn_free(&C[i]);
+    rz_clear(&C[i]);
   }
   free(C);
-  bigpoly_free(&a);
-  bigpoly_free(&b);
-  bigpoly_free(&r);
+  rpol_clear(&a);
+  rpol_clear(&b);
+  rpol_clear(&r);
 
   benchmark_mul(15);
   benchmark_mul(64);
@@ -140,5 +140,5 @@ int main()
   benchmark_mul(1 << 18);
   benchmark_mul(1 << 19);
 
-  bn_free_constants();
+  rz_clear_constants();
 }

@@ -27,10 +27,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "../../include/bighelper.h"
+#include "../../include/rzlimb.h"
 #include "../../include/u64.h"
 
-void mont_init(mont_ctx* ctx, u64 p)
+void u64_mont_init(u64_mont_ctx_t* ctx, u64 p)
 {
   ctx->p = p;
 
@@ -42,7 +42,7 @@ void mont_init(mont_ctx* ctx, u64 p)
   ctx->r2_mod_p = (u64)r2;
 }
 
-u64 mont_redc(unsigned __int128 T, const mont_ctx* ctx)
+u64 u64_mont_redc(unsigned __int128 T, const u64_mont_ctx_t* ctx)
 {
   u64 p = ctx->p;
 
@@ -57,25 +57,28 @@ u64 mont_redc(unsigned __int128 T, const mont_ctx* ctx)
   return (t >= p) ? (t - p) : t;
 }
 
-u64 mont_mul(u64 a, u64 b, const mont_ctx* ctx)
+u64 u64_mont_mul(u64 a, u64 b, const u64_mont_ctx_t* ctx)
 {
   unsigned __int128 R = (unsigned __int128)a * b;
 
-  return mont_redc(R, ctx);
+  return u64_mont_redc(R, ctx);
 }
 
-u64 mont_in(u64 a, const mont_ctx* ctx)
+u64 u64_mont_in(u64 a, const u64_mont_ctx_t* ctx)
 {
-  return mont_mul(a, ctx->r2_mod_p, ctx);
+  return u64_mont_mul(a, ctx->r2_mod_p, ctx);
 }
 
-u64 mont_out(u64 a_hat, const mont_ctx* ctx) { return mont_mul(a_hat, 1, ctx); }
-
-u64 mont_inverse(u64 a_mont, const mont_ctx* ctx)
+u64 u64_mont_out(u64 a_hat, const u64_mont_ctx_t* ctx)
 {
-  u64 a = mont_out(a_mont, ctx);
+  return u64_mont_mul(a_hat, 1, ctx);
+}
 
-  u64 inv = mod_inverse_euclid(a, ctx->p);
+u64 u64_mont_inverse(u64 a_mont, const u64_mont_ctx_t* ctx)
+{
+  u64 a = u64_mont_out(a_mont, ctx);
 
-  return mont_in(inv, ctx);
+  u64 inv = u64_mod_inverse_euclid(a, ctx->p);
+
+  return u64_mont_in(inv, ctx);
 }

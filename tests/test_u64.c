@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 #include "../include/u64.h"
 #define ITERATIONS 1000000
 
@@ -12,10 +12,10 @@ void benchmark_mul(void)
   u64 a = 9023482357230203423ULL;
   u64 b = 8123482357230203421ULL;
 
-  u64 mu = compute_mu(p);
+  u64 mu = u64_compute_mu(p);
 
-  mont_ctx mctx;
-  mont_init(&mctx, p);
+  u64_mont_ctx_t mctx;
+  u64_mont_init(&mctx, p);
 
   /* ---------- Barrett ---------- */
 
@@ -26,7 +26,7 @@ void benchmark_mul(void)
   for (u64 i = 0; i < ITERATIONS; i++) {
     unsigned __int128 T = (unsigned __int128)(a + i) * (b + i);
 
-    r_barrett = barrett_reduction(T, p, mu);
+    r_barrett = u64_barrett(T, p, mu);
   }
 
   clock_t end = clock();
@@ -35,25 +35,25 @@ void benchmark_mul(void)
 
   /* ---------- Montgomery ---------- */
 
-  u64 a_hat = mont_in(a, &mctx);
-  u64 b_hat = mont_in(b, &mctx);
+  u64 a_hat = u64_mont_in(a, &mctx);
+  u64 b_hat = u64_mont_in(b, &mctx);
 
   u64 r_hat = 0;
 
   start = clock();
 
   for (u64 i = 0; i < ITERATIONS; i++) {
-    u64 aa = mont_in(a + i, &mctx);
-    u64 bb = mont_in(b + i, &mctx);
+    u64 aa = u64_mont_in(a + i, &mctx);
+    u64 bb = u64_mont_in(b + i, &mctx);
 
-    r_hat = mont_mul(aa, bb, &mctx);
+    r_hat = u64_mont_mul(aa, bb, &mctx);
   }
 
   end = clock();
 
   double time_mont = (double)(end - start) / CLOCKS_PER_SEC;
 
-  u64 r_mont = mont_out(r_hat, &mctx);
+  u64 r_mont = u64_mont_out(r_hat, &mctx);
 
   printf("Barrett     : %llu\n", (unsigned long long)r_barrett);
 
@@ -69,11 +69,11 @@ void benchmark_mul(void)
 
   unsigned __int128 product = (unsigned __int128)lhs * rhs;
 
-  u64 barrett = barrett_reduction(product, p, mu);
+  u64 barrett = u64_barrett(product, p, mu);
 
-  u64 lhs_hat = mont_in(lhs, &mctx);
-  u64 rhs_hat = mont_in(rhs, &mctx);
-  u64 mont = mont_out(mont_mul(lhs_hat, rhs_hat, &mctx), &mctx);
+  u64 lhs_hat = u64_mont_in(lhs, &mctx);
+  u64 rhs_hat = u64_mont_in(rhs, &mctx);
+  u64 mont = u64_mont_out(u64_mont_mul(lhs_hat, rhs_hat, &mctx), &mctx);
 
   printf("barrett = %llu\n", (unsigned long long)barrett);
   printf("mont    = %llu\n", (unsigned long long)mont);
@@ -81,10 +81,10 @@ void benchmark_mul(void)
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
   benchmark_mul();
 
-  bn_free_constants();
+  rz_clear_constants();
   return 0;
 }

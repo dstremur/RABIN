@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 #ifndef i64
 typedef int64_t i64;
@@ -18,7 +18,7 @@ typedef int64_t i64;
 // ADAPTER FOR YOUR LIBRARY
 // =============================================================================
 
-char* bn_to_str(bignum* bn) { return bn_to_string(bn); }
+char* rz_to_str(rz_t* bn) { return rz_to_string(bn); }
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -57,7 +57,7 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
          size_info, avg_custom, avg_gmp, ratio);
 }
 
-void generate_random_signed_pair(bignum* bn_a, bignum* bn_b, mpz_t mpz_a,
+void generate_random_signed_pair(rz_t* rz_a, rz_t* rz_b, mpz_t mpz_a,
                                  mpz_t mpz_b, int bits_a, int bits_b,
                                  gmp_randstate_t state)
 {
@@ -83,8 +83,8 @@ void generate_random_signed_pair(bignum* bn_a, bignum* bn_b, mpz_t mpz_a,
 
   char* s_a = mpz_get_str(NULL, 10, mpz_a);
   char* s_b = mpz_get_str(NULL, 10, mpz_b);
-  bn_init_val(bn_a, s_a);
-  bn_init_val(bn_b, s_b);
+  rz_init_val(rz_a, s_a);
+  rz_init_val(rz_b, s_b);
   free(s_a);
   free(s_b);
 }
@@ -96,19 +96,19 @@ void generate_random_signed_pair(bignum* bn_a, bignum* bn_b, mpz_t mpz_a,
 void run_kronecker_edge_case(const char* name, const char* a_str,
                              const char* b_str)
 {
-  bignum bn_a, bn_b;
+  rz_t rz_a, rz_b;
   mpz_t mpz_a, mpz_b;
 
-  bn_init(&bn_a);
-  bn_init(&bn_b);
+  rz_init(&rz_a);
+  rz_init(&rz_b);
 
-  bn_init_val(&bn_a, a_str);
-  bn_init_val(&bn_b, b_str);
+  rz_init_val(&rz_a, a_str);
+  rz_init_val(&rz_b, b_str);
 
   mpz_init_set_str(mpz_a, a_str, 10);
   mpz_init_set_str(mpz_b, b_str, 10);
 
-  i64 custom_res = bn_kronecker(&bn_a, &bn_b);
+  i64 custom_res = rz_kronecker(&rz_a, &rz_b);
   int gmp_res = mpz_kronecker(mpz_a, mpz_b);
 
   if (custom_res != (i64)gmp_res) {
@@ -121,8 +121,8 @@ void run_kronecker_edge_case(const char* name, const char* a_str,
     exit(EXIT_FAILURE);
   }
 
-  bn_free(&bn_a);
-  bn_free(&bn_b);
+  rz_clear(&rz_a);
+  rz_clear(&rz_b);
   mpz_clears(mpz_a, mpz_b, NULL);
 }
 
@@ -167,17 +167,17 @@ void run_edge_case_suite(gmp_randstate_t state)
     int bits_a = 1 + (rand() % 204);
     int bits_b = 1 + (rand() % 204);
 
-    bignum bn_a, bn_b;
+    rz_t rz_a, rz_b;
     mpz_t mpz_a, mpz_b;
 
-    bn_init(&bn_a);
-    bn_init(&bn_b);
+    rz_init(&rz_a);
+    rz_init(&rz_b);
     mpz_inits(mpz_a, mpz_b, NULL);
 
-    generate_random_signed_pair(&bn_a, &bn_b, mpz_a, mpz_b, bits_a, bits_b,
+    generate_random_signed_pair(&rz_a, &rz_b, mpz_a, mpz_b, bits_a, bits_b,
                                 state);
 
-    i64 custom_res = bn_kronecker(&bn_a, &bn_b);
+    i64 custom_res = rz_kronecker(&rz_a, &rz_b);
     int gmp_res = mpz_kronecker(mpz_a, mpz_b);
 
     if (custom_res != (i64)gmp_res) {
@@ -196,8 +196,8 @@ void run_edge_case_suite(gmp_randstate_t state)
       exit(EXIT_FAILURE);
     }
 
-    bn_free(&bn_a);
-    bn_free(&bn_b);
+    rz_clear(&rz_a);
+    rz_clear(&rz_b);
     mpz_clears(mpz_a, mpz_b, NULL);
   }
 
@@ -211,24 +211,24 @@ void run_edge_case_suite(gmp_randstate_t state)
 void run_tonelli_shanks_case(const char* name, const char* n_str,
                              const char* p_str)
 {
-  bignum bn_n, bn_p, bn_r;
+  rz_t rz_n, rz_p, rz_r;
   mpz_t mpz_n, mpz_p, mpz_r_expected, mpz_r_actual, mpz_check;
 
-  bn_init(&bn_n);
-  bn_init(&bn_p);
-  bn_init(&bn_r);
+  rz_init(&rz_n);
+  rz_init(&rz_p);
+  rz_init(&rz_r);
   mpz_inits(mpz_n, mpz_p, mpz_r_expected, mpz_r_actual, mpz_check, NULL);
 
-  bn_init_val(&bn_n, n_str);
-  bn_init_val(&bn_p, p_str);
+  rz_init_val(&rz_n, n_str);
+  rz_init_val(&rz_p, p_str);
   mpz_set_str(mpz_n, n_str, 10);
   mpz_set_str(mpz_p, p_str, 10);
 
   // Invoke custom Tonelli-Shanks
-  tonelli_shanks(&bn_r, &bn_n, &bn_p);
+  rz_tonelli_shanks(&rz_r, &rz_n, &rz_p);
 
   // Validate: r^2 mod p == n mod p
-  char* r_str = bn_to_str(&bn_r);
+  char* r_str = rz_to_str(&rz_r);
   mpz_set_str(mpz_r_actual, r_str, 10);
   free(r_str);
 
@@ -251,9 +251,9 @@ void run_tonelli_shanks_case(const char* name, const char* n_str,
     exit(EXIT_FAILURE);
   }
 
-  bn_free(&bn_n);
-  bn_free(&bn_p);
-  bn_free(&bn_r);
+  rz_clear(&rz_n);
+  rz_clear(&rz_p);
+  rz_clear(&rz_r);
   mpz_clears(mpz_n, mpz_p, mpz_r_expected, mpz_r_actual, mpz_check, NULL);
 }
 
@@ -294,18 +294,18 @@ void run_tonelli_shanks_suite(gmp_randstate_t state)
     char* s_n = mpz_get_str(NULL, 10, mpz_n);
     char* s_p = mpz_get_str(NULL, 10, mpz_p);
 
-    bignum bn_n, bn_p, bn_r;
-    bn_init(&bn_n);
-    bn_init(&bn_p);
-    bn_init(&bn_r);
+    rz_t rz_n, rz_p, rz_r;
+    rz_init(&rz_n);
+    rz_init(&rz_p);
+    rz_init(&rz_r);
 
-    bn_init_val(&bn_n, s_n);
-    bn_init_val(&bn_p, s_p);
+    rz_init_val(&rz_n, s_n);
+    rz_init_val(&rz_p, s_p);
 
-    tonelli_shanks(&bn_r, &bn_n, &bn_p);
+    rz_tonelli_shanks(&rz_r, &rz_n, &rz_p);
 
     // Verify result
-    char* s_r = bn_to_str(&bn_r);
+    char* s_r = rz_to_str(&rz_r);
     mpz_t mpz_check, mpz_actual_r;
     mpz_inits(mpz_check, mpz_actual_r, NULL);
     mpz_set_str(mpz_actual_r, s_r, 10);
@@ -323,9 +323,9 @@ void run_tonelli_shanks_suite(gmp_randstate_t state)
     free(s_n);
     free(s_p);
     free(s_r);
-    bn_free(&bn_n);
-    bn_free(&bn_p);
-    bn_free(&bn_r);
+    rz_clear(&rz_n);
+    rz_clear(&rz_p);
+    rz_clear(&rz_r);
     mpz_clears(mpz_p, mpz_root, mpz_n, mpz_check, mpz_actual_r, NULL);
   }
 
@@ -339,14 +339,14 @@ void run_tonelli_shanks_suite(gmp_randstate_t state)
 
 void benchmark_kronecker(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b;
+  rz_t rz_a, rz_b;
   mpz_t mpz_a, mpz_b;
 
-  bn_init(&bn_a);
-  bn_init(&bn_b);
+  rz_init(&rz_a);
+  rz_init(&rz_b);
   mpz_inits(mpz_a, mpz_b, NULL);
 
-  generate_random_signed_pair(&bn_a, &bn_b, mpz_a, mpz_b, bits, bits, state);
+  generate_random_signed_pair(&rz_a, &rz_b, mpz_a, mpz_b, bits, bits, state);
 
   struct timespec start, end;
   int ops_custom = 0, ops_gmp = 0;
@@ -357,7 +357,7 @@ void benchmark_kronecker(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    custom_res = bn_kronecker(&bn_a, &bn_b);
+    custom_res = rz_kronecker(&rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -384,8 +384,8 @@ void benchmark_kronecker(int bits, double target_sec, gmp_randstate_t state)
   print_table_row("Kronecker", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free(&bn_a);
-  bn_free(&bn_b);
+  rz_clear(&rz_a);
+  rz_clear(&rz_b);
   mpz_clears(mpz_a, mpz_b, NULL);
 }
 
@@ -397,7 +397,7 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
 
   // No prime generation at large bit sizes (mpz_nextprime hangs at thousands
   // of bits). Sample the modulus until the Kronecker symbol certifies that
-  // n is a quadratic residue mod p, keeping tonelli_shanks on its full
+  // n is a quadratic residue mod p, keeping rz_tonelli_shanks on its full
   // algorithm path instead of the early "No square roots exist" return.
   mpz_urandomb(mpz_n, state, bits);
 
@@ -410,19 +410,19 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
   char* s_n = mpz_get_str(NULL, 10, mpz_n);
   char* s_p = mpz_get_str(NULL, 10, mpz_p);
 
-  bignum bn_n, bn_p, bn_r;
-  bn_init(&bn_n);
-  bn_init(&bn_p);
-  bn_init(&bn_r);
+  rz_t rz_n, rz_p, rz_r;
+  rz_init(&rz_n);
+  rz_init(&rz_p);
+  rz_init(&rz_r);
 
-  bn_init_val(&bn_n, s_n);
-  bn_init_val(&bn_p, s_p);
+  rz_init_val(&rz_n, s_n);
+  rz_init_val(&rz_p, s_p);
 
   struct timespec start, end;
   int ops_custom = 0;
   double total_custom = 0;
 
-  // Silence tonelli_shanks' diagnostic output while timing. This only
+  // Silence rz_tonelli_shanks' diagnostic output while timing. This only
   // redirects fd 1 for the duration of the loop; the library function
   // itself keeps its normal printing.
   fflush(stdout);
@@ -433,7 +433,7 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    tonelli_shanks(&bn_r, &bn_n, &bn_p);
+    rz_tonelli_shanks(&rz_r, &rz_n, &rz_p);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -451,9 +451,9 @@ void benchmark_tonelli_shanks(int bits, double target_sec,
 
   free(s_n);
   free(s_p);
-  bn_free(&bn_n);
-  bn_free(&bn_p);
-  bn_free(&bn_r);
+  rz_clear(&rz_n);
+  rz_clear(&rz_p);
+  rz_clear(&rz_r);
   mpz_clears(mpz_p, mpz_n, NULL);
 }
 

@@ -1,7 +1,7 @@
 /*
  * test_div.c
  *
- * Unified GMP-verified test suite for bn_div (truncated division).
+ * Unified GMP-verified test suite for rz_div (truncated division).
  *
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries, truncation sign
  *      semantics (q truncates toward 0) + pointer aliasing (q == a and
@@ -20,7 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -60,10 +60,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 void assert_match(const char* op, const char* a_str, const char* b_str,
-                  const bignum* bn, mpz_t mpz)
+                  const rz_t* bn, mpz_t mpz)
 {
   char* gmp_str = mpz_get_str(NULL, 10, mpz);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -93,46 +93,46 @@ char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, const char* b_str)
 {
-  bignum a, b, q;
+  rz_t a, b, q;
   mpz_t za, zb, zq;
   char detail[256];
 
-  bn_init_multi(&a, &b, &q, NULL);
+  rz_init_multi(&a, &b, &q, NULL);
   mpz_inits(za, zb, zq, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zb, b_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_div [%s] a=%s b=%s", name, a_str, b_str);
+  snprintf(detail, sizeof(detail), "rz_div [%s] a=%s b=%s", name, a_str, b_str);
 
   // non-aliased
-  bn_div(&q, &a, &b);
+  rz_div(&q, &a, &b);
   mpz_tdiv_q(zq, za, zb);
   assert_match(detail, a_str, b_str, &q, zq);
 
   // aliasing: q == a
-  bn_init_val(&a, a_str);
-  bn_div(&a, &a, &b);
-  snprintf(detail, sizeof(detail), "bn_div [%s, q==a] a=%s b=%s", name, a_str,
+  rz_init_val(&a, a_str);
+  rz_div(&a, &a, &b);
+  snprintf(detail, sizeof(detail), "rz_div [%s, q==a] a=%s b=%s", name, a_str,
            b_str);
   assert_match(detail, a_str, b_str, &a, zq);
 
   // aliasing: q == b
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_div(&b, &a, &b);
-  snprintf(detail, sizeof(detail), "bn_div [%s, q==b] a=%s b=%s", name, a_str,
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_div(&b, &a, &b);
+  snprintf(detail, sizeof(detail), "rz_div [%s, q==b] a=%s b=%s", name, a_str,
            b_str);
   assert_match(detail, a_str, b_str, &b, zq);
 
-  bn_free_multi(&a, &b, &q, NULL);
+  rz_clear_multi(&a, &b, &q, NULL);
   mpz_clears(za, zb, zq, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_div: edge cases ---\n");
+  printf("\n--- rz_div: edge cases ---\n");
 
   run_case("zero / one", "0", "1");
   run_case("one / one", "1", "1");
@@ -162,33 +162,36 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_div: %d randomized cases vs mpz_tdiv_q ---\n",
+  printf("\n--- rz_div: %d randomized cases vs mpz_tdiv_q ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_b = 1 + (rand() % 4096);
 
-    bignum a, b, q;
+    rz_t a, b, q;
     mpz_t za, zb, zq;
     char* sa;
     char* sb;
     char detail[64];
 
-    bn_init_multi(&a, &b, &q, NULL);
+    rz_init_multi(&a, &b, &q, NULL);
     mpz_inits(za, zb, zq, NULL);
 
     sa = random_mpz_str(za, bits_a, state);
     sb = random_mpz_str(zb, bits_b, state);
 
     // divisor must be nonzero
-    if (mpz_cmp_ui(zb, 0) == 0) mpz_set_ui(zb, 1);
-    sb = mpz_get_str(NULL, 10, zb);
+    if (mpz_cmp_ui(zb, 0) == 0) {
+      mpz_set_ui(zb, 1);
+      free(sb);
+      sb = mpz_get_str(NULL, 10, zb);
+    }
 
-    bn_init_val(&a, sa);
-    bn_init_val(&b, sb);
+    rz_init_val(&a, sa);
+    rz_init_val(&b, sb);
 
-    bn_div(&q, &a, &b);
+    rz_div(&q, &a, &b);
     mpz_tdiv_q(zq, za, zb);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
@@ -197,7 +200,7 @@ static void run_random(gmp_randstate_t state)
 
     free(sa);
     free(sb);
-    bn_free_multi(&a, &b, &q, NULL);
+    rz_clear_multi(&a, &b, &q, NULL);
     mpz_clears(za, zb, zq, NULL);
   }
 
@@ -210,16 +213,16 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_div(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b, bn_q;
+  rz_t rz_a, rz_b, rz_q;
   mpz_t mpz_a, mpz_b, mpz_q;
 
-  bn_init_multi(&bn_a, &bn_b, &bn_q, NULL);
+  rz_init_multi(&rz_a, &rz_b, &rz_q, NULL);
   mpz_inits(mpz_a, mpz_b, mpz_q, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
   char* sb = random_mpz_str(mpz_b, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_b, sb);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_b, sb);
   free(sa);
   free(sb);
 
@@ -229,7 +232,7 @@ static void benchmark_div(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_div(&bn_q, &bn_a, &bn_b);
+    rz_div(&rz_q, &rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -244,15 +247,15 @@ static void benchmark_div(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_match("bn_div (benchmark)", "(bench input)", "(bench input)", &bn_q,
+  assert_match("rz_div (benchmark)", "(bench input)", "(bench input)", &rz_q,
                mpz_q);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_div", size_info, total_custom / ops_custom,
+  print_table_row("rz_div", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_b, &bn_q, NULL);
+  rz_clear_multi(&rz_a, &rz_b, &rz_q, NULL);
   mpz_clears(mpz_a, mpz_b, mpz_q, NULL);
 }
 
@@ -270,30 +273,30 @@ static void benchmark_div_real(int divisor_limbs)
   // divisor (b).
   int dividend_limbs = divisor_limbs * 2;
 
-  bignum a, b, res_school, res_karat;
-  bn_init_multi(&a, &b, &res_school, &res_karat, NULL);
+  rz_t a, b, res_school, res_karat;
+  rz_init_multi(&a, &b, &res_school, &res_karat, NULL);
 
   // Generate random numbers
-  bn_gen_random(&a, dividend_limbs * 64);
-  bn_gen_random(&b, divisor_limbs * 64);
+  rz_gen_random(&a, dividend_limbs * 64);
+  rz_gen_random(&b, divisor_limbs * 64);
 
   // Ensure the highest bit of 'b' is set so it is truly 'divisor_limbs' long
-  bn_set_bit(&b, (divisor_limbs * 64) - 1);
+  rz_set_bit(&b, (divisor_limbs * 64) - 1);
 
   // 2. Time Schoolbook
   clock_t start = clock();
-  bn_div(&res_school, &a, &b);
+  rz_div(&res_school, &a, &b);
   clock_t end = clock();
   double time_school = ((double)(end - start)) / CLOCKS_PER_SEC;
 
   // 3. Time Newton-Raphson
   start = clock();
-  bn_newton_div(&res_karat, &a, &b);
+  rz_newton_div(&res_karat, &a, &b);
   end = clock();
   double time_karat = ((double)(end - start)) / CLOCKS_PER_SEC;
 
   // 4. Verify Correctness
-  if (bn_cmp(&res_school, &res_karat) != 0) {
+  if (rz_cmp(&res_school, &res_karat) != 0) {
     printf("[FAIL] Mismatch! Divisor Limbs: %d\n", divisor_limbs);
     printf("       School quotient limbs: %llu\n",
            (unsigned long long)res_school.size);
@@ -311,12 +314,12 @@ static void benchmark_div_real(int divisor_limbs)
   if (res_school.size > 0) dummy_sum += res_school.limbs[0];
   if (res_karat.size > 0) dummy_sum += res_karat.limbs[0];
 
-  bn_free_multi(&a, &b, &res_school, &res_karat, NULL);
+  rz_clear_multi(&a, &b, &res_school, &res_karat, NULL);
 }
 
 static void run_internal_comparison()
 {
-  printf("\n--- bn_div: 2N/N schoolbook vs Newton (internal) ---\n");
+  printf("\n--- rz_div: 2N/N schoolbook vs Newton (internal) ---\n");
   int sizes[] = {16,   32,   64,   128,  256,   512,
                  1024, 2048, 4096, 8192, 16000, 32000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
@@ -342,7 +345,7 @@ static double bench_budget(int bits)
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
   gmp_randstate_t state;
   gmp_randinit_default(state);
@@ -363,6 +366,6 @@ int main()
   run_internal_comparison();
 
   gmp_randclear(state);
-  bn_free_constants();
+  rz_clear_constants();
   return 0;
 }

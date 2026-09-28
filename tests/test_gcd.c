@@ -1,7 +1,7 @@
 /*
  * test_gcd.c
  *
- * Unified GMP-verified test suite for bn_gcd.
+ * Unified GMP-verified test suite for rz_gcd.
  *
  *   1. Edge cases: 0, 1, -1, (0,0), 2^64-1, 2^64 boundaries + pointer
  *      aliasing (d == a and d == b)
@@ -20,7 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -60,10 +60,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 void assert_match(const char* op, const char* a_str, const char* b_str,
-                  const bignum* bn, mpz_t expected)
+                  const rz_t* bn, mpz_t expected)
 {
   char* gmp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -93,42 +93,42 @@ static char* random_a(mpz_t za, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, const char* b_str)
 {
-  bignum a, b, d;
+  rz_t a, b, d;
   mpz_t za, zb, zd;
   char detail[256];
 
-  bn_init_multi(&a, &b, &d, NULL);
+  rz_init_multi(&a, &b, &d, NULL);
   mpz_inits(za, zb, zd, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zb, b_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_gcd [%s] a=%s b=%s", name, a_str, b_str);
+  snprintf(detail, sizeof(detail), "rz_gcd [%s] a=%s b=%s", name, a_str, b_str);
 
   // non-aliased
-  bn_gcd(&d, &a, &b);
+  rz_gcd(&d, &a, &b);
   mpz_gcd(zd, za, zb);
   assert_match(detail, a_str, b_str, &d, zd);
 
   // aliasing: d == a
-  bn_init_val(&a, a_str);
-  bn_gcd(&a, &a, &b);
-  assert_match("bn_gcd (d==a)", a_str, b_str, &a, zd);
+  rz_init_val(&a, a_str);
+  rz_gcd(&a, &a, &b);
+  assert_match("rz_gcd (d==a)", a_str, b_str, &a, zd);
 
   // aliasing: d == b
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_gcd(&b, &a, &b);
-  assert_match("bn_gcd (d==b)", a_str, b_str, &b, zd);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_gcd(&b, &a, &b);
+  assert_match("rz_gcd (d==b)", a_str, b_str, &b, zd);
 
-  bn_free_multi(&a, &b, &d, NULL);
+  rz_clear_multi(&a, &b, &d, NULL);
   mpz_clears(za, zb, zd, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_gcd: edge cases ---\n");
+  printf("\n--- rz_gcd: edge cases ---\n");
 
   run_case("both zero (gcd(0,0) = 0)", "0", "0");
   run_case("zero + one", "0", "1");
@@ -156,19 +156,19 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_gcd: %d randomized cases vs mpz_gcd ---\n", FUZZ_ITERATIONS);
+  printf("\n--- rz_gcd: %d randomized cases vs mpz_gcd ---\n", FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_b = 1 + (rand() % 4096);
 
-    bignum a, b, d;
+    rz_t a, b, d;
     mpz_t za, zb, zd;
     char* sa;
     char* sb;
     char detail[64];
 
-    bn_init_multi(&a, &b, &d, NULL);
+    rz_init_multi(&a, &b, &d, NULL);
     mpz_inits(za, zb, zd, NULL);
 
     sa = random_a(za, bits_a, state);
@@ -186,10 +186,10 @@ static void run_random(gmp_randstate_t state)
       mpz_set_ui(zb, 0);
     }
 
-    bn_init_val(&a, sa_use);
-    bn_init_val(&b, sb_use);
+    rz_init_val(&a, sa_use);
+    rz_init_val(&b, sb_use);
 
-    bn_gcd(&d, &a, &b);
+    rz_gcd(&d, &a, &b);
     mpz_gcd(zd, za, zb);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
@@ -198,7 +198,7 @@ static void run_random(gmp_randstate_t state)
 
     free(sa);
     free(sb);
-    bn_free_multi(&a, &b, &d, NULL);
+    rz_clear_multi(&a, &b, &d, NULL);
     mpz_clears(za, zb, zd, NULL);
   }
 
@@ -211,16 +211,16 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b, bn_d;
+  rz_t rz_a, rz_b, rz_d;
   mpz_t mpz_a, mpz_b, mpz_d;
 
-  bn_init_multi(&bn_a, &bn_b, &bn_d, NULL);
+  rz_init_multi(&rz_a, &rz_b, &rz_d, NULL);
   mpz_inits(mpz_a, mpz_b, mpz_d, NULL);
 
   char* sa = random_a(mpz_a, bits, state);
   char* sb = random_a(mpz_b, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_b, sb);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_b, sb);
   free(sa);
   free(sb);
 
@@ -230,7 +230,7 @@ static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_gcd(&bn_d, &bn_a, &bn_b);
+    rz_gcd(&rz_d, &rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -245,15 +245,15 @@ static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_match("bn_gcd (benchmark)", "(bench input)", "(bench input)", &bn_d,
+  assert_match("rz_gcd (benchmark)", "(bench input)", "(bench input)", &rz_d,
                mpz_d);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_gcd", size_info, total_custom / ops_custom,
+  print_table_row("rz_gcd", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_b, &bn_d, NULL);
+  rz_clear_multi(&rz_a, &rz_b, &rz_d, NULL);
   mpz_clears(mpz_a, mpz_b, mpz_d, NULL);
 }
 
@@ -263,37 +263,37 @@ static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
 
 static void benchmark_gcd_internal(int limbs)
 {
-  bignum a, b, u_1, v_1, d_1, u_2, v_2, d_2;
-  bn_init_multi(&a, &b, &u_1, &v_1, &d_1, &u_2, &v_2, &d_2, NULL);
+  rz_t a, b, u_1, v_1, d_1, u_2, v_2, d_2;
+  rz_init_multi(&a, &b, &u_1, &v_1, &d_1, &u_2, &v_2, &d_2, NULL);
 
   // Generate random numbers of a specific bit length (limbs * 64)
-  bn_gen_random(&a, limbs * 64);
-  bn_gen_random(&b, limbs * 64);
+  rz_gen_random(&a, limbs * 64);
+  rz_gen_random(&b, limbs * 64);
 
   // 1. Time Normal GCD
   clock_t start = clock();
-  bn_gcd(&d_1, &a, &b);
+  rz_gcd(&d_1, &a, &b);
   clock_t end = clock();
   double time_normal = (double)(end - start) / CLOCKS_PER_SEC;
 
   // 2. Time Karatsuba
   start = clock();
-  bn_gcd_extended(&u_2, &v_2, &d_2, &a, &b);
+  rz_gcd_extended(&u_2, &v_2, &d_2, &a, &b);
   end = clock();
   double time_ex = (double)(end - start) / CLOCKS_PER_SEC;
 
   start = clock();
-  bn_gcd_lehmer(&d_2, &a, &b);
+  rz_gcd_lehmer(&d_2, &a, &b);
   end = clock();
   double time_l = (double)(end - start) / CLOCKS_PER_SEC;
 
   start = clock();
-  bn_gcd_extended_lehmer(&u_2, &v_2, &d_2, &a, &b);
+  rz_gcd_extended_lehmer(&u_2, &v_2, &d_2, &a, &b);
   end = clock();
   double time_lehmer = (double)(end - start) / CLOCKS_PER_SEC;
 
   // 3. Verify Correctness
-  if (bn_cmp(&d_1, &d_2) != 0) {
+  if (rz_cmp(&d_1, &d_2) != 0) {
     printf("[FAIL] Mismatch at %d limbs!\n", limbs);
   } else {
     printf(
@@ -304,12 +304,12 @@ static void benchmark_gcd_internal(int limbs)
         limbs, time_normal, time_ex, time_l, time_lehmer);
   }
 
-  bn_free_multi(&a, &b, &u_1, &v_1, &d_1, &u_2, &v_2, &d_2, NULL);
+  rz_clear_multi(&a, &b, &u_1, &v_1, &d_1, &u_2, &v_2, &d_2, NULL);
 }
 
 static void run_internal_comparison()
 {
-  printf("\n--- bn_gcd: variant comparison (internal) ---\n");
+  printf("\n--- rz_gcd: variant comparison (internal) ---\n");
   int sizes[] = {16,   32,   64,   128,  256,   512,
                  1024, 2048, 4096, 8192, 16000, 32000};
   for (size_t i = 0; i < 9; i++) {
@@ -333,7 +333,7 @@ static double bench_budget(int bits)
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
   gmp_randstate_t state;
   gmp_randinit_default(state);
@@ -357,6 +357,6 @@ int main()
   run_internal_comparison();
 
   gmp_randclear(state);
-  bn_free_constants();
+  rz_clear_constants();
   return 0;
 }

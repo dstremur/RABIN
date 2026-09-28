@@ -1,7 +1,7 @@
 /*
  * test_add.c
  *
- * Unified GMP-verified test suite for bn_add.
+ * Unified GMP-verified test suite for rz_add.
  *
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries, carry cascades +
  *      pointer aliasing (r == a and r == b)
@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -58,10 +58,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 void assert_match(const char* op, const char* a_str, const char* b_str,
-                  const bignum* bn, mpz_t mpz)
+                  const rz_t* bn, mpz_t mpz)
 {
   char* gmp_str = mpz_get_str(NULL, 10, mpz);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -91,46 +91,46 @@ char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, const char* b_str)
 {
-  bignum a, b, res;
+  rz_t a, b, res;
   mpz_t za, zb, zr;
   char detail[256];
 
-  bn_init_multi(&a, &b, &res, NULL);
+  rz_init_multi(&a, &b, &res, NULL);
   mpz_inits(za, zb, zr, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zb, b_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_add [%s] a=%s b=%s", name, a_str, b_str);
+  snprintf(detail, sizeof(detail), "rz_add [%s] a=%s b=%s", name, a_str, b_str);
 
   // non-aliased
-  bn_add(&res, &a, &b);
+  rz_add(&res, &a, &b);
   mpz_add(zr, za, zb);
   assert_match(detail, a_str, b_str, &res, zr);
 
   // aliasing: r == a
-  bn_init_val(&a, a_str);
-  bn_add(&a, &a, &b);
-  snprintf(detail, sizeof(detail), "bn_add [%s, r==a] a=%s b=%s", name, a_str,
+  rz_init_val(&a, a_str);
+  rz_add(&a, &a, &b);
+  snprintf(detail, sizeof(detail), "rz_add [%s, r==a] a=%s b=%s", name, a_str,
            b_str);
   assert_match(detail, a_str, b_str, &a, zr);
 
   // aliasing: r == b
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
-  bn_add(&b, &a, &b);
-  snprintf(detail, sizeof(detail), "bn_add [%s, r==b] a=%s b=%s", name, a_str,
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
+  rz_add(&b, &a, &b);
+  snprintf(detail, sizeof(detail), "rz_add [%s, r==b] a=%s b=%s", name, a_str,
            b_str);
   assert_match(detail, a_str, b_str, &b, zr);
 
-  bn_free_multi(&a, &b, &res, NULL);
+  rz_clear_multi(&a, &b, &res, NULL);
   mpz_clears(za, zb, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_add: edge cases ---\n");
+  printf("\n--- rz_add: edge cases ---\n");
 
   run_case("zeros", "0", "0");
   run_case("one + one", "1", "1");
@@ -159,27 +159,27 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_add: %d randomized cases vs mpz_add ---\n", FUZZ_ITERATIONS);
+  printf("\n--- rz_add: %d randomized cases vs mpz_add ---\n", FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_b = 1 + (rand() % 4096);
 
-    bignum a, b, res;
+    rz_t a, b, res;
     mpz_t za, zb, zr;
     char* sa;
     char* sb;
     char detail[64];
 
-    bn_init_multi(&a, &b, &res, NULL);
+    rz_init_multi(&a, &b, &res, NULL);
     mpz_inits(za, zb, zr, NULL);
 
     sa = random_mpz_str(za, bits_a, state);
     sb = random_mpz_str(zb, bits_b, state);
-    bn_init_val(&a, sa);
-    bn_init_val(&b, sb);
+    rz_init_val(&a, sa);
+    rz_init_val(&b, sb);
 
-    bn_add(&res, &a, &b);
+    rz_add(&res, &a, &b);
     mpz_add(zr, za, zb);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
@@ -188,7 +188,7 @@ static void run_random(gmp_randstate_t state)
 
     free(sa);
     free(sb);
-    bn_free_multi(&a, &b, &res, NULL);
+    rz_clear_multi(&a, &b, &res, NULL);
     mpz_clears(za, zb, zr, NULL);
   }
 
@@ -201,16 +201,16 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_add(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b, bn_res;
+  rz_t rz_a, rz_b, rz_res;
   mpz_t mpz_a, mpz_b, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_b, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_b, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_b, mpz_res, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
   char* sb = random_mpz_str(mpz_b, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_b, sb);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_b, sb);
   free(sa);
   free(sb);
 
@@ -220,7 +220,7 @@ static void benchmark_add(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_add(&bn_res, &bn_a, &bn_b);
+    rz_add(&rz_res, &rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -235,15 +235,15 @@ static void benchmark_add(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_match("bn_add (benchmark)", "(bench input)", "(bench input)", &bn_res,
+  assert_match("rz_add (benchmark)", "(bench input)", "(bench input)", &rz_res,
                mpz_res);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_add", size_info, total_custom / ops_custom,
+  print_table_row("rz_add", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_b, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_b, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_b, mpz_res, NULL);
 }
 

@@ -32,11 +32,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../include/bigrns.h"
+#include "../../include/rns.h"
 
 typedef unsigned __int128 u128;
 
-inline u64 mod_add(u64 a, u64 b, u64 p)
+inline u64 u64_mod_add(u64 a, u64 b, u64 p)
 {
   u64 res = a + b;
 
@@ -44,7 +44,7 @@ inline u64 mod_add(u64 a, u64 b, u64 p)
   return res - (p & mask);
 }
 
-u64 mod_sub(u64 a, u64 b, u64 p)
+u64 u64_mod_sub(u64 a, u64 b, u64 p)
 {
   u64 res = a - b;
   // If a < b, a borrow occurred.
@@ -54,25 +54,25 @@ u64 mod_sub(u64 a, u64 b, u64 p)
   return res + (p & mask);
 }
 
-inline u64 mod_mul(u64 a, u64 b, u64 p)
+inline u64 u64_mod_mul(u64 a, u64 b, u64 p)
 {
   unsigned __int128 res = (unsigned __int128)a * b;
   return (u64)(res % p);
 }
 
-u64 mod_pow(u64 base, u64 exp, u64 p)
+u64 u64_mod_pow(u64 base, u64 exp, u64 p)
 {
   u64 res = 1;
   base %= p;
   while (exp > 0) {
-    if (exp % 2 == 1) res = mod_mul(res, base, p);
-    base = mod_mul(base, base, p);
+    if (exp % 2 == 1) res = u64_mod_mul(res, base, p);
+    base = u64_mod_mul(base, base, p);
     exp /= 2;
   }
   return res;
 }
 
-u64 mod_inverse_euclid(u64 a, u64 p)
+u64 u64_mod_inverse_euclid(u64 a, u64 p)
 {
   if (a == 0) return 0;  // Should not happen with primes
 
@@ -96,15 +96,15 @@ u64 mod_inverse_euclid(u64 a, u64 p)
   return (u64)t;
 }
 
-u64 mod_inverse(u64 n, u64 p) { return mod_pow(n, p - 2, p); }
+u64 u64_mod_inverse(u64 n, u64 p) { return u64_mod_pow(n, p - 2, p); }
 
-u64 compute_mu(u64 q)
+u64 u64_compute_mu(u64 q)
 {
   u128 dividend = ~((u128)0);
   return (u64)(dividend / q);
 }
 
-u64 barrett_reduction(u128 c, u64 q, u64 mu)
+u64 u64_barrett(u128 c, u64 q, u64 mu)
 {
   unsigned __int128 q_est = ((unsigned __int128)c * mu) >> 64;
 
@@ -117,7 +117,7 @@ u64 barrett_reduction(u128 c, u64 q, u64 mu)
   return r;
 }
 
-u64 goldilock_red(u128 c)
+u64 u64_goldilock_red(u128 c)
 {
   u128 X_3 = c >> 96;
   u128 X_2 = (c >> 64) & ((1ULL << 32) - 1);

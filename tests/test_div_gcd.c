@@ -4,12 +4,12 @@
  * Cross-fuzz division and GCD against GMP.
  *
  * Covers:
- *   - bn_divmod / bn_div / bn_mod (truncated semantics, all sign combos)
+ *   - rz_divmod / rz_div / rz_mod (truncated semantics, all sign combos)
  *     with random sizes, the qn == 1 (equal-size) fast path, single-limb
  *     divisors, power-of-two divisors, exact-quotient +/- 1 correction
  *     cases, and the kernel boundary sizes (Karatsuba / NTT / Newton
  *     dispatch thresholds in limbs).
- *   - bn_gcd (Euclid chain with 2-adic extraction) against mpz_gcd,
+ *   - rz_gcd (Euclid chain with 2-adic extraction) against mpz_gcd,
  *     including sign handling (result must be non-negative) and the
  *     Fibonacci worst case.
  *
@@ -23,12 +23,12 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 static int failures = 0;
 
-// export a bignum to an mpz (exact, no decimal round-trip)
-static void bn_to_mpz(mpz_t out, const bignum* in)
+// export a rz_t to an mpz (exact, no decimal round-trip)
+static void rz_to_mpz(mpz_t out, const rz_t* in)
 {
   u64 n = 0;
   if (in->size > 0) n = limbs_norm(in->limbs, in->size);
@@ -40,10 +40,10 @@ static void bn_to_mpz(mpz_t out, const bignum* in)
   if (in->is_neg) mpz_neg(out, out);
 }
 
-static void report_mismatch(const char* op, const char* detail,
-                            const bignum* res, const mpz_t gres)
+static void report_mismatch(const char* op, const char* detail, const rz_t* res,
+                            const mpz_t gres)
 {
-  char* rs = bn_to_string(res);
+  char* rs = rz_to_string(res);
   char* gs = mpz_get_str(NULL, 10, gres);
   fprintf(stderr, "[FAIL] %s (%s)\n  ours: %s\n  gmp : %s\n", op, detail, rs,
           gs);
@@ -52,12 +52,12 @@ static void report_mismatch(const char* op, const char* detail,
   failures++;
 }
 
-static int check_bignum_mpz(const char* op, const char* detail,
-                            const bignum* res, const mpz_t gres)
+static int check_bignum_mpz(const char* op, const char* detail, const rz_t* res,
+                            const mpz_t gres)
 {
   mpz_t t;
   mpz_init(t);
-  bn_to_mpz(t, res);
+  rz_to_mpz(t, res);
   int ok = mpz_cmp(t, gres) == 0;
   if (!ok) report_mismatch(op, detail, res, gres);
   mpz_clear(t);
@@ -70,15 +70,15 @@ static void check_divmod_case(mpz_t a, mpz_t b, int tag)
   char* sa = mpz_get_str(NULL, 10, a);
   char* sb = mpz_get_str(NULL, 10, b);
 
-  bignum x, y, q, r;
+  rz_t x, y, q, r;
   mpz_t gq, gr;
   mpz_inits(gq, gr, NULL);
 
-  bn_init_multi(&x, &y, &q, &r, NULL);
-  bn_init_val(&x, sa);
-  bn_init_val(&y, sb);
+  rz_init_multi(&x, &y, &q, &r, NULL);
+  rz_init_val(&x, sa);
+  rz_init_val(&y, sb);
 
-  bn_divmod(&q, &r, &x, &y);
+  rz_divmod(&q, &r, &x, &y);
   mpz_tdiv_qr(gq, gr, a, b);
 
   char detail[64];
@@ -90,21 +90,21 @@ static void check_divmod_case(mpz_t a, mpz_t b, int tag)
 
   // invariant: q*b + r == a
   if (ok) {
-    bignum t, u;
+    rz_t t, u;
     mpz_t g;
     mpz_init(g);
-    bn_init_multi(&t, &u, NULL);
-    bn_mul(&t, &q, &y);
-    bn_add(&u, &t, &r);
+    rz_init_multi(&t, &u, NULL);
+    rz_mul(&t, &q, &y);
+    rz_add(&u, &t, &r);
     mpz_mul(g, gq, b);
     mpz_add(g, g, gr);
     if (!check_bignum_mpz("q*b+r", detail, &u, g)) ok = 0;
     mpz_clear(g);
-    bn_free(&t);
-    bn_free(&u);
+    rz_clear(&t);
+    rz_clear(&u);
   }
 
-  bn_free_multi(&x, &y, &q, &r, NULL);
+  rz_clear_multi(&x, &y, &q, &r, NULL);
   mpz_clears(gq, gr, NULL);
   free(sa);
   free(sb);
@@ -115,19 +115,19 @@ static void check_gcd_case(mpz_t a, mpz_t b, int tag)
   char* sa = mpz_get_str(NULL, 10, a);
   char* sb = mpz_get_str(NULL, 10, b);
 
-  bignum x, y, d;
+  rz_t x, y, d;
   mpz_t g;
   mpz_init(g);
 
-  bn_init_multi(&x, &y, &d, NULL);
-  bn_init_val(&x, sa);
-  bn_init_val(&y, sb);
+  rz_init_multi(&x, &y, &d, NULL);
+  rz_init_val(&x, sa);
+  rz_init_val(&y, sb);
 
-  bn_gcd(&d, &x, &y);
+  rz_gcd(&d, &x, &y);
   mpz_gcd(g, a, b);
 
   // gcd must be non-negative
-  if (d.is_neg && !bn_is_zero(&d)) {
+  if (d.is_neg && !rz_is_zero(&d)) {
     fprintf(stderr, "[FAIL] gcd (%d): negative result\n", tag);
     failures++;
   }
@@ -137,7 +137,7 @@ static void check_gcd_case(mpz_t a, mpz_t b, int tag)
            (long)mpz_sizeinbase(a, 2), (long)mpz_sizeinbase(b, 2));
   check_bignum_mpz("gcd", detail, &d, g);
 
-  bn_free_multi(&x, &y, &d, NULL);
+  rz_clear_multi(&x, &y, &d, NULL);
   mpz_clear(g);
   free(sa);
   free(sb);

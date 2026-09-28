@@ -1,30 +1,30 @@
-#include "../include/bigvector.h"
+#include "../include/rvec.h"
 
 int main()
 {
-  bn_init_constants();
+  rz_init_constants();
 
-  bigvector a;
+  rvec_t a = {0};
 
-  bigvector_init_dynamic(&a);
+  rvec_init_dynamic(&a);
 
-  bigvector_println(&a);
+  rvec_println(&a);
 
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
-  bigvector_append(&a, &BN_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
+  rvec_append(&a, &RZ_ONE);
 
-  bigvector_println(&a);
+  rvec_println(&a);
 
-  bigvector_neg(&a, &a);
-  bigvector_println(&a);
+  rvec_neg(&a, &a);
+  rvec_println(&a);
 
-  bigvector_free(&a);
+  rvec_clear(&a);
 
-  bn_free_constants();
+  rz_clear_constants();
 }

@@ -1,7 +1,7 @@
 /*
  * test_mod_inverse.c
  *
- * Unified GMP-verified test suite for bn_mod_inverse.
+ * Unified GMP-verified test suite for rz_mod_inverse.
  *
  * Verified against mpz_invert: both must agree on existence, and on the
  * inverse value (in [0, m)) when it exists.
@@ -27,7 +27,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -67,7 +67,7 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 static void assert_inverse(const char* op, const char* a_str, const char* m_str,
-                           bool custom_has_inv, const bignum* res,
+                           bool custom_has_inv, const rz_t* res,
                            int gmp_has_inv, mpz_t gres)
 {
   if ((int)custom_has_inv != gmp_has_inv) {
@@ -81,7 +81,7 @@ static void assert_inverse(const char* op, const char* a_str, const char* m_str,
 
   if (custom_has_inv) {
     char* gmp_res_str = mpz_get_str(NULL, 10, gres);
-    char* custom_res_str = bn_to_string(res);
+    char* custom_res_str = rz_to_string(res);
     if (strcmp(gmp_res_str, custom_res_str) != 0) {
       fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s (value)!\n",
               op);
@@ -98,7 +98,7 @@ static void assert_inverse(const char* op, const char* a_str, const char* m_str,
   }
 }
 
-// random bignum of given bits, optionally forced prime, >= min_val
+// random rz_t of given bits, optionally forced prime, >= min_val
 static void gen_mpz(mpz_t z, int bits, bool prime, int min_val,
                     gmp_randstate_t state)
 {
@@ -117,31 +117,31 @@ static void gen_mpz(mpz_t z, int bits, bool prime, int min_val,
 
 static void run_case(const char* name, const char* a_str, const char* m_str)
 {
-  bignum a, m, res;
+  rz_t a, m, res;
   mpz_t za, zm, zr;
 
-  bn_init_multi(&a, &m, &res, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&m, m_str);
+  rz_init_multi(&a, &m, &res, NULL);
+  rz_init_val(&a, a_str);
+  rz_init_val(&m, m_str);
 
   mpz_inits(za, zm, zr, NULL);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zm, m_str, 10);
 
-  bool custom_has_inv = bn_mod_inverse(&res, &a, &m);
+  bool custom_has_inv = (rz_mod_inverse(&res, &a, &m) == RABIN_SUCCESS);
   int gmp_has_inv = mpz_invert(zr, za, zm);
 
   char detail[256];
-  snprintf(detail, sizeof(detail), "bn_mod_inverse [%s]", name);
+  snprintf(detail, sizeof(detail), "rz_mod_inverse [%s]", name);
   assert_inverse(detail, a_str, m_str, custom_has_inv, &res, gmp_has_inv, zr);
 
-  bn_free_multi(&a, &m, &res, NULL);
+  rz_clear_multi(&a, &m, &res, NULL);
   mpz_clears(za, zm, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_mod_inverse: edge cases ---\n");
+  printf("\n--- rz_mod_inverse: edge cases ---\n");
 
   run_case("no inv (a even, m even)", "2", "4");
   run_case("no inv (a = 0)", "0", "13");
@@ -167,7 +167,7 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_mod_inverse: %d randomized cases vs mpz_invert ---\n",
+  printf("\n--- rz_mod_inverse: %d randomized cases vs mpz_invert ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
@@ -177,13 +177,13 @@ static void run_random(gmp_randstate_t state)
     // large bit lengths (cause of the original benchmark hangs).
     bool prime_m = (bits_m <= 1024) && (rand() & 1);
 
-    bignum a, m, res;
+    rz_t a, m, res;
     mpz_t za, zm, zr;
     char* sa;
     char* sm;
     char detail[64];
 
-    bn_init_multi(&a, &m, &res, NULL);
+    rz_init_multi(&a, &m, &res, NULL);
     mpz_inits(za, zm, zr, NULL);
 
     // a: signed
@@ -194,10 +194,10 @@ static void run_random(gmp_randstate_t state)
     gen_mpz(zm, bits_m, prime_m, 2, state);  // m >= 2
     sm = mpz_get_str(NULL, 10, zm);
 
-    bn_init_val(&a, sa);
-    bn_init_val(&m, sm);
+    rz_init_val(&a, sa);
+    rz_init_val(&m, sm);
 
-    bool custom_has_inv = bn_mod_inverse(&res, &a, &m);
+    bool custom_has_inv = (rz_mod_inverse(&res, &a, &m) == RABIN_SUCCESS);
     int gmp_has_inv = mpz_invert(zr, za, zm);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, m=%d bits, %s)", i,
@@ -206,7 +206,7 @@ static void run_random(gmp_randstate_t state)
 
     free(sa);
     free(sm);
-    bn_free_multi(&a, &m, &res, NULL);
+    rz_clear_multi(&a, &m, &res, NULL);
     mpz_clears(za, zm, zr, NULL);
   }
 
@@ -220,10 +220,10 @@ static void run_random(gmp_randstate_t state)
 static void benchmark_mod_inverse(int bits, double target_sec,
                                   gmp_randstate_t state)
 {
-  bignum bn_a, bn_m, bn_res;
+  rz_t rz_a, rz_m, rz_res;
   mpz_t mpz_a, mpz_m, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_m, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_m, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_m, mpz_res, NULL);
 
   // Rejection sampling for fast coprime pair generation at arbitrary bit sizes.
@@ -238,8 +238,8 @@ static void benchmark_mod_inverse(int bits, double target_sec,
 
   char* sa = mpz_get_str(NULL, 10, mpz_a);
   char* sm = mpz_get_str(NULL, 10, mpz_m);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_m, sm);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_m, sm);
   free(sa);
   free(sm);
 
@@ -253,7 +253,7 @@ static void benchmark_mod_inverse(int bits, double target_sec,
   // Measure custom implementation speed
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    custom_ok = bn_mod_inverse(&bn_res, &bn_a, &bn_m);
+    custom_ok = (rz_mod_inverse(&rz_res, &rz_a, &rz_m) == RABIN_SUCCESS);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -269,15 +269,15 @@ static void benchmark_mod_inverse(int bits, double target_sec,
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_inverse("bn_mod_inverse (benchmark)", "(bench input)", "(bench input)",
-                 custom_ok, &bn_res, gmp_ok, mpz_res);
+  assert_inverse("rz_mod_inverse (benchmark)", "(bench input)", "(bench input)",
+                 custom_ok, &rz_res, gmp_ok, mpz_res);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_mod_inverse", size_info, total_custom / ops_custom,
+  print_table_row("rz_mod_inverse", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_m, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_m, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_m, mpz_res, NULL);
 }
 

@@ -1,10 +1,10 @@
-#include <../include/bignum.h>
+#include <../include/rabin.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// Assuming your bignum functions are available
-// char* bn_to_string(bignum* n);
-// void generate_random_prime(bignum* p, int bits);
+// Assuming your rz_t functions are available
+// char* rz_to_string(rz_t* n);
+// void generate_random_prime(rz_t* p, int bits);
 
 int verify_with_openssl(const char* num_str)
 {
@@ -36,14 +36,18 @@ void run_prime_test(int num_tests, int bits)
   printf("Starting %d tests for %d-bit primes...\n", num_tests, bits);
 
   for (int i = 0; i < num_tests; i++) {
-    bignum p;
-    bn_init(&p);
+    rz_t p;
+    rz_init(&p);
 
     // 1. Generate your prime
-    bn_gen_prime(&p, bits);
+    if (rz_gen_prime(&p, bits) != RABIN_SUCCESS) {
+      printf("[FAIL] Test %d: could not generate prime\n", i + 1);
+      rz_clear(&p);
+      continue;
+    }
 
     // 2. Convert to string
-    char* p_str = bn_to_string(&p);
+    char* p_str = rz_to_string(&p);
 
     // 3. Verify with OpenSSL
     if (verify_with_openssl(p_str)) {
@@ -54,7 +58,7 @@ void run_prime_test(int num_tests, int bits)
     }
 
     free(p_str);
-    bn_free(&p);
+    rz_clear(&p);
   }
 }
 

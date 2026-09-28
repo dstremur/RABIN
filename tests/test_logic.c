@@ -1,8 +1,8 @@
 /*
  * test_logic.c
  *
- * Unified GMP-verified test suite for the logic functions (bn_and, bn_or,
- * bn_xor, bn_not).
+ * Unified GMP-verified test suite for the logic functions (rz_and, rz_or,
+ * rz_xor, rz_not).
  *
  * Verified against GMP:
  *   1. Edge cases: 0, 1, 2^64-1, 2^64/2^128/2^130 boundaries, size
@@ -16,7 +16,7 @@
  * the magnitude limbs (preserving a's sign), which differs from GMP's
  * two's-complement logic semantics for negative operands.
  *
- * bn_not complements within the current (trimmed) limb width, so its GMP
+ * rz_not complements within the current (trimmed) limb width, so its GMP
  * oracle is (2^(64*size) - 1) XOR a rather than mpz_com.
  *
  * Copyright (C) 2026 Diego Strebel
@@ -29,8 +29,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/biglogic.h"
-#include "../include/bignum.h"
+#include "../include/rabin.h"
+#include "../include/rzlogic.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -70,11 +70,10 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 static void assert_logic_match(const char* op, const char* a_str,
-                               const char* m_str, const bignum* r,
-                               mpz_t expected)
+                               const char* m_str, const rz_t* r, mpz_t expected)
 {
   char* exp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(r);
+  char* custom_str = rz_to_string(r);
 
   if (strcmp(exp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -91,7 +90,7 @@ static void assert_logic_match(const char* op, const char* a_str,
   free(custom_str);
 }
 
-// GMP oracle for bn_not: complement within the current limb width,
+// GMP oracle for rz_not: complement within the current limb width,
 // i.e. (2^(64*size) - 1) XOR a.
 static void not_oracle(mpz_t ze, mpz_t za, size_t size)
 {
@@ -119,30 +118,30 @@ static const char* op_name(LogicOp op)
 {
   switch (op) {
     case OP_AND:
-      return "bn_and";
+      return "rz_and";
     case OP_OR:
-      return "bn_or";
+      return "rz_or";
     case OP_XOR:
-      return "bn_xor";
+      return "rz_xor";
     case OP_NOT:
-      return "bn_not";
+      return "rz_not";
   }
   return "?";
 }
 
 static void run_case(LogicOp op, const char* a_str, const char* m_str)
 {
-  bignum a, m, res;
+  rz_t a, m, res;
   mpz_t za, zm, ze;
   char detail[256];
 
-  bn_init_multi(&a, &m, &res, NULL);
+  rz_init_multi(&a, &m, &res, NULL);
   mpz_inits(za, zm, ze, NULL);
 
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
   if (m_str != NULL) {
-    bn_init_val(&m, m_str);
+    rz_init_val(&m, m_str);
     mpz_set_str(zm, m_str, 10);
   }
 
@@ -152,59 +151,59 @@ static void run_case(LogicOp op, const char* a_str, const char* m_str)
   // non-aliased
   switch (op) {
     case OP_AND:
-      bn_and(&res, &a, &m);
+      rz_and(&res, &a, &m);
       mpz_and(ze, za, zm);
       break;
     case OP_OR:
-      bn_or(&res, &a, &m);
+      rz_or(&res, &a, &m);
       mpz_ior(ze, za, zm);
       break;
     case OP_XOR:
-      bn_xor(&res, &a, &m);
+      rz_xor(&res, &a, &m);
       mpz_xor(ze, za, zm);
       break;
     case OP_NOT:
-      bn_not(&res, &a);
+      rz_not(&res, &a);
       not_oracle(ze, za, a.size);
       break;
   }
   assert_logic_match(detail, a_str, m_str, &res, ze);
 
   // aliasing: result == a
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   snprintf(detail, sizeof(detail), "%s (r==a) a=%s m=%s", op_name(op), a_str,
            m_str ? m_str : "-");
   switch (op) {
     case OP_AND:
-      bn_and(&a, &a, &m);
+      rz_and(&a, &a, &m);
       break;
     case OP_OR:
-      bn_or(&a, &a, &m);
+      rz_or(&a, &a, &m);
       break;
     case OP_XOR:
-      bn_xor(&a, &a, &m);
+      rz_xor(&a, &a, &m);
       break;
     case OP_NOT:
-      bn_not(&a, &a);
+      rz_not(&a, &a);
       break;
   }
   assert_logic_match(detail, a_str, m_str, &a, ze);
 
   // aliasing: result == m
   if (m_str != NULL) {
-    bn_init_val(&a, a_str);  // r==a case left a holding the result
-    bn_init_val(&m, m_str);
+    rz_init_val(&a, a_str);  // r==a case left a holding the result
+    rz_init_val(&m, m_str);
     snprintf(detail, sizeof(detail), "%s (r==m) a=%s m=%s", op_name(op), a_str,
              m_str);
     switch (op) {
       case OP_AND:
-        bn_and(&m, &a, &m);
+        rz_and(&m, &a, &m);
         break;
       case OP_OR:
-        bn_or(&m, &a, &m);
+        rz_or(&m, &a, &m);
         break;
       case OP_XOR:
-        bn_xor(&m, &a, &m);
+        rz_xor(&m, &a, &m);
         break;
       case OP_NOT:
         break;
@@ -212,7 +211,7 @@ static void run_case(LogicOp op, const char* a_str, const char* m_str)
     assert_logic_match(detail, a_str, m_str, &m, ze);
   }
 
-  bn_free_multi(&a, &m, &res, NULL);
+  rz_clear_multi(&a, &m, &res, NULL);
   mpz_clears(za, zm, ze, NULL);
 }
 
@@ -294,52 +293,52 @@ static void run_random(gmp_randstate_t state)
     int bits_a = 1 + (rand() % 4096);
     int bits_m = 1 + (rand() % 4096);
 
-    bignum a, m, res;
+    rz_t a, m, res;
     mpz_t za, zm, ze;
     char* sa;
     char* sm;
     char detail[64];
 
-    bn_init_multi(&a, &m, &res, NULL);
+    rz_init_multi(&a, &m, &res, NULL);
     mpz_inits(za, zm, ze, NULL);
 
     mpz_urandomb(za, state, bits_a);  // non-negative
     mpz_urandomb(zm, state, bits_m);  // non-negative
     sa = mpz_get_str(NULL, 10, za);
     sm = mpz_get_str(NULL, 10, zm);
-    bn_init_val(&a, sa);
-    bn_init_val(&m, sm);
+    rz_init_val(&a, sa);
+    rz_init_val(&m, sm);
 
     // AND
-    bn_and(&res, &a, &m);
+    rz_and(&res, &a, &m);
     mpz_and(ze, za, zm);
     snprintf(detail, sizeof(detail), "case %d and (a=%d bits, m=%d bits)", i,
              bits_a, bits_m);
     assert_logic_match(detail, sa, sm, &res, ze);
 
     // OR
-    bn_or(&res, &a, &m);
+    rz_or(&res, &a, &m);
     mpz_ior(ze, za, zm);
     snprintf(detail, sizeof(detail), "case %d or (a=%d bits, m=%d bits)", i,
              bits_a, bits_m);
     assert_logic_match(detail, sa, sm, &res, ze);
 
     // XOR
-    bn_xor(&res, &a, &m);
+    rz_xor(&res, &a, &m);
     mpz_xor(ze, za, zm);
     snprintf(detail, sizeof(detail), "case %d xor (a=%d bits, m=%d bits)", i,
              bits_a, bits_m);
     assert_logic_match(detail, sa, sm, &res, ze);
 
     // NOT
-    bn_not(&res, &a);
+    rz_not(&res, &a);
     not_oracle(ze, za, a.size);
     snprintf(detail, sizeof(detail), "case %d not (a=%d bits)", i, bits_a);
     assert_logic_match(detail, sa, NULL, &res, ze);
 
     free(sa);
     free(sm);
-    bn_free_multi(&a, &m, &res, NULL);
+    rz_clear_multi(&a, &m, &res, NULL);
     mpz_clears(za, zm, ze, NULL);
   }
 
@@ -352,20 +351,20 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_m, bn_res;
+  rz_t rz_a, rz_m, rz_res;
   mpz_t mpz_a, mpz_m, mpz_mask, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_m, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_m, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_m, mpz_mask, mpz_res, NULL);
 
   mpz_urandomb(mpz_a, state, bits);
   mpz_urandomb(mpz_m, state, bits);
-  bn_init_val(&bn_a, mpz_get_str(NULL, 10, mpz_a));
-  bn_init_val(&bn_m, mpz_get_str(NULL, 10, mpz_m));
+  rz_init_val(&rz_a, mpz_get_str(NULL, 10, mpz_a));
+  rz_init_val(&rz_m, mpz_get_str(NULL, 10, mpz_m));
 
-  // Width-limited mask for the bn_not GMP baseline: 2^(64*size) - 1
+  // Width-limited mask for the rz_not GMP baseline: 2^(64*size) - 1
   mpz_set_ui(mpz_mask, 1);
-  mpz_mul_2exp(mpz_mask, mpz_mask, 64 * bn_a.size);
+  mpz_mul_2exp(mpz_mask, mpz_mask, 64 * rz_a.size);
   mpz_sub_ui(mpz_mask, mpz_mask, 1);
 
   struct timespec start, end;
@@ -375,7 +374,7 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   // AND
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_and(&bn_res, &bn_a, &bn_m);
+    rz_and(&rz_res, &rz_a, &rz_m);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -390,12 +389,12 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   mpz_and(mpz_res, mpz_a, mpz_m);
-  assert_logic_match("bn_and (benchmark)", "(bench input)", "(bench input)",
-                     &bn_res, mpz_res);
+  assert_logic_match("rz_and (benchmark)", "(bench input)", "(bench input)",
+                     &rz_res, mpz_res);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_and", size_info, total_custom / ops_custom,
+  print_table_row("rz_and", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
   ops_custom = 0;
@@ -406,7 +405,7 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   // OR
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_or(&bn_res, &bn_a, &bn_m);
+    rz_or(&rz_res, &rz_a, &rz_m);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -421,9 +420,9 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   mpz_ior(mpz_res, mpz_a, mpz_m);
-  assert_logic_match("bn_or (benchmark)", "(bench input)", "(bench input)",
-                     &bn_res, mpz_res);
-  print_table_row("bn_or", size_info, total_custom / ops_custom,
+  assert_logic_match("rz_or (benchmark)", "(bench input)", "(bench input)",
+                     &rz_res, mpz_res);
+  print_table_row("rz_or", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
   ops_custom = 0;
@@ -434,7 +433,7 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   // XOR
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_xor(&bn_res, &bn_a, &bn_m);
+    rz_xor(&rz_res, &rz_a, &rz_m);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -449,9 +448,9 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   mpz_xor(mpz_res, mpz_a, mpz_m);
-  assert_logic_match("bn_xor (benchmark)", "(bench input)", "(bench input)",
-                     &bn_res, mpz_res);
-  print_table_row("bn_xor", size_info, total_custom / ops_custom,
+  assert_logic_match("rz_xor (benchmark)", "(bench input)", "(bench input)",
+                     &rz_res, mpz_res);
+  print_table_row("rz_xor", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
   ops_custom = 0;
@@ -462,7 +461,7 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   // NOT (GMP baseline: width-limited complement via XOR with the mask)
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_not(&bn_res, &bn_a);
+    rz_not(&rz_res, &rz_a);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -477,12 +476,12 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   mpz_xor(mpz_res, mpz_mask, mpz_a);
-  assert_logic_match("bn_not (benchmark)", "(bench input)", "(n/a)", &bn_res,
+  assert_logic_match("rz_not (benchmark)", "(bench input)", "(n/a)", &rz_res,
                      mpz_res);
-  print_table_row("bn_not", size_info, total_custom / ops_custom,
+  print_table_row("rz_not", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_m, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_m, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_m, mpz_mask, mpz_res, NULL);
 }
 
@@ -507,7 +506,7 @@ int main()
   gmp_randseed_ui(state, (unsigned long)time(NULL));
   srand((unsigned int)time(NULL));
 
-  printf("AVX-512 path: %s\n", bn_supports_avx512() ? "enabled" : "disabled");
+  printf("AVX-512 path: %s\n", rz_supports_avx512() ? "enabled" : "disabled");
 
   run_edge_cases();
   run_random(state);

@@ -1,7 +1,7 @@
 /*
  * test_log_2.c
  *
- * Unified GMP-verified test suite for bn_log_2.
+ * Unified GMP-verified test suite for rz_log_2.
  *
  *   1. Edge cases: 0, 1, 2, powers of two, 2^64-1 / 2^64 boundaries
  *   2. 1000 randomized cases (1..4096 bits) vs mpz_sizeinbase(a, 2) - 1
@@ -17,7 +17,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -57,7 +57,7 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
 }
 
 // floor(log2(a)) for a > 0 equals GMP's bit length minus one
-void assert_log2_match(const char* op, const char* a_str, const bignum* r,
+void assert_log2_match(const char* op, const char* a_str, const rz_t* r,
                        mpz_t a)
 {
   mpz_t expected;
@@ -65,7 +65,7 @@ void assert_log2_match(const char* op, const char* a_str, const bignum* r,
   mpz_set_ui(expected, (size_t)mpz_sizeinbase(a, 2) - 1);
 
   char* exp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(r);
+  char* custom_str = rz_to_string(r);
 
   if (strcmp(exp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -95,49 +95,49 @@ char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str)
 {
-  bignum a, res;
+  rz_t a, res;
   mpz_t za;
   char detail[256];
 
-  bn_init_multi(&a, &res, NULL);
+  rz_init_multi(&a, &res, NULL);
   mpz_init(za);
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_log_2 [%s] a=%s", name, a_str);
+  snprintf(detail, sizeof(detail), "rz_log_2 [%s] a=%s", name, a_str);
 
   // non-aliased
-  bn_log_2(&res, &a);
+  rz_log_2(&res, &a);
   assert_log2_match(detail, a_str, &res, za);
 
   // aliasing: result == a (safe: a is fully read before r is written)
-  bn_init_val(&a, a_str);
-  bn_log_2(&a, &a);
-  assert_log2_match("bn_log_2 (r==a)", a_str, &a, za);
+  rz_init_val(&a, a_str);
+  rz_log_2(&a, &a);
+  assert_log2_match("rz_log_2 (r==a)", a_str, &a, za);
 
-  bn_free_multi(&a, &res, NULL);
+  rz_clear_multi(&a, &res, NULL);
   mpz_clear(za);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_log_2: edge cases ---\n");
+  printf("\n--- rz_log_2: edge cases ---\n");
 
   // a = 0: r must be left unchanged
   {
-    bignum a, res;
-    bn_init_multi(&a, &res, NULL);
-    bn_init_val(&a, "0");
-    bn_set_u64(&res, 12345);
-    bn_log_2(&res, &a);
-    if (!bn_is_eq_i64(&res, 12345)) {
+    rz_t a, res;
+    rz_init_multi(&a, &res, NULL);
+    rz_init_val(&a, "0");
+    rz_set_u64(&res, 12345);
+    rz_log_2(&res, &a);
+    if (!rz_is_eq_i64(&res, 12345)) {
       fprintf(stderr,
-              "\n[FATAL ERROR] bn_log_2(0) must leave r unchanged, r=%s\n",
-              bn_to_string(&res));
-      bn_free_multi(&a, &res, NULL);
+              "\n[FATAL ERROR] rz_log_2(0) must leave r unchanged, r=%s\n",
+              rz_to_string(&res));
+      rz_clear_multi(&a, &res, NULL);
       exit(EXIT_FAILURE);
     }
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
   }
 
   run_case("one", "1");
@@ -173,26 +173,26 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_log_2: %d randomized cases vs GMP ---\n", FUZZ_ITERATIONS);
+  printf("\n--- rz_log_2: %d randomized cases vs GMP ---\n", FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za;
     char* sa;
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_init(za);
 
     sa = random_mpz_str(za, bits, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
 
-    bn_log_2(&res, &a);
-    assert_log2_match("bn_log_2 (random)", sa, &res, za);
+    rz_log_2(&res, &a);
+    assert_log2_match("rz_log_2 (random)", sa, &res, za);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clear(za);
   }
 
@@ -205,14 +205,14 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_log2(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_res;
+  rz_t rz_a, rz_res;
   mpz_t mpz_a;
 
-  bn_init_multi(&bn_a, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_res, NULL);
   mpz_init(mpz_a);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
 
   struct timespec start, end;
@@ -221,7 +221,7 @@ static void benchmark_log2(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_log_2(&bn_res, &bn_a);
+    rz_log_2(&rz_res, &rz_a);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -236,14 +236,14 @@ static void benchmark_log2(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_log2_match("bn_log_2 (benchmark)", "(bench input)", &bn_res, mpz_a);
+  assert_log2_match("rz_log_2 (benchmark)", "(bench input)", &rz_res, mpz_a);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_log_2", size_info, total_custom / ops_custom,
+  print_table_row("rz_log_2", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_res, NULL);
   mpz_clear(mpz_a);
 }
 

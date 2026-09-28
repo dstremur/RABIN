@@ -1,7 +1,7 @@
 /*
  * test_add_u64.c
  *
- * Unified GMP-verified test suite for bn_add_u64.
+ * Unified GMP-verified test suite for rz_add_u64.
  *
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries, u64 max addend,
  *      sign flips + pointer aliasing (r == a)
@@ -19,7 +19,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -58,11 +58,11 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
          size_info, avg_custom, avg_gmp, ratio);
 }
 
-void assert_match(const char* op, const char* a_str, uint64_t b,
-                  const bignum* bn, mpz_t expected)
+void assert_match(const char* op, const char* a_str, uint64_t b, const rz_t* bn,
+                  mpz_t expected)
 {
   char* gmp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(bn);
+  char* custom_str = rz_to_string(bn);
 
   if (strcmp(gmp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -103,35 +103,35 @@ static uint64_t random_u64(gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, uint64_t b)
 {
-  bignum a, res;
+  rz_t a, res;
   mpz_t za, zr;
   char detail[256];
 
-  bn_init_multi(&a, &res, NULL);
+  rz_init_multi(&a, &res, NULL);
   mpz_inits(za, zr, NULL);
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_add_u64 [%s] a=%s b=%llu", name, a_str,
+  snprintf(detail, sizeof(detail), "rz_add_u64 [%s] a=%s b=%llu", name, a_str,
            (unsigned long long)b);
 
   // non-aliased
-  bn_add_u64(&res, &a, b);
+  rz_add_u64(&res, &a, b);
   mpz_add_ui(zr, za, (unsigned long)b);
   assert_match(detail, a_str, b, &res, zr);
 
   // aliasing: r == a
-  bn_init_val(&a, a_str);
-  bn_add_u64(&a, &a, b);
-  assert_match("bn_add_u64 (r==a)", a_str, b, &a, zr);
+  rz_init_val(&a, a_str);
+  rz_add_u64(&a, &a, b);
+  assert_match("rz_add_u64 (r==a)", a_str, b, &a, zr);
 
-  bn_free_multi(&a, &res, NULL);
+  rz_clear_multi(&a, &res, NULL);
   mpz_clears(za, zr, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_add_u64: edge cases ---\n");
+  printf("\n--- rz_add_u64: edge cases ---\n");
 
   run_case("zero + zero", "0", 0);
   run_case("zero + one", "0", 1);
@@ -156,32 +156,32 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_add_u64: %d randomized cases vs mpz_add_ui ---\n",
+  printf("\n--- rz_add_u64: %d randomized cases vs mpz_add_ui ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
     uint64_t b = random_u64(state);
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za, zr;
     char* sa;
     char detail[64];
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_inits(za, zr, NULL);
 
     sa = random_a(za, bits, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
 
-    bn_add_u64(&res, &a, b);
+    rz_add_u64(&res, &a, b);
     mpz_add_ui(zr, za, (unsigned long)b);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits)", i, bits);
     assert_match(detail, sa, b, &res, zr);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clears(za, zr, NULL);
   }
 
@@ -196,14 +196,14 @@ static void benchmark_add_u64(int bits, double target_sec,
                               gmp_randstate_t state)
 {
   const uint64_t b = 0x9e3779b97f4a7c15ULL;
-  bignum bn_a, bn_res;
+  rz_t rz_a, rz_res;
   mpz_t mpz_a, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_res, NULL);
 
   char* sa = random_a(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
 
   struct timespec start, end;
@@ -212,7 +212,7 @@ static void benchmark_add_u64(int bits, double target_sec,
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_add_u64(&bn_res, &bn_a, b);
+    rz_add_u64(&rz_res, &rz_a, b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -230,15 +230,15 @@ static void benchmark_add_u64(int bits, double target_sec,
   mpz_t expected;
   mpz_init(expected);
   mpz_add_ui(expected, mpz_a, (unsigned long)b);
-  assert_match("bn_add_u64 (benchmark)", "(bench input)", b, &bn_res, expected);
+  assert_match("rz_add_u64 (benchmark)", "(bench input)", b, &rz_res, expected);
   mpz_clear(expected);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_add_u64", size_info, total_custom / ops_custom,
+  print_table_row("rz_add_u64", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_res, NULL);
 }
 

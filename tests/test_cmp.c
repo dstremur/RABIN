@@ -1,7 +1,7 @@
 /*
  * test_cmp.c
  *
- * Unified GMP-verified test suite for bn_cmp.
+ * Unified GMP-verified test suite for rz_cmp.
  *
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries + pointer aliasing
  *   2. 1000 randomized cases (1..4096 bits) vs mpz_cmp
@@ -17,7 +17,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -84,28 +84,28 @@ char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str, const char* b_str)
 {
-  bignum a, b;
+  rz_t a, b;
   mpz_t za, zb;
   char detail[256];
 
-  bn_init_multi(&a, &b, NULL);
+  rz_init_multi(&a, &b, NULL);
   mpz_inits(za, zb, NULL);
-  bn_init_val(&a, a_str);
-  bn_init_val(&b, b_str);
+  rz_init_val(&a, a_str);
+  rz_init_val(&b, b_str);
   mpz_set_str(za, a_str, 10);
   mpz_set_str(zb, b_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_cmp [%s] a=%s b=%s", name, a_str, b_str);
+  snprintf(detail, sizeof(detail), "rz_cmp [%s] a=%s b=%s", name, a_str, b_str);
 
-  assert_cmp_match(detail, a_str, b_str, bn_cmp(&a, &b), mpz_cmp(za, zb));
+  assert_cmp_match(detail, a_str, b_str, rz_cmp(&a, &b), mpz_cmp(za, zb));
 
-  bn_free_multi(&a, &b, NULL);
+  rz_clear_multi(&a, &b, NULL);
   mpz_clears(za, zb, NULL);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_cmp: edge cases ---\n");
+  printf("\n--- rz_cmp: edge cases ---\n");
   run_case("zeros", "0", "0");
   run_case("one vs zero", "1", "0");
   run_case("zero vs one", "0", "1");
@@ -127,18 +127,18 @@ static void run_edge_cases()
 
   // aliasing: a == b must compare equal (0)
   {
-    bignum a;
+    rz_t a;
     mpz_t za;
-    bn_init(&a);
+    rz_init(&a);
     mpz_init(za);
-    bn_init_val(&a, "18446744073709551615");
+    rz_init_val(&a, "18446744073709551615");
     mpz_set_str(za, "18446744073709551615", 10);
-    if (bn_cmp(&a, &a) != 0) {
-      fprintf(stderr, "\n[FATAL ERROR] bn_cmp(&a, &a) must be 0, got %d\n",
-              bn_cmp(&a, &a));
+    if (rz_cmp(&a, &a) != 0) {
+      fprintf(stderr, "\n[FATAL ERROR] rz_cmp(&a, &a) must be 0, got %d\n",
+              rz_cmp(&a, &a));
       exit(EXIT_FAILURE);
     }
-    bn_free(&a);
+    rz_clear(&a);
     mpz_clear(za);
     printf("aliasing (a==b) passed\n");
   }
@@ -154,33 +154,33 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_cmp: %d randomized cases vs mpz_cmp ---\n", FUZZ_ITERATIONS);
+  printf("\n--- rz_cmp: %d randomized cases vs mpz_cmp ---\n", FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits_a = 1 + (rand() % 4096);
     int bits_b = 1 + (rand() % 4096);
 
-    bignum a, b;
+    rz_t a, b;
     mpz_t za, zb;
     char* sa;
     char* sb;
     char detail[128];
 
-    bn_init_multi(&a, &b, NULL);
+    rz_init_multi(&a, &b, NULL);
     mpz_inits(za, zb, NULL);
 
     sa = random_mpz_str(za, bits_a, state);
     sb = random_mpz_str(zb, bits_b, state);
-    bn_init_val(&a, sa);
-    bn_init_val(&b, sb);
+    rz_init_val(&a, sa);
+    rz_init_val(&b, sb);
 
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
              bits_a, bits_b);
-    assert_cmp_match(detail, sa, sb, bn_cmp(&a, &b), mpz_cmp(za, zb));
+    assert_cmp_match(detail, sa, sb, rz_cmp(&a, &b), mpz_cmp(za, zb));
 
     free(sa);
     free(sb);
-    bn_free_multi(&a, &b, NULL);
+    rz_clear_multi(&a, &b, NULL);
     mpz_clears(za, zb, NULL);
   }
 
@@ -193,16 +193,16 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_cmp(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_b;
+  rz_t rz_a, rz_b;
   mpz_t mpz_a, mpz_b;
 
-  bn_init_multi(&bn_a, &bn_b, NULL);
+  rz_init_multi(&rz_a, &rz_b, NULL);
   mpz_inits(mpz_a, mpz_b, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
   char* sb = random_mpz_str(mpz_b, bits, state);
-  bn_init_val(&bn_a, sa);
-  bn_init_val(&bn_b, sb);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_b, sb);
   free(sa);
   free(sb);
 
@@ -214,7 +214,7 @@ static void benchmark_cmp(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    last_custom = bn_cmp(&bn_a, &bn_b);
+    last_custom = rz_cmp(&rz_a, &rz_b);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -231,16 +231,16 @@ static void benchmark_cmp(int bits, double target_sec, gmp_randstate_t state)
   // Validate correctness before reporting
   if ((last_custom < 0) != (last_gmp < 0) ||
       (last_custom > 0) != (last_gmp > 0)) {
-    fprintf(stderr, "\n[FATAL ERROR] bn_cmp mismatch in benchmark!\n");
+    fprintf(stderr, "\n[FATAL ERROR] rz_cmp mismatch in benchmark!\n");
     exit(EXIT_FAILURE);
   }
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_cmp", size_info, total_custom / ops_custom,
+  print_table_row("rz_cmp", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_b, NULL);
+  rz_clear_multi(&rz_a, &rz_b, NULL);
   mpz_clears(mpz_a, mpz_b, NULL);
 }
 

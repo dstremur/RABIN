@@ -1,7 +1,7 @@
 /*
  * test_isqrt.c
  *
- * Unified GMP-verified test suite for bn_isqrt.
+ * Unified GMP-verified test suite for rz_isqrt.
  *
  *   1. Edge cases: 0, 1, perfect squares, 2^64-1 / 2^64 boundaries,
  *      negative input (r left unchanged) + pointer aliasing
@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 // =============================================================================
 // HELPERS & VALIDATION
@@ -57,7 +57,7 @@ void print_table_row(const char* op, const char* size_info, double avg_custom,
          size_info, avg_custom, avg_gmp, ratio);
 }
 
-void assert_isqrt_match(const char* op, const char* a_str, const bignum* r,
+void assert_isqrt_match(const char* op, const char* a_str, const rz_t* r,
                         mpz_t a)
 {
   mpz_t expected;
@@ -65,7 +65,7 @@ void assert_isqrt_match(const char* op, const char* a_str, const bignum* r,
   mpz_sqrt(expected, a);
 
   char* exp_str = mpz_get_str(NULL, 10, expected);
-  char* custom_str = bn_to_string(r);
+  char* custom_str = rz_to_string(r);
 
   if (strcmp(exp_str, custom_str) != 0) {
     fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
@@ -95,50 +95,50 @@ char* random_mpz_str(mpz_t z, int bits, gmp_randstate_t state)
 
 static void run_case(const char* name, const char* a_str)
 {
-  bignum a, res;
+  rz_t a, res;
   mpz_t za;
   char detail[256];
 
-  bn_init_multi(&a, &res, NULL);
+  rz_init_multi(&a, &res, NULL);
   mpz_init(za);
-  bn_init_val(&a, a_str);
+  rz_init_val(&a, a_str);
   mpz_set_str(za, a_str, 10);
 
-  snprintf(detail, sizeof(detail), "bn_isqrt [%s] a=%s", name, a_str);
+  snprintf(detail, sizeof(detail), "rz_isqrt [%s] a=%s", name, a_str);
 
   // non-aliased
-  bn_isqrt(&res, &a);
+  rz_isqrt(&res, &a);
   assert_isqrt_match(detail, a_str, &res, za);
 
   // aliasing: result == a (safe: r is only written on the final copy)
-  bn_init_val(&a, a_str);
-  bn_isqrt(&a, &a);
-  assert_isqrt_match("bn_isqrt (r==a)", a_str, &a, za);
+  rz_init_val(&a, a_str);
+  rz_isqrt(&a, &a);
+  assert_isqrt_match("rz_isqrt (r==a)", a_str, &a, za);
 
-  bn_free_multi(&a, &res, NULL);
+  rz_clear_multi(&a, &res, NULL);
   mpz_clear(za);
 }
 
 static void run_edge_cases()
 {
-  printf("\n--- bn_isqrt: edge cases ---\n");
+  printf("\n--- rz_isqrt: edge cases ---\n");
 
   // a < 0: r must be left unchanged
   {
-    bignum a, res;
-    bn_init_multi(&a, &res, NULL);
-    bn_init_val(&a, "-123456789");
-    bn_set_u64(&res, 12345);
-    bn_isqrt(&res, &a);
-    if (!bn_is_eq_i64(&res, 12345)) {
+    rz_t a, res;
+    rz_init_multi(&a, &res, NULL);
+    rz_init_val(&a, "-123456789");
+    rz_set_u64(&res, 12345);
+    rz_isqrt(&res, &a);
+    if (!rz_is_eq_i64(&res, 12345)) {
       fprintf(stderr,
-              "\n[FATAL ERROR] bn_isqrt(negative) must leave r unchanged, "
+              "\n[FATAL ERROR] rz_isqrt(negative) must leave r unchanged, "
               "r=%s\n",
-              bn_to_string(&res));
-      bn_free_multi(&a, &res, NULL);
+              rz_to_string(&res));
+      rz_clear_multi(&a, &res, NULL);
       exit(EXIT_FAILURE);
     }
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
   }
 
   run_case("zero", "0");
@@ -174,27 +174,27 @@ static void run_edge_cases()
 
 static void run_random(gmp_randstate_t state)
 {
-  printf("\n--- bn_isqrt: %d randomized cases vs mpz_sqrt ---\n",
+  printf("\n--- rz_isqrt: %d randomized cases vs mpz_sqrt ---\n",
          FUZZ_ITERATIONS);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     int bits = 1 + (rand() % 4096);
 
-    bignum a, res;
+    rz_t a, res;
     mpz_t za;
     char* sa;
 
-    bn_init_multi(&a, &res, NULL);
+    rz_init_multi(&a, &res, NULL);
     mpz_init(za);
 
     sa = random_mpz_str(za, bits, state);
-    bn_init_val(&a, sa);
+    rz_init_val(&a, sa);
 
-    bn_isqrt(&res, &a);
-    assert_isqrt_match("bn_isqrt (random)", sa, &res, za);
+    rz_isqrt(&res, &a);
+    assert_isqrt_match("rz_isqrt (random)", sa, &res, za);
 
     free(sa);
-    bn_free_multi(&a, &res, NULL);
+    rz_clear_multi(&a, &res, NULL);
     mpz_clear(za);
   }
 
@@ -207,14 +207,14 @@ static void run_random(gmp_randstate_t state)
 
 static void benchmark_isqrt(int bits, double target_sec, gmp_randstate_t state)
 {
-  bignum bn_a, bn_res;
+  rz_t rz_a, rz_res;
   mpz_t mpz_a, mpz_res;
 
-  bn_init_multi(&bn_a, &bn_res, NULL);
+  rz_init_multi(&rz_a, &rz_res, NULL);
   mpz_inits(mpz_a, mpz_res, NULL);
 
   char* sa = random_mpz_str(mpz_a, bits, state);
-  bn_init_val(&bn_a, sa);
+  rz_init_val(&rz_a, sa);
   free(sa);
 
   struct timespec start, end;
@@ -223,7 +223,7 @@ static void benchmark_isqrt(int bits, double target_sec, gmp_randstate_t state)
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   do {
-    bn_isqrt(&bn_res, &bn_a);
+    rz_isqrt(&rz_res, &rz_a);
     ops_custom++;
     clock_gettime(CLOCK_MONOTONIC, &end);
     total_custom = get_elapsed_time(start, end);
@@ -238,14 +238,14 @@ static void benchmark_isqrt(int bits, double target_sec, gmp_randstate_t state)
   } while (total_gmp < target_sec);
 
   // Validate correctness before reporting
-  assert_isqrt_match("bn_isqrt (benchmark)", "(bench input)", &bn_res, mpz_a);
+  assert_isqrt_match("rz_isqrt (benchmark)", "(bench input)", &rz_res, mpz_a);
 
   char size_info[32];
   snprintf(size_info, sizeof(size_info), "%d bits", bits);
-  print_table_row("bn_isqrt", size_info, total_custom / ops_custom,
+  print_table_row("rz_isqrt", size_info, total_custom / ops_custom,
                   total_gmp / ops_gmp);
 
-  bn_free_multi(&bn_a, &bn_res, NULL);
+  rz_clear_multi(&rz_a, &rz_res, NULL);
   mpz_clears(mpz_a, mpz_res, NULL);
 }
 

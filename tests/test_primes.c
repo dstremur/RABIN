@@ -3,7 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../include/bignum.h"
+#include "../include/rabin.h"
 
 #define ITERATIONS 1000
 
@@ -12,8 +12,8 @@ int main()
   int num_to_generate = 1;
   int bits = 2048;
 
-  bignum p;
-  bn_init(&p);
+  rz_t p;
+  rz_init(&p);
 
   printf("Benchmarking: Generating %d primes at %d-bits...\n", num_to_generate,
          bits);
@@ -25,7 +25,7 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    if (bn_gen_prime(&p, bits)) {
+    if (rz_gen_prime(&p, bits) == RABIN_SUCCESS) {
       clock_gettime(CLOCK_MONOTONIC, &end);
 
       double elapsed =
@@ -43,7 +43,7 @@ int main()
   printf("Average Time: %.4f seconds per prime\n",
          total_time / num_to_generate);
 
-  printf("Benchmarking bn_gen_prime base cases...\n");
+  printf("Benchmarking rz_gen_prime base cases...\n");
   printf("-------------------------------------------------\n");
   printf("%-10s | %-15s | %-15s\n", "Bit Len", "Total Time (s)",
          "Avg Time (s)");
@@ -56,7 +56,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     for (int j = 0; j < ITERATIONS; j++) {
-      if (bn_gen_prime(&p, i)) {
+      if (rz_gen_prime(&p, i) == RABIN_SUCCESS) {
         success_count++;
       }
     }
@@ -76,6 +76,6 @@ int main()
     }
   }
 
-  bn_free(&p);
+  rz_clear(&p);
   return 0;
 }
