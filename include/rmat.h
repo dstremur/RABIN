@@ -69,7 +69,7 @@ rabin_err_t rmat_print_python(const rmat_t* A);
  *
  * Let \f$r =\f$ A->rows, \f$c =\f$ A->cols.
  *
- * No-op if the dimensions do not match.
+ * Returns RABIN_ERR_MATRIX_DIM if the dimensions do not match.
  *
  * Complexity:
  *   - Time: \f$O(r \cdot c \cdot n)\f$ where \f$n =\f$ the size of the entries
@@ -87,7 +87,7 @@ rabin_err_t rmat_copy(rmat_t* R, const rmat_t* A);
 /**
  * @brief Get a single element: \f$R = A[r][c]\f$.
  *
- * No-op if (r, c) is out of range.
+ * Returns RABIN_ERR_INVALID_ARG if (r, c) is out of range.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of the entry in limbs
@@ -106,7 +106,7 @@ rabin_err_t rmat_get(rz_t* R, const rmat_t* A, u64 r, u64 c);
 /**
  * @brief Set a single element: \f$A[r][c] = a\f$.
  *
- * No-op if (r, c) is out of range.
+ * Returns RABIN_ERR_INVALID_ARG if (r, c) is out of range.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of \f$a\f$ in limbs
@@ -125,8 +125,8 @@ rabin_err_t rmat_set(rmat_t* A, const rz_t* a, u64 r, u64 c);
 /**
  * @brief Extract a column into a vector: \f$c = A[:, col]\f$.
  *
- * The vector \f$c\f$ must already be allocated with rows elements; a
- * size mismatch is reported but not fatal.
+ * The vector \f$c\f$ must already be allocated with \f$A->rows\f$ elements;
+ * a size mismatch returns RABIN_ERR_MATRIX_DIM.
  *
  * Complexity:
  *   - Time: \f$O(r \cdot n)\f$ where \f$n =\f$ the size of the entries in limbs
@@ -144,8 +144,8 @@ rabin_err_t rmat_get_col(rvec_t* c, const rmat_t* A, u64 col);
 /**
  * @brief Extract a row into a vector: \f$r = A[row, :]\f$.
  *
- * The vector \f$r\f$ must already be allocated with cols elements; a
- * size mismatch is reported but not fatal.
+ * The vector \f$r\f$ must already be allocated with \f$A->cols\f$ elements;
+ * a size mismatch returns RABIN_ERR_MATRIX_DIM.
  *
  * Complexity:
  *   - Time: \f$O(c \cdot n)\f$ where \f$n =\f$ the size of the entries in limbs
@@ -395,6 +395,10 @@ rabin_err_t rmat_vm(rvec_t* r, const rmat_t* A, rvec_t* v);
  * @param[in]  A Matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * J. Hadamard, "Note sur les Determinants," Comptes Rendus de l'Academie
+ * des Sciences, vol. 117, 1893.
  */
 rabin_err_t rmat_hadamard(rz_t* r, const rmat_t* A);
 
@@ -403,7 +407,7 @@ rabin_err_t rmat_hadamard(rz_t* r, const rmat_t* A);
  *
  * Let \f$r =\f$ A->rows, \f$c =\f$ A->cols.
  *
- * No-op if the dimensions do not match.
+ * Returns RABIN_ERR_MATRIX_DIM if the dimensions do not match.
  *
  * Complexity:
  *   - Time: \f$O(r \cdot c \cdot n)\f$ where \f$n =\f$ the size of the entries
@@ -508,7 +512,7 @@ rabin_err_t rmat_print_tail(const rmat_t* A);
  *
  * Let \f$r =\f$ A->rows, \f$k =\f$ A->cols, \f$c =\f$ B->cols.
  *
- * No-op if A->cols != B->rows.
+ * Returns RABIN_ERR_MATRIX_DIM if \f$A->cols \neq B->rows\f$.
  *
  * Complexity:
  *   - Time: \f$O(r \cdot k \cdot c \cdot n^2)\f$ where \f$n =\f$ the size of
@@ -529,17 +533,11 @@ rabin_err_t rmat_mul(rmat_t* R, const rmat_t* A, const rmat_t* B);
  *
  * Let \f$n =\f$ A->cols.
  *
- * Currently delegates to the RNS path: estimates the number of primes
- * from the Hadamard bound, builds an RNS context over the first \f$k\f$
- * primes, and reconstructs the determinant with the CRT.
- *
- * The code after the early return is a direct Bareiss (fraction-free
- * Gaussian elimination) implementation, currently disabled ("broken").
- *
- * Optimization ideas for the Bareiss path: use exact division, better
- * cache locality, preallocate using the Hadamard bound, OpenMP,
- * compute mod primes larger than the Hadamard bound and reconstruct
- * with the CRT, or use Jebelean's algorithm.
+ * Delegates to the RNS path: estimates the number of primes from the
+ * Hadamard bound, builds an RNS context over the first \f$k\f$ primes
+ * (rns_ctx_init()), and reconstructs the determinant with the CRT
+ * (rmat_det_rns()). For a direct exact-arithmetic determinant see
+ * rmat_det_bareiss().
  *
  * Complexity:
  *   - Time: \f$O(k \cdot n^3)\f$ for the RNS determinants (parallel over k),
@@ -577,17 +575,30 @@ rabin_err_t rmat_det(rz_t* d, const rmat_t* A);
  * @param[in]  A Square matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. H. Bareiss, "A Division-Free Analogue of the Gaussian Algorithm
+ * for Solving Linear Systems of Linear Equations," Numerische
+ * Mathematik, vol. 22, no. 2, 1974.
  * @see rmat_det()
  */
 rabin_err_t rmat_det_bareiss(rz_t* det, const rmat_t* A);
 
 /**
- * @brief Returns the identity matrix
+ * @brief Set an \f$n \times n\f$ matrix to the identity matrix.
  *
- * @param I
- * @param n
+ * Stores 1 on the main diagonal and 0 elsewhere. The matrix must already
+ * be initialized with dimensions \f$n \times n\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[in,out] I Matrix to set (already initialized to \f$n \times n\f$).
+ * @param[in]     n Matrix dimension.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_OUT_OF_MEMORY, or RABIN_ERR_MATRIX_DIM.
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rmat_id(rmat_t* I, const u64 n);
 
@@ -663,18 +674,30 @@ rabin_err_t rmat_trace(rz_t* t, const rmat_t* A);
  * @param[in]  A Square matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * V. P. Danilevsky, "On a Method of Calculating the Eigenvectors of a
+ * Matrix," Uch. Zap. LGU, ser. Mat. Fiz. Khim. Nauk, no. 17, 1966.
  */
 rabin_err_t rmat_charpoly_adj(rpol_t* p, rmat_t* J, const rmat_t* A);
 
 /**
- * @brief Compute the LLL algorithm on the basis matrix B
+ * @brief Compute the LLL-reduced basis of the lattice spanned by the
+ * columns of B.
  *
  * @note TODO: Not yet implemented (placeholder declaration).
  *
- * @param B
- * @param n
- * @param delta
- * @param H
+ * @param[in,out] B Basis matrix.
+ * @param[in]     n Number of basis vectors.
+ * @param[in]     delta LLL parameter (\f$0 < \delta \le 1\f$, typically
+ *                      \f$0.75\f$).
+ * @param[out]    H Matrix receiving the LLL-reduced basis.
+ * @return RABIN_SUCCESS on success, or an appropriate error code (e.g.
+ * RABIN_ERR_OUT_OF_MEMORY).
+ *
+ * @par Algorithm Reference:
+ * H. W. Lenstra, H. W. Lenstra, and L. Lovasz, "Factoring Polynomials
+ * in Polynomial Time," Mathematics with the IBM 3090 Computer, 1982.
  */
 rabin_err_t rmat_LLL(rmat_t* B, u64 n, double delta, rmat_t* H);
 
@@ -692,6 +715,11 @@ rabin_err_t rmat_LLL(rmat_t* B, u64 n, double delta, rmat_t* H);
  * @param[in]  A Input matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, Algorithm 2.4.4.
+ * @see rmat_hermite_gcd(), rmat_hermite_mod_d()
  */
 rabin_err_t rmat_hermite(rmat_t* W, const rmat_t* A);
 
@@ -715,6 +743,11 @@ rabin_err_t rmat_hermite(rmat_t* W, const rmat_t* A);
  * @param[in]  A Input matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, Algorithm 2.4.5.
+ * @see rmat_hermite(), rmat_hermite_mod_d()
  */
 rabin_err_t rmat_hermite_gcd(rmat_t* W, const rmat_t* A);
 
@@ -756,6 +789,12 @@ rabin_err_t rmat_hermite_gcd(rmat_t* W, const rmat_t* A);
  * @param[in]  D Positive multiple of the module determinant.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, Algorithm 2.4.8 (based on the method
+ * of Domich, Klee, and Wets).
+ * @see rmat_hermite(), rmat_hermite_gcd()
  */
 rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D);
 

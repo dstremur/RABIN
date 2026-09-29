@@ -65,9 +65,9 @@ rabin_err_t rvec_clear(rvec_t* a);
  * @brief Append a copy of a rz_t to a dynamic vector.
  *
  * Only allowed on vectors created with rvec_init_dynamic();
- * otherwise an error is printed and nothing happens. If the capacity
- * is exhausted it is doubled (starting at 4) via realloc and the new
- * slots are initialized to zero bignums.
+ * otherwise RABIN_ERR_INVALID_ARG is returned and nothing happens. If the
+ * capacity is exhausted it is doubled (starting at 4) via realloc and the
+ * new slots are initialized to zero bignums.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of \f$a\f$ in limbs, amortized
@@ -83,19 +83,28 @@ rabin_err_t rvec_clear(rvec_t* a);
 rabin_err_t rvec_append(rvec_t* v, const rz_t* a);
 
 /**
- * @brief Copy vector b into a
+ * @brief Deep-copy vector \f$b\f$ into \f$a\f$.
  *
- * @param [out] a
- * @param [in] b
+ * The vectors must have the same number of elements; each element of
+ * \f$b\f$ is deep-copied into the corresponding element of \f$a\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n)\f$ where \f$d =\f$ the size and \f$n =\f$ the
+ * element size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(d)\f$ bignums
+ *
+ * @param[out] a Destination vector.
+ * @param[in]  b Source vector.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_OUT_OF_MEMORY, or RABIN_ERR_MATRIX_DIM.
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rvec_copy(rvec_t* a, const rvec_t* b);
 
 /**
  * @brief Set element i of a vector to a copy of v.
  *
- * No-op if i is out of range.
+ * Returns RABIN_ERR_INVALID_ARG if \f$i\f$ is out of range.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of \f$v\f$ in limbs
@@ -115,8 +124,8 @@ rabin_err_t rvec_set(rvec_t* a, const rz_t* v, u64 i);
  *
  * Let \f$d =\f$ a->size.
  *
- * No-op if the sizes differ. \f$r\f$ must have capacity for at least \f$d\f$
- * elements.
+ * Returns RABIN_ERR_MATRIX_DIM if the sizes differ or \f$r\f$ has less
+ * than \f$d\f$ elements.
  *
  * Complexity:
  *   - Time: \f$O(d \cdot n)\f$ where \f$n =\f$ the size of the elements in
@@ -137,8 +146,8 @@ rabin_err_t rvec_add(rvec_t* r, const rvec_t* a, const rvec_t* b);
  *
  * Let \f$d =\f$ a->size.
  *
- * No-op if the sizes differ. \f$r\f$ must have capacity for at least \f$d\f$
- * elements.
+ * Returns RABIN_ERR_MATRIX_DIM if the sizes differ or \f$r\f$ has less
+ * than \f$d\f$ elements.
  *
  * Complexity:
  *   - Time: \f$O(d \cdot n)\f$ where \f$n =\f$ the size of the elements in
@@ -159,9 +168,9 @@ rabin_err_t rvec_sub(rvec_t* r, const rvec_t* a, const rvec_t* b);
  *
  * Let \f$d =\f$ a->size.
  *
- * Only defined for static vectors (an error is printed for dynamic
- * ones). Computes the dot product of \f$a\f$ with itself and takes the
- * integer square root.
+ * Only defined for static vectors (RABIN_ERR_INVALID_ARG is returned for
+ * dynamic ones). Computes the dot product of \f$a\f$ with itself and takes
+ * the integer square root.
  *
  * Complexity:
  *   - Time: \f$O(d \cdot n^2)\f$ where n is the size of the elements in limbs,
@@ -181,8 +190,8 @@ rabin_err_t rvec_norm(rz_t* r, const rvec_t* a);
  *
  * Let \f$d =\f$ a->size.
  *
- * Only defined for static vectors (an error is printed for dynamic
- * ones); no-op if the sizes differ.
+ * Only defined for static vectors (RABIN_ERR_INVALID_ARG is returned for
+ * dynamic ones); RABIN_ERR_MATRIX_DIM if the sizes differ.
  *
  * Complexity:
  *   - Time: \f$O(d \cdot n^2)\f$ where n is the size of the elements in limbs

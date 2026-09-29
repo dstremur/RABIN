@@ -8,7 +8,7 @@
 /**
  * @brief Trial-divide n against the prime table up to the bound g.
  *
- * Returns false if any prime \f$p < g\f$ (up to 50000 table entries)
+ * Returns false if any prime \f$p \le g\f$ (up to 50000 table entries)
  * divides \f$n\f$, true if no such divisor was found.
  *
  * Complexity:
@@ -17,11 +17,11 @@
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(1)\f$
  *
- * @param[in,out] n Number to trial-divide (reduced in place).
- * @param[in]     g Upper bound on the trial primes.
+ * @param[in] n Number to trial-divide.
+ * @param[in] g Upper bound on the trial primes.
  *
- * @return true  If no prime \f$p < g\f$ divides \f$n\f$.
- * @return false If a prime \f$p < g\f$ divides \f$n\f$.
+ * @return true  If no prime \f$p \le g\f$ divides \f$n\f$.
+ * @return false If a prime \f$p \le g\f$ divides \f$n\f$.
  */
 bool rz_trialdiv(const rz_t* n, u64 g);
 
@@ -38,9 +38,9 @@ bool rz_trialdiv(const rz_t* n, u64 g);
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(1)\f$ limbs for f
  *
- * @param[out]    f Result storing the first divisor found.
- * @param[in,out] n Number to trial-divide (reduced in place).
- * @param[in]     g Upper bound on the trial primes.
+ * @param[out] f Result storing the first divisor found.
+ * @param[in]  n Number to trial-divide.
+ * @param[in]  g Upper bound on the trial primes.
  *
  * @return true  If no prime \f$p < g\f$ divides \f$n\f$ (\f$f\f$ left
  * unchanged).
@@ -73,6 +73,11 @@ bool rz_trialdiv_factor(rz_t* f, const rz_t* n, u64 g);
  * @return true  On success (a nontrivial factor is stored in f).
  * @return false If the cycle closes without a factor or after 1000000
  *               iterations.
+ *
+ * @par Algorithm Reference:
+ * M. A. Pollard, "A Monte Carlo Factoring Method," Mathematical
+ * Computation, vol. 32, no. 140, 1978.
+ * @see rz_pollard_rho()
  */
 bool rz_pollard_rho_inner(rz_t* f, const rz_t* n);
 
@@ -95,6 +100,11 @@ bool rz_pollard_rho_inner(rz_t* f, const rz_t* n);
  *
  * @return true  On success (a nontrivial factor is stored in f).
  * @return false If all 64 attempts failed.
+ *
+ * @par Algorithm Reference:
+ * M. A. Pollard, "A Monte Carlo Factoring Method," Mathematical
+ * Computation, vol. 32, no. 140, 1978.
+ * @see rz_pollard_rho_inner(), rz_factorize()
  */
 bool rz_pollard_rho(rz_t* f, const rz_t* n);
 
@@ -129,6 +139,11 @@ bool rz_pollard_rho(rz_t* f, const rz_t* n);
  * @param[in,out] n Number to factorize (modified in place).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * M. A. Pollard, "A Monte Carlo Factoring Method," Mathematical
+ * Computation, vol. 32, no. 140, 1978.
+ * @see rz_pollard_rho(), rz_pollard_p_minus_one()
  */
 rabin_err_t rz_factorize(rvec_t* v, rz_t* n);
 
@@ -161,6 +176,11 @@ rabin_err_t rz_factorize(rvec_t* v, rz_t* n);
  *
  * @return true  On success (a nontrivial factor is stored in f).
  * @return false If no factor was found.
+ *
+ * @par Algorithm Reference:
+ * M. A. Pollard, "A Monte Carlo Factoring Method," Mathematical
+ * Computation, vol. 32, no. 140, 1978.
+ * @see rz_pollard_p_minus_one()
  */
 bool rz_pollard_p_minus_one_stage_1(rz_t* f, const rz_t* n, u64 B,
                                     u64 iterations);
@@ -191,6 +211,11 @@ bool rz_pollard_p_minus_one_stage_1(rz_t* f, const rz_t* n, u64 B,
  *
  * @return true  On success (a nontrivial factor is stored in f).
  * @return false If all stages failed.
+ *
+ * @par Algorithm Reference:
+ * M. A. Pollard, "A Monte Carlo Factoring Method," Mathematical
+ * Computation, vol. 32, no. 140, 1978.
+ * @see rz_pollard_p_minus_one_stage_1(), rz_factorize()
  */
 bool rz_pollard_p_minus_one(rz_t* f, const rz_t* n);
 

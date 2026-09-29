@@ -30,9 +30,10 @@ struct rzcert_t {
  * printed as a base case.
  *
  * Complexity:
- *   - Time: \f$O(m), m =\f$ total number of elements over all nested
- *         certificates
- *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate depth
+ *   - Time: \f$O(m)\f$, \f$m =\f$ total number of elements over all nested
+ *     certificates
+ *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate
+ *     depth
  *   - Output memory: \f$O(0)\f$
  *
  * @param[in] cert Certificate to print.
@@ -49,9 +50,10 @@ rabin_err_t print_pocklington_cert(rzcert_t* cert);
  * (recursively), the data array, and the certificate itself.
  *
  * Complexity:
- *   - Time: \f$O(m), m =\f$ total number of elements over all nested
- *         certificates
- *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate depth
+ *   - Time: \f$O(m)\f$, \f$m =\f$ total number of elements over all nested
+ *     certificates
+ *   - Auxiliary memory: \f$O(d)\f$ recursion stack, \f$d =\f$ certificate
+ *     depth
  *   - Output memory: \f$O(0)\f$
  *
  * @param[in] cert Certificate to free.
@@ -63,6 +65,8 @@ rabin_err_t rzcert_clear(rzcert_t* cert);
 /**
  * @brief Verify that cert is a valid Pocklington certificate for N.
  *
+ * @note TODO: Not yet implemented (placeholder declaration).
+ *
  * Checks the Pocklington conditions for N:
  *
  *   1. \f$\alpha_q^{N - 1} \equiv 1 \pmod N\f$ for each element
@@ -73,8 +77,6 @@ rabin_err_t rzcert_clear(rzcert_t* cert);
  * Leaf factors are accepted only if they are provable by a base case;
  * base_case_bound is the size threshold up to which a prime factor is
  * accepted without a child certificate.
- *
- * @note TODO: Not yet implemented (placeholder declaration).
  *
  * Complexity:
  *   - Time: \f$O(m \cdot N^2 \log N)\f$, where \f$m\f$ = number of elements,
@@ -89,6 +91,10 @@ rabin_err_t rzcert_clear(rzcert_t* cert);
  * @return true  If all Pocklington conditions hold (N is proven prime).
  * @return false If any condition fails or a leaf factor exceeds
  *               base_case_bound.
+ *
+ * @par Algorithm Reference:
+ * J. B. Pocklington, "On the Factorization of Large Integers,"
+ * Proceedings of the Cambridge Philosophical Society, vol. 78, 1975.
  */
 bool rzcert_verify(const rzcert_t* cert, u64 base_case_bound);
 

@@ -142,6 +142,11 @@ rabin_err_t rq_mul(rq_t* r, const rq_t* a, const rq_t* b);
  * cross-cancelling \f$\gcd(a_{num}, b_{num})\f$ and \f$\gcd(a_{den},
  * b_{den})\f$, then normalizes.
  *
+ * Complexity:
+ *   - Time: \f$O(n^2 \log n)\f$
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(n)\f$ limbs
+ *
  * @param[out] r Result. May alias \p a or \p b.
  * @param[in] a Dividend.
  * @param[in] b Divisor; must be nonzero.

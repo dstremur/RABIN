@@ -35,6 +35,13 @@
  * @return true  If \f$n\f$ passes the test (probably prime).
  * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
  * compositeness was found.
+ *
+ * @par Algorithm Reference:
+ * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"
+ * SIAM Journal on Computing, vol. 6, no. 4, 1976.
+ * M. O. Rabin, "Probabilistic Primality and Factorisation Algorithms,"
+ * Theory and Practice of Combinatorial Algorithms, North-Holland, 1980.
+ * @see rz_rabin_mont(), rz_bpsw()
  */
 bool rz_rabin(const rz_t* n, const rz_t* a);
 
@@ -65,6 +72,16 @@ bool rz_rabin(const rz_t* n, const rz_t* a);
  * @return true  If \f$n\f$ passes the test (probably prime).
  * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
  * compositeness was found.
+ *
+ * @par Algorithm Reference:
+ * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"
+ * SIAM Journal on Computing, vol. 6, no. 4, 1976.
+ * M. O. Rabin, "Probabilistic Primality and Factorisation Algorithms,"
+ * Theory and Practice of Combinatorial Algorithms, North-Holland, 1980.
+ * P. L. Montgomery, "Modular Multiplication and Exponentiation on
+ * General-Purpose Machines," Software: Practice and Experience, vol. 16,
+ * no. 5, 1985.
+ * @see rz_rabin(), rz_rabin_mont_ctx()
  */
 bool rz_rabin_mont(const rz_t* n, const rz_t* a);
 
@@ -91,6 +108,16 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a);
  * @return true  If \f$n\f$ passes the test (probably prime).
  * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
  * compositeness was found.
+ *
+ * @par Algorithm Reference:
+ * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"
+ * SIAM Journal on Computing, vol. 6, no. 4, 1976.
+ * M. O. Rabin, "Probabilistic Primality and Factorisation Algorithms,"
+ * Theory and Practice of Combinatorial Algorithms, North-Holland, 1980.
+ * P. L. Montgomery, "Modular Multiplication and Exponentiation on
+ * General-Purpose Machines," Software: Practice and Experience, vol. 16,
+ * no. 5, 1985.
+ * @see rz_rabin_mont(), rz_mont_ctx_init()
  */
 bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx);
 

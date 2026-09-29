@@ -15,7 +15,6 @@
  * 11, 13, or 17, trial-divides against the first 1500 primes, and
  * accepts the first candidate that passes BPSW.
  *
- *
  * Complexity:
  *   - Time: \f$O(k \log k)\f$ expected - about \f$k / \ln(k)\f$ candidates,
  * each costing trial division plus one BPSW test
@@ -28,6 +27,11 @@
  * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
  * failure, or RABIN_ERR_INVALID_ARG if /dev/urandom cannot be opened,
  * reading fails, or \f$bits < 2\f$.
+ *
+ * @par Algorithm Reference:
+ * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
+ * Strong Probable Prime Test," Mathematics of Computation, vol. 29,
+ * no. 130, 1975.
  */
 rabin_err_t rz_gen_prime(rz_t* p, int bits);
 
@@ -46,6 +50,12 @@ rabin_err_t rz_gen_prime(rz_t* p, int bits);
  * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
  * failure, or RABIN_ERR_INVALID_ARG if /dev/urandom cannot be opened or
  * \f$bits < 3\f$.
+ *
+ * @par Algorithm Reference:
+ * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
+ * Strong Probable Prime Test," Mathematics of Computation, vol. 29,
+ * no. 130, 1975.
+ * @see rz_gen_prime(), rz_bpsw()
  */
 rabin_err_t rz_gen_safe_prime(rz_t* p, int bits);
 
@@ -79,6 +89,11 @@ rabin_err_t rz_gen_safe_prime(rz_t* p, int bits);
  *
  * @return true  If \f$n\f$ passes the test (probably prime).
  * @return false If \f$n\f$ fails the test.
+ *
+ * @par Algorithm Reference:
+ * P. D. S. Pomerance and J. L. Selfridge, "The Lucas Sequence Primality
+ * Test," Mathematics of Computation, vol. 38, no. 158, 1982.
+ * @see rz_bpsw(), rz_lucas_solve_mod()
  */
 bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q);
 
@@ -111,8 +126,14 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q);
  *
  * @param[in] n Number to test.
  *
- * @return true  If \f$n\f$ is probably prime.
- * @return false If \f$n\f$ is even or a witness for compositeness was found.
+ * @return true  If \f$n\f$ passes both tests (probably prime).
+ * @return false If \f$n\f$ fails either test.
+ *
+ * @par Algorithm Reference:
+ * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
+ * Strong Probable Prime Test," Mathematics of Computation, vol. 29,
+ * no. 130, 1975.
+ * @see rz_stronglucas(), rzrabin()
  */
 bool rz_bpsw(const rz_t* n);
 
@@ -143,6 +164,12 @@ bool rz_bpsw(const rz_t* n);
  *
  * @return true  If the check passes (\f$n\f$ is prime).
  * @return false If the check fails.
+ *
+ * @par Algorithm Reference:
+ * U. Maurer, "Fast Prime, Elliptic-Curve and Other Primitive Root
+ * Generation Procedures," Advances in Cryptology, Crypto '94, LNCS 839,
+ * Springer, 1994.
+ * @see rz_provable_prime()
  */
 bool rz_check_lemma1(const rz_t* n, const rz_t* n_min1, const rz_t* a,
                      const rz_t* q);
@@ -181,6 +208,12 @@ double rz_gen_rel_size();
  * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
  * failure, or RABIN_ERR_INVALID_ARG if /dev/urandom cannot be opened or
  * \f$k < 2\f$.
+ *
+ * @par Algorithm Reference:
+ * U. Maurer, "Fast Prime, Elliptic-Curve and Other Primitive Root
+ * Generation Procedures," Advances in Cryptology, Crypto '94, LNCS 839,
+ * Springer, 1994.
+ * @see rz_provable_prime_inner()
  */
 rabin_err_t rz_provable_prime(rz_t* p, u64 k);
 
@@ -217,6 +250,12 @@ rabin_err_t rz_provable_prime(rz_t* p, u64 k);
  * @return RABIN_SUCCESS on success (the prime is stored in \f$p\f$),
  * RABIN_ERR_INVALID_ARG if the recursion fails or the search exceeds 1000
  * candidates (caller should retry), or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * U. Maurer, "Fast Prime, Elliptic-Curve and Other Primitive Root
+ * Generation Procedures," Advances in Cryptology, Crypto '94, LNCS 839,
+ * Springer, 1994.
+ * @see rz_provable_prime(), rz_check_lemma1()
  */
 rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k);
 
@@ -241,6 +280,11 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k);
  * @param[in]     c Starting value for the odd multiplier \f$c\f$.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_INVALID_ARG,
  * RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * F. Proth, "Sur une Question de Theorie des Nombres," Journal de
+ * Mathematiques Pures et Appliees, vol. 5, 1880.
+ * @see rns_gen_primes(), rz_bpsw()
  */
 rabin_err_t rz_gen_proth_primes(u64 count, u64 k, u64 c);
 
@@ -262,6 +306,12 @@ rabin_err_t rz_gen_proth_primes(u64 count, u64 k, u64 c);
  * @param[in] count Number of primes to generate.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_INVALID_ARG,
  * RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
+ * Strong Probable Prime Test," Mathematics of Computation, vol. 29,
+ * no. 130, 1975.
+ * @see rz_gen_proth_primes(), rz_bpsw()
  */
 rabin_err_t rns_gen_primes(u64 count);
 
@@ -269,9 +319,9 @@ rabin_err_t rns_gen_primes(u64 count);
  * @brief Heuristic table length for the arithmetic-progression sieve used
  * by Pocklington prime generation.
  *
- * Returns the sieve length \f$s\f$ (number of candidates \f$N_0 + i\cdota\f$,
- * \f$i\f$ in
- * \f$[0, s)\f$) for a target prime of \f$n\f$ bits where each candidate is
+ * Returns the sieve length \f$s\f$ (number of candidates
+ * \f$N_0 + i \cdot a\f$, \f$i\f$ in \f$[0, s)\f$) for a target prime of
+ * \f$n\f$ bits where each candidate is
  * processed in \f$B\f$-bit words. \f$s\f$ comes from the heuristic
  *
  *   \f$s = (0.4 \cdot n \cdot m) / \log(n^2 \cdot m)\f$,   \f$m = n / B\f$
@@ -288,6 +338,11 @@ rabin_err_t rns_gen_primes(u64 count);
  * @param[in] B Word size in bits used per candidate (e.g. 64).
  *
  * @return The heuristic sieve length \f$s\f$.
+ *
+ * @par Algorithm Reference:
+ * U. Maurer, "Fast Prime, Elliptic-Curve and Other Primitive Root
+ * Generation Procedures," Advances in Cryptology, Crypto '94, LNCS 839,
+ * Springer, 1994.
  */
 u64 rz_optimal_table_len(u64 n, u64 B);
 
@@ -327,8 +382,7 @@ u64 rz_optimal_table_len(u64 n, u64 B);
  * U. Maurer, "Fast Generation of Prime Numbers and Secure Public-Key
  * Cryptographic Parameters," Journal of Cryptology, vol. 8, pp. 123–155, 1995.
  *
- * @see rz_optimal_table_len()
- * @see rz_gen_prime()
+ * @see rz_optimal_table_len(), rz_gen_prime()
  */
 rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out);
 

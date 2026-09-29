@@ -12,9 +12,6 @@
  * Opens /dev/urandom, delegates to rz_gen_random_with_fd(), and
  * closes the descriptor.
  *
- * Returns true on success, false if /dev/urandom cannot be opened or
- * the read fails.
- *
  * Complexity:
  *   - Time: \f$O(bits / 64)\f$
  *   - Auxiliary memory: \f$O(1)\f$
@@ -23,9 +20,10 @@
  * @param[out] r    Result storing the random number.
  * @param[in]  bits Desired bit length of the number.
  *
- * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
- * failure, or RABIN_ERR_INVALID_ARG if /dev/urandom cannot be opened or
- * the read fails.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG (if /dev/urandom cannot be opened or the read
+ * fails), or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gen_random_with_fd()
  */
 rabin_err_t rz_gen_random(rz_t* r, u64 bits);
 
@@ -36,8 +34,6 @@ rabin_err_t rz_gen_random(rz_t* r, u64 bits);
  * limb to the exact bit length, sets the MSB so the number is exactly
  * \f$bits\f$ long, and sets the LSB so it is odd.
  *
- * See  for error codes.
- *
  * Complexity:
  *   - Time: \f$O(bits / 64)\f$
  *   - Auxiliary memory: \f$O(1)\f$
@@ -47,15 +43,18 @@ rabin_err_t rz_gen_random(rz_t* r, u64 bits);
  * @param[in]  bits Desired bit length of the number (>= 1).
  * @param[in]  fd   Open file descriptor for /dev/urandom.
  *
- * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
- * failure, or RABIN_ERR_INVALID_ARG on read failure.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG (if \f$bits < 1\f$ or the read fails), or
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gen_random_with_fd()
  */
 rabin_err_t rz_gen_random_odd_with_fd(rz_t* r, u64 bits, int fd);
 
 /**
  * @brief Generate a random bits-long number using a given urandom fd.
  *
- * See  for error codes.
+ * Reads \f$\lceil bits / 64 \rceil\f$ random limbs from \f$fd\f$ and masks the
+ * top limb to the exact bit length; \f$bits = 0\f$ stores zero.
  *
  * Complexity:
  *   - Time: \f$O(bits / 64)\f$
@@ -66,8 +65,9 @@ rabin_err_t rz_gen_random_odd_with_fd(rz_t* r, u64 bits, int fd);
  * @param[in]  bits Desired bit length of the number (0 yields zero).
  * @param[in]  fd   Open file descriptor for /dev/urandom.
  *
- * @return RABIN_SUCCESS on success, RABIN_ERR_OUT_OF_MEMORY on allocation
- * failure, or RABIN_ERR_INVALID_ARG on read failure.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG (if the read fails), or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gen_random(), rz_gen_random_odd_with_fd()
  */
 rabin_err_t rz_gen_random_with_fd(rz_t* r, u64 bits, int fd);
 

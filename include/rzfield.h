@@ -92,8 +92,8 @@ rabin_err_t field_ctx_clear(field_ctx_t* ctx);
 /**
  * @brief Convert a plain value into the internal representation.
  *
- * Montgomery path: \f$r = a\cdotR \bmod m\f$. Plain path: \f$r = a \bmod m\f$
- * in \f$[0, m)\f$.
+ * Montgomery path: \f$r = a \cdot R \bmod m\f$. Plain path: \f$r = a \bmod
+ * m\f$ in \f$[0, m)\f$.
  *
  * Complexity:
  *   - Time: \f$O(n^2)\f$ (Montgomery) or \f$O(n^2)\f$ (one division, plain)
@@ -111,7 +111,7 @@ rabin_err_t field_in(rz_t* r, const rz_t* a, field_ctx_t* ctx);
 /**
  * @brief Convert an internal value back to the plain form \f$[0, m)\f$.
  *
- * Montgomery path: \f$r = a\cdotR^{-1} \bmod m\f$. Plain path: \f$r = a\f$.
+ * Montgomery path: \f$r = a \cdot R^{-1} \bmod m\f$. Plain path: \f$r = a\f$.
  *
  * Complexity:
  *   - Time: \f$O(n^2)\f$ (Montgomery) or \f$O(n)\f$ (plain copy)
@@ -227,10 +227,11 @@ rabin_err_t field_mul(rz_t* r, const rz_t* a, const rz_t* b, field_ctx_t* ctx);
  *
  * The inverse exists exactly when \f$a\f$ is a unit of \f$Z_m\f$ (\f$\gcd(a, m)
  * = 1\f$); for a prime modulus that is every nonzero element. The Montgomery
- * path (odd \f$m\f$) uses the fast binary extended GCD (rz_mod_inverse) after
- * converting the operand to the plain domain. The plain path (even \f$m\f$)
- * uses the classical extended Euclidean algorithm (u64_mod_inverse_euclid()),
- * because the binary GCD is only correct for odd moduli.
+ * path (odd \f$m\f$) converts the operand to the plain domain and uses the
+ * fast binary extended GCD (rz_mod_inverse()); the plain path (even
+ * \f$m\f$) uses the classical extended Euclidean algorithm
+ * (u64_mod_inverse_euclid()), because the binary GCD is only correct for
+ * odd moduli.
  *
  * Complexity:
  *   - Time: \f$O(n^2)\f$ (Montgomery) or \f$O(n^3)\f$ (plain)
@@ -363,11 +364,11 @@ rabin_err_t rpol_divmod(rpol_t* q, rpol_t* r, const rpol_t* a, const rpol_t* b,
  *   while \f$r_1 \neq 0\f$:
  *     \f$(qq, r_2) = divmod(r_0, r_1)\f$
  *     \f$(r_0, r_1) = (r_1, r_2)\f$
- *     \f$(s_0, s_1) = (s_1, s_0 - qq\cdots_1)\f$
- *     \f$(t_0, t_1) = (t_1, t_0 - qq\cdott_1)\f$
+ *     \f$(s_0, s_1) = (s_1, s_0 - qq \cdot s_1)\f$
+ *     \f$(t_0, t_1) = (t_1, t_0 - qq \cdot t_1)\f$
  *
  * On success \f$g = r_0\f$ is the GCD and \f$x = s_0\f$, \f$y = t_0\f$ satisfy
- * \f$x\cdota + y\cdotb = g\f$.
+ * \f$x \cdot a + y \cdot b = g\f$.
  *
  * Complexity:
  *   - Time: \f$O(d^2 \cdot n^2)\f$ in the worst case (Euclidean algorithm)
@@ -507,9 +508,9 @@ rabin_err_t poly_ring_mul(rpol_t* r, const rpol_t* a, const rpol_t* b,
 /**
  * @brief \f$r = a^{-1} \bmod q\f$ in \f$Z_m[x]/(q)\f$.
  *
- * Uses the extended GCD: \f$x\cdota + y\cdotq = g\f$. If \f$g\f$ is a nonzero
- * constant then
- * \f$a\f$ is a unit and its inverse is \f$x \cdot g^{-1} \bmod q\f$.
+ * Uses the extended GCD: \f$x \cdot a + y \cdot q = g\f$. If \f$g\f$ is a
+ * nonzero constant then \f$a\f$ is a unit and its inverse is \f$x \cdot
+ * g^{-1} \bmod q\f$.
  *
  * Let \f$d =\f$ a->deg and \f$d_q =\f$ q->deg.
  *

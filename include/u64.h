@@ -221,6 +221,12 @@ u64 u64_goldilock_red(u128 c);
  *
  * @param[out] ctx Montgomery context to initialize.
  * @param[in]  p   Prime modulus (odd).
+ *
+ * @par Algorithm Reference:
+ * P. L. Montgomery, "Modular Multiplication and Exponentiation on
+ * General-Purpose Machines," Software: Practice and Experience, vol. 16,
+ * no. 5, 1985.
+ * @see u64_mont_redc(), u64_mont_mul()
  */
 void u64_mont_init(u64_mont_ctx_t* ctx, u64 p);
 
@@ -348,6 +354,12 @@ u64 u64_mont_inverse(u64 a_mont, const u64_mont_ctx_t* ctx);
  * @param[out] a_hat Result storing the forward NTT (Montgomery domain).
  * @param[in]      a Input array.
  * @param[in]    ctx NTT context.
+ *
+ * @par Algorithm Reference:
+ * C. M. Cooley and J. W. Tukey, "An Algorithm for the Machine
+ * Calculation of Complex Fourier Series," Mathematics of Computation,
+ * vol. 19, no. 90, 1965.
+ * @see u64_ntt_cyclic_inverse(), u64_ntt_cyclic_inverse_montgomery_in()
  */
 void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx);
 

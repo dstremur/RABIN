@@ -2,77 +2,48 @@
 #define RABIN_H
 
 /**
- *Category	Primary Intrinsics	Assembly / Mapping	Core Bignum Use
-Case Bitwise Logic
-
-_mm256_and_si256
-
-_mm256_or_si256
-
-_mm256_xor_si256
-
-_mm256_andnot_si256
-
-
-vpand, vpor
-
-vpxor, vpandn
-        Zero-carry operations: bitwise filtering, masks, and logical
-adjustments. Packed Arithmetic
-
-_mm256_add_epi64
-
-_mm256_sub_epi64
-
-
-vpaddq
-
-vpsubq
-        Block-wise addition and subtraction prior to carry resolution.
-Multiplication
-
-_mm256_mul_epu32
-
-_mm512_madd52lo_epu64
-
-
-vpmuludq
-
-vpmadd52luq
-        Parallel limb multiplication and high-radix cryptographic arithmetic.
-Shifts & Routing
-
-_mm256_slli_epi64
-
-_mm256_permute4x64_epi64
-
-
-vpsllq
-
-vpermq
-        Shifting limbs and routing overflow bits across vector lanes.
-Comparisons
-
-_mm256_cmpeq_epi64
-
-_mm256_cmpgt_epi64
-
-
-vpcmpeqq
-
-vpcmpgtq
-        Magnitude ordering, equality tests, and conditional checks.
-Memory / NTT
-
-_mm256_loadu_si256
-
-_mm256_shuffle_epi32
-
-
-vmovdqu
-
-vpshufd
-        High-bandwidth data loading and fast polynomial multiplication (NTT).
+ * @brief Mapping of the SIMD instructions used by the library kernels.
+ *
+ * For each class of operation the table lists the primary SSE/AVX
+ * intrinsics, the corresponding assembly mnemonics, and the role the
+ * operation plays in the bignum kernels.
+ *
+ * Bitwise logic
+ *   Intrinsics: _mm256_and_si256, _mm256_or_si256, _mm256_xor_si256,
+ *               _mm256_andnot_si256
+ *   Assembly:   vpand, vpor, vpxor, vpandn
+ *   Use:        Zero-carry operations: bitwise filtering, masks, and
+ *               logical adjustments.
+ *
+ * Packed arithmetic
+ *   Intrinsics: _mm256_add_epi64, _mm256_sub_epi64
+ *   Assembly:   vpaddq, vpsubq
+ *   Use:        Block-wise addition and subtraction prior to carry
+ *               resolution.
+ *
+ * Multiplication
+ *   Intrinsics: _mm256_mul_epu32, _mm512_madd52lo_epu64
+ *   Assembly:   vpmuludq, vpmadd52luq
+ *   Use:        Parallel limb multiplication and high-radix
+ *               cryptographic arithmetic.
+ *
+ * Shifts & routing
+ *   Intrinsics: _mm256_slli_epi64, _mm256_permute4x64_epi64
+ *   Assembly:   vpsllq, vpermq
+ *   Use:        Shifting limbs and routing overflow bits across vector
+ *               lanes.
+ *
+ * Comparisons
+ *   Intrinsics: _mm256_cmpeq_epi64, _mm256_cmpgt_epi64
+ *   Assembly:   vpcmpeqq, vpcmpgtq
+ *   Use:        Magnitude ordering, equality tests, and conditional
+ *               checks.
+ *
+ * Memory / NTT
+ *   Intrinsics: _mm256_loadu_si256, _mm256_shuffle_epi32
+ *   Assembly:   vmovdqu, vpshufd
+ *   Use:        High-bandwidth data loading and fast polynomial
+ *               multiplication (NTT).
  */
 
 /*

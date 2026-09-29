@@ -81,8 +81,8 @@ u64 rns_estimate_primes(const rz_t* a);
  *   - Output memory: \f$O(c)\f$ bignums for the CRT weights, \f$O(c)\f$ u64s
  * for the primes and Garner weights, \f$O(c)\f$ mont_ctxs
  *
- * @param[out]   ctx    RNS context to initialize.
- * @param[in] primes Array of primes.
+ * @param[out] ctx RNS context to initialize.
+ * @param[in]  primes Array of primes.
  * @param[in]  count  Number of primes.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_INVALID_ARG, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
@@ -149,25 +149,31 @@ rabin_err_t rns_add(rns_num_t* r, const rns_num_t* a, const rns_num_t* b,
 /**
  * @brief Reconstruct a rz_t from its RNS residue vector via the CRT.
  *
- * Let \f$c =\f$ r->size and \f$n =\f$ size of the product \f$M\f$ in limbs.
+ * Let \f$c =\f$ ctx->count and \f$n =\f$ size of the product \f$M\f$ in limbs.
  *
- * Computes \f$a = \sum_i r_i \cdot w_i \bmod M\f$ using the precomputed CRT
- * weights. The result is the unique value in \f$[0, M)\f$ congruent to the
- * residues.
- *
- * Note: the start/end prints are leftover debug output.
+ * Uses the iterative CRT (Garner): starts from \f$x = v_0\f$ and, for each
+ * prime \f$p_i\f$, adds \f$u \cdot \prod_{j < i} p_j\f$ where
+ * \f$u = (v_i - x) \cdot g_i \bmod p_i\f$ with the precomputed Garner
+ * weights \f$g_i\f$. For valid inputs the result is the unique value in
+ * \f$[0, M)\f$ congruent to the residues.
  *
  * Complexity:
- *   - Time: \f$O(c \cdot n^2)\f$ for the rz_t multiplications, plus
- * \f$O(n^2)\f$ for the final reduction
+ *   - Time: \f$O(c \cdot n)\f$ for the rz_t multiplications plus
+ * \f$O(c \cdot n)\f$ for the \f$O(1)\f$-size modular reductions
  *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
  *   - Output memory: \f$O(n)\f$ limbs
  *
  * @param[out] a   Result rz_t.
- * @param[in]  r   Residue vector.
+ * @param[in]  v   Residue vector.
  * @param[in]  ctx RNS context.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. E. Knuth, "The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms," 3rd ed., Addison-Wesley, 1997, Section 4.5.3 (Chinese
+ * Remaindering, Garner's algorithm).
+ * @see rns_import()
  */
 rabin_err_t rns_export(rz_t* a, rns_num_t* v, const rns_ctx_t* ctx);
 

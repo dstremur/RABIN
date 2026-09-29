@@ -772,11 +772,21 @@ rabin_err_t rz_sub_abs(rz_t* r, const rz_t* a, const rz_t* b);
 rabin_err_t rz_mul(rz_t* r, const rz_t* a, const rz_t* b);
 
 /**
- * @brief Multiply a rz_t a with a 64-bit integer c
+ * @brief Multiply a bignum by a signed 64-bit integer: \f$r = a \cdot c\f$.
  *
- * @param r
- * @param a
- * @param c
+ * Let \f$n =\f$ a->size, measured in 64-bit limbs.
+ *
+ * Multiplies the magnitude of \f$a\f$ by \f$|c|\f$ with a single carry
+ * chain; the sign of the result is the xor of the operand signs.
+ *
+ * Complexity:
+ *   - Time: \f$O(n)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$ limbs, at most \f$n + 1\f$ limbs
+ *
+ * @param[out] r Result storing \f$a \cdot c\f$. May alias \p a.
+ * @param[in]  a First operand.
+ * @param[in]  c 64-bit integer factor.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
  */
@@ -916,11 +926,10 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b);
  * \f$sign(r) = sign(a)\f$.
  *
  * If \f$|a| < |b|\f$ the result is \f$q = 0\f$, \f$r = a\f$. Otherwise the
- * magnitude division dispatches to the single-limb path (limbs_divrem_1) or to
- * Knuth's Algorithm D (rz_divmod_limbs). \f$q\f$ and \f$r\f$ may each alias
- * \f$a\f$ or
- * \f$b\f$ (handled via temporaries); \f$q\f$ and \f$r\f$ must not alias each
- * other.
+ * magnitude division dispatches to the single-limb path (limbs_divrem_1()) or
+ * to Knuth's Algorithm D (rz_divmod_limbs()). \f$q\f$ and \f$r\f$ may each
+ * alias \f$a\f$ or \f$b\f$ (handled via temporaries); \f$q\f$ and \f$r\f$ must
+ * not alias each other.
  *
  * Scratch for the multi-limb path is taken from the stack when it fits
  * in RZ_DIV_STACK_LIMBS limbs, otherwise from the heap.
@@ -939,6 +948,10 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b);
  * @param[in]  b Divisor (must be nonzero).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. E. Knuth, "The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms," 3rd ed., Addison-Wesley, 1997, Algorithm 4.3.1D.
  */
 rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b);
 
@@ -952,11 +965,11 @@ rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b);
  * \f$x = 2^P / d\f$ is seeded with one real division, then refined with the
  * Newton iteration
  *
- *   \f$x \leftarrow x + (x \cdot (2^P - d\cdotx)) \gg P\f$
+ *   \f$x \leftarrow x + (x \cdot (2^P - d \cdot x)) \gg P\f$
  *
  * which roughly doubles the correct bits each step. The quotient is
  * then \f$q = (a \cdot x) \gg P\f$, followed by a rare off-by-one fix-up using
- * the remainder \f$r = a - q\cdotd\f$.
+ * the remainder \f$r = a - q \cdot d\f$.
  *
  * If \f$d\f$ is zero, \f$q\f$ is left unchanged. If \f$|a| < |d|\f$, \f$q\f$ is
  * set to 0.
@@ -1004,6 +1017,10 @@ rabin_err_t rz_newton_div(rz_t* q, const rz_t* a, const rz_t* d);
  * @param[in]  b Divisor (must divide \f$a\f$ exactly).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * M. Jebelean, "A Fast Divmod Algorithm Based on Number Theoretic
+ * Transform," IEEE Transactions on Computers, vol. 47, no. 7, 1998.
  */
 rabin_err_t rz_div_exact(rz_t* q, const rz_t* a, const rz_t* b);
 
@@ -1561,6 +1578,11 @@ rabin_err_t rz_log_2(rz_t* r, rz_t* a);
  * @param[in]  n   Modulus (odd and greater than 1).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * P. L. Montgomery, "Modular Multiplication and Exponentiation on
+ * General-Purpose Machines," Software: Practice and Experience, vol. 16,
+ * no. 5, 1985.
  */
 rabin_err_t rz_mont_ctx_init(rz_mont_ctx* ctx, const rz_t* n);
 
@@ -1728,42 +1750,63 @@ rabin_err_t rz_mont_mul_raw(rz_t* result, const rz_t* A_bar, const rz_t* B_bar,
                             rz_mont_ctx* ctx);
 
 /**
- * @brief Checks if a is a square, if it outputs the square root.
+ * @brief Test whether a is a perfect square; if so, store the root in q.
  *
- * See [1] p.40 Algorithm 1.7.3.
+ * Applies cheap residue filters (mod 64, 63, 65, 11) before verifying
+ * with an exact integer square root: \f$a\f$ is a square iff
+ * \f$\lfloor\sqrt{a}\rfloor^2 = a\f$.
  *
- * q is nullable
+ * @param[out] q Receives the square root (may be NULL).
+ * @param[in]  a Value to test.
  *
- * @pre a > 0
+ * @return true  If \f$a\f$ is a perfect square.
+ * @return false If \f$a\f$ is not a square or \p a is NULL.
  *
- * @param [out] q
- * @param [in] a
- * @return true
- * @return false
+ * @pre a > 0.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, p. 40, Algorithm 1.7.3.
+ * @see rz_isqrt()
  */
 bool rz_is_square(rz_t* q, const rz_t* a);
 
 /**
- * @brief Checks if a is a prime power, if, it outputs the prime p.
+ * @brief Test whether n is a prime power \f$p^k\f$ with \f$k \ge 1\f$; if so,
+ * store the prime \f$p\f$ in \p p.
  *
- * See [1] p.40 Algorithm 1.7.4
+ * Searches for \f$p\f$ among the prime divisors of
+ * \f$\gcd(a^i - a, n)\f$ for increasing \f$i\f$, accepting a candidate that
+ * passes the BPSW test (rz_bpsw()) and divides \f$n\f$ down to \f$1\f$.
  *
- * p is nullable
+ * @param[out] p Receives the prime base (may be NULL).
+ * @param[in]  n Value to test.
  *
- * @pre a > 0
+ * @return true  If \f$n\f$ is a prime power.
+ * @return false If \f$n\f$ is not a prime power or \p n is NULL.
  *
- * @param [out] p
- * @param [in] n
- * @return true
- * @return false
+ * @pre n > 0.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, p. 40, Algorithm 1.7.4.
+ * @see rz_bpsw()
  */
 bool rz_is_prime_power(rz_t* p, const rz_t* n);
 
 /**
- * @brief Negates a rz_t
+ * @brief Negate a bignum: \f$r = -a\f$.
  *
- * @param r
- * @param a
+ * Flips the sign flag; zero is always kept positive.
+ *
+ * Complexity:
+ *   - Time: \f$O(n)\f$ where \f$n =\f$ a->size, \f$O(1)\f$ if \p r aliases
+ * \p a
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$ limbs
+ *
+ * @param[out] r Result storing \f$-a\f$. May alias \p a.
+ * @param[in]  a Operand.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
  */

@@ -38,9 +38,9 @@ rabin_err_t rpol_init(rpol_t* p);
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(d)\f$ bignums
  *
- * @param[out]    p     Polynomial to set.
- * @param[in] coeff Array of coefficients.
- * @param[in]   deg   Degree of the polynomial.
+ * @param[out] p Polynomial to set.
+ * @param[in]  coeff Array of coefficients.
+ * @param[in]  deg Degree of the polynomial.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
  */
@@ -59,9 +59,9 @@ rabin_err_t rpol_set(rpol_t* p, const rz_t* coeff, u64 deg);
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(d)\f$ bignums
  *
- * @param[out]    p     Polynomial to set.
- * @param[in] coeff Array of 64-bit signed coefficients.
- * @param[in]   deg   Degree of the polynomial.
+ * @param[out] p Polynomial to set.
+ * @param[in]  coeff Array of 64-bit signed coefficients.
+ * @param[in]  deg Degree of the polynomial.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
  */
@@ -246,6 +246,12 @@ rabin_err_t rpol_sub(rpol_t* r, const rpol_t* p, const rpol_t* q);
  * @param[in]  q Second polynomial.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR, RABIN_ERR_OVERFLOW,
  * or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * C. M. Cooley and J. W. Tukey, "An Algorithm for the Machine
+ * Calculation of Complex Fourier Series," Mathematics of Computation,
+ * vol. 19, no. 90, 1965.
+ * @see rpol_mul_ntt_u64(), rpol_mul_school()
  */
 rabin_err_t rpol_mul_ntt(rpol_t* r, const rpol_t* p, const rpol_t* q);
 
@@ -262,7 +268,7 @@ rabin_err_t rpol_mul_ntt(rpol_t* r, const rpol_t* p, const rpol_t* q);
  *
  * The Goldilocks NTT context for the transform size is taken from a
  * shared per-size cache (built once per k, see
- * u64_ntt_ctx_golden_cached), and the flat u64 arrays come from the
+ * u64_ntt_ctx_golden_cached()), and the flat u64 arrays come from the
  * thread-local scratch arena.
  *
  * Complexity:
@@ -275,6 +281,12 @@ rabin_err_t rpol_mul_ntt(rpol_t* r, const rpol_t* p, const rpol_t* q);
  * @param[in]  q Second polynomial.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR, RABIN_ERR_OVERFLOW,
  * or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * C. M. Cooley and J. W. Tukey, "An Algorithm for the Machine
+ * Calculation of Complex Fourier Series," Mathematics of Computation,
+ * vol. 19, no. 90, 1965.
+ * @see rpol_mul_ntt(), rpol_mul_school()
  */
 rabin_err_t rpol_mul_ntt_u64(rpol_t* r, const rpol_t* p, const rpol_t* q);
 
@@ -328,7 +340,7 @@ rabin_err_t rpol_mul(rpol_t* r, const rpol_t* p, const rpol_t* q);
  * Slices \f$n\f$ into chunks of \f$W\f$ bits (base \f$2^W\f$) and stores them
  * as the coefficients of \f$r\f$ in ascending order:
  *
- *   \f$n = \sum_i\f$ r->coeff[i] * \f$(2^W)^i\f$
+ *   \f$n = \sum_i r->coeff[i] \cdot (2^W)^i\f$
  *
  * The degree is \f$\lceil n / W \rceil - 1\f$ (\f$0\f$ for \f$n = 0\f$).
  *
@@ -377,7 +389,7 @@ rabin_err_t rpol_carry_propagation(rpol_t* r, u64 bit_width);
  *
  * The inverse of rz_decompose():
  *
- *   \f$n = \sum_i\f$ p->coeff[i] \f$\ll (i \cdot W)\f$
+ *   \f$n = \sum_i p->coeff[i] \cdot 2^{i \cdot W}\f$
  *
  * Complexity:
  *   - Time: \f$O(d \cdot n)\f$ where n is the size of the result in limbs
@@ -403,6 +415,7 @@ rabin_err_t rz_recompose(rz_t* n, const rpol_t* p, u64 bit_width);
  *   - Time: \f$O(1)\f$ (fixed-size inputs)
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(1)\f$
+ *
  * @return RABIN_SUCCESS on success, or RABIN_ERR_OVERFLOW /
  * RABIN_ERR_OUT_OF_MEMORY.
  */

@@ -25,23 +25,26 @@
 i64 rz_jacobi(const rz_t* a, const rz_t* m);
 
 /**
- * @brief Compute the Kronecker symbol \f$\left(\frac{a}{m}\right)\f$.
+ * @brief Compute the Kronecker symbol \f$\left(\frac{a}{b}\right)\f$.
  *
- * Uses the standard algorithm based around quadratic reciprocity. See [1] p.29
- * Algorithm 1.4.10
- *
+ * Uses the standard algorithm based around quadratic reciprocity.
  *
  * Complexity:
  *   - Time: \f$O(\ln(n)^2)\f$
  *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
  *   - Output memory: \f$O(1)\f$
  *
- * @param[in] a Numerator of the Jacobi symbol.
- * @param[in] m Denominator.
+ * @param[in] a Numerator of the Kronecker symbol.
+ * @param[in] b Denominator.
  *
- * @return 1 If \f$a\f$ is a quadratic residue \f$\bmod m\f$, \f$-1\f$ if a
- * nonresidue, \f$0\f$ if \f$\gcd(a, m) > 1\f$ or \f$m\f$ is not positive and
+ * @return 1 If \f$a\f$ is a quadratic residue \f$\bmod b\f$, \f$-1\f$ if a
+ * nonresidue, \f$0\f$ if \f$\gcd(a, b) > 1\f$ or \f$b\f$ is not positive and
  * odd.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, p. 29, Algorithm 1.4.10.
+ * @see rz_jacobi()
  */
 i64 rz_kronecker(const rz_t* a, const rz_t* b);
 
@@ -62,7 +65,7 @@ i64 rz_kronecker(const rz_t* a, const rz_t* b);
  * \f$R\f$ until \f$t = n^Q \cdot c^2\f$ reaches \f$1\f$.
  *
  * If \f$n\f$ is zero, \f$r\f$ is set to \f$0\f$. If \f$n\f$ is not a quadratic
- * residue \f$\bmod p\f$ (Jacobi symbol \f$\neq 1\f$), a message is printed and
+ * residue \f$\bmod p\f$ (Jacobi symbol \f$\neq 1\f$), the call fails and
  * \f$r\f$ is left unchanged.
  *
  * Complexity:
@@ -77,7 +80,16 @@ i64 rz_kronecker(const rz_t* a, const rz_t* b);
  *               residue \f$\bmod p\f$).
  * @param[in]  p Prime modulus.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (if \f$n\f$ is not a quadratic residue \f$\bmod
+ * p\f$), or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * A. Tonelli, "Solution generale de l'equation \f$i^{i} = n \pmod{p}\f$,"
+ * Rendiconti del Circolo Matematico di Palermo, vol. 11, 1891.
+ * D. E. Shanks, "Solving the Congruence \f$g^x \equiv a \pmod{p}\f$," in
+ * Proceedings of the First Symposium on Symbolic and Algebraic
+ * Computation, ACM, 1971.
+ * @see rz_mod_exp(), rz_jacobi()
  */
 rabin_err_t rz_tonelli_shanks(rz_t* r, const rz_t* n, const rz_t* p);
 
@@ -107,19 +119,14 @@ rabin_err_t rz_tonelli_shanks(rz_t* r, const rz_t* n, const rz_t* p);
  * @pre @p d, @p a and @p b are initialized (e.g. via rz_init() /
  *      rz_init_multi()) and have valid size fields.
  *
- * @note The three temporaries created here are freed before returning;
- *       the caller only has to manage the lifetime of @p d.
  * @note rz_mod() is only called with a non-zero divisor, which is
  *       guaranteed by the `while (!rz_is_zero(v))` loop condition.
  *
- * @par Memory
- * Allocates 3 temporary bignums (each up to \f$\max(size(a), size(b))\f$),
- * peak extra memory \f$\approx 3\f$ operands. Fails silently on allocation
- * error if the underlying allocator does, so check @p d if that matters to you.
- *
- * @par Complexity
- * \f$O(\log \min(a, b))\f$ modulo operations; each modulo is \f$O(n \cdot m)\f$
- * word divisions for \f$n\f$- and \f$m\f$-word operands.
+ * Complexity:
+ *   - Time: \f$O(\log \min(a, b))\f$ modulo operations; each modulo is
+ *     \f$O(n \cdot m)\f$ word divisions for \f$n\f$- and \f$m\f$-word operands
+ *   - Auxiliary memory: \f$O(\max(a, b))\f$ limbs in three rotating buffers
+ *   - Output memory: \f$O(\max(a, b))\f$ limbs
  *
  * @warning <b>Not constant-time.</b> The number and shape of divisions
  *          depend on the operand values, which leaks information through
@@ -153,15 +160,26 @@ rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b);
 
 rabin_err_t rz_lcm(rz_t* l, const rz_t* a, const rz_t* b);
 /**
- * @brief Compute the extended Euclidian algorithm
+ * @brief Extended Euclidean algorithm: Bézout coefficients of a and b.
  *
- * @param [out] u
- * @param [out] v
- * @param [out] d
- * @param [in] a
- * @param [in] b
+ * Computes integers \f$u\f$ and \f$v\f$ with \f$u \cdot a + v \cdot b =
+ * d = \gcd(a, b)\f$, with \f$d \ge 0\f$ (GMP convention). \p d is
+ * initialized from \f$a\f$ before the iteration, \f$v\f$ is derived as
+ * \f$v = (d - u \cdot a) / b\f$, and neither operand is modified.
+ *
+ * Complexity:
+ *   - Time: \f$O(\log \min(a, b))\f$ modulo operations, see rz_gcd()
+ *   - Auxiliary memory: \f$O(\max(a, b))\f$ limbs
+ *   - Output memory: \f$O(\max(a, b))\f$ limbs per result
+ *
+ * @param[out] u Receives the Bézout coefficient of \f$a\f$.
+ * @param[out] v Receives the Bézout coefficient of \f$b\f$.
+ * @param[out] d Receives \f$\gcd(a, b)\f$ (\f$\ge 0\f$).
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gcd()
  */
 rabin_err_t rz_gcd_extended(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
                             const rz_t* b);
@@ -170,21 +188,31 @@ rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
                                    const rz_t* b);
 
 /**
- * @brief Compute a solution to the Diophantine eq. x^2 + dy^2 = p
+ * @brief Compute a solution to the Diophantine equation \f$x^2 + d \cdot y^2
+ * = p\f$.
  *
- * @details Uses the well-known Algorithm of Cornacchia. See [1] p.34
- * Algorithm 1.3.5.
+ * Uses the algorithm of Cornacchia: finds \f$x_0 = \sqrt{-d} \bmod p\f$
+ * (via rz_tonelli_shanks()), runs the Euclidean algorithm on
+ * \f$(p, x_0)\f$ down to \f$\lfloor\sqrt{p}\rfloor\f$, and checks that
+ * \f$d \mid (p - b^2)\f$ and that \f$(p - b^2)/d\f$ is a perfect square.
  *
- * @par Complexity
- * \f$O(\log(n)^2)\f$
+ * Complexity:
+ *   - Time: \f$O(\log(n)^2)\f$
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(n)\f$ limbs
  *
- *
- * @param [out] x
- * @param [out] y
- * @param [in] p
- * @param [in] d
+ * @param[out] x Receives the solution \f$x\f$.
+ * @param[out] y Receives the solution \f$y\f$.
+ * @param[in]  p Prime modulus.
+ * @param[in]  d Coefficient \f$d > 0\f$.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (if \f$-d\f$ is a quadratic nonresidue \f$\bmod
+ * p\f$ or no solution exists), or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, p. 34, Algorithm 1.3.5.
+ * @see rz_tonelli_shanks()
  */
 rabin_err_t rz_cornacchia(rz_t* x, rz_t* y, const rz_t* p, const rz_t* d);
 

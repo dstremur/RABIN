@@ -263,6 +263,11 @@ void limbs_mul_school(u64* r, const u64* a, u64 a_size, const u64* b,
  * @param[in]  b       Second operand limbs.
  * @param[in]  n       Number of limbs in each operand.
  * @param[in]  scratch Scratch buffer for intermediate results.
+ *
+ * @par Algorithm Reference:
+ * Y. Karatsuba, "Multiplication of Multidigit Numbers on Automatic
+ * Computing Machines," Doklady Akademii Nauk SSSR, vol. 156, no. 2, 1962.
+ * @see limbs_mul_school()
  */
 void limbs_mul_karatsuba(u64* r, const u64* a, const u64* b, u64 n,
                          u64* scratch);

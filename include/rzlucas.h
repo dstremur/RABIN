@@ -31,6 +31,12 @@
  * @param[in]  n  Index of the Lucas sequence term.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * E. Lucas, "Theorie des fonctions numeriques periodiques, des
+ * fonctions entieres et des nombres qui se rapportent aux nombres
+ * premiers," Journal de Mathematiques Pures et Appliees, vol. 3, 1878.
+ * @see rz_lucas_solve_mod()
  */
 rabin_err_t rz_lucas_solve(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
                            rz_t* qn, const rz_t* n);

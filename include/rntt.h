@@ -87,11 +87,13 @@ rabin_err_t rz_find_gen_fp(rz_t* g, const rz_t* p);
  *   - Auxiliary memory: \f$O(n_l)\f$ limbs
  *   - Output memory: \f$O(n_l)\f$ limbs
  *
- * @param[out] g Result storing the generator (primitive root).
- * @param[in]  p Proth prime modulus.
- * @param[in]  c Odd multiplier of the Proth prime (\f$p = c \cdot 2^k + 1\f$).
- * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * @param[out]    g Result storing the generator (primitive root).
+ * @param[in]     p Proth prime modulus.
+ * @param[in,out] c Odd multiplier of the Proth prime (\f$p = c \cdot 2^k +
+ *                  1\f$); factored in place.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_find_gen(), rz_gen_proth_ntt()
  */
 rabin_err_t rz_find_gen_proth(rz_t* g, const rz_t* p, rz_t* c);
 
@@ -139,8 +141,6 @@ rabin_err_t rz_gen_proth_ntt(rz_t* g, rz_t* p, rz_t* omega, rz_t* psi, u64 k,
  * given \f$c\f$) with its generator and roots via rz_gen_proth_ntt(), then
  * delegates to rntt_ctx_init().
  *
- * Returns true on success, false on allocation failure.
- *
  * Complexity:
  *   - Time: \f$O(k^3)\f$ expected for the prime generation, plus \f$O(n \cdot
  * k^2)\f$ for the context tables
@@ -151,7 +151,9 @@ rabin_err_t rz_gen_proth_ntt(rz_t* g, rz_t* p, rz_t* omega, rz_t* psi, u64 k,
  * @param[in]    k log2 of the transform length (\f$n = 2^k\f$).
  * @param[in]    c Starting value for the odd multiplier of the Proth prime.
  *
- * @return RABIN_SUCCESS on success, or RABIN_ERR_OUT_OF_MEMORY.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gen_proth_ntt(), rntt_ctx_init()
  */
 rabin_err_t rntt_ctx_init_simple(rntt_ctx_t* ctx, u64 k, u64 c);
 
@@ -169,9 +171,6 @@ rabin_err_t rntt_ctx_init_simple(rntt_ctx_t* ctx, u64 k, u64 c);
  *
  * then delegates to rntt_ctx_init().
  *
- * Returns false (and leaves ctx unchanged) if \f$k > 54\f$ or on allocation
- * failure.
- *
  * Complexity:
  *   - Time: \f$O(n \cdot k^2)\f$ for the context tables, plus \f$O(k^2)\f$ for
  * the root derivation
@@ -181,8 +180,10 @@ rabin_err_t rntt_ctx_init_simple(rntt_ctx_t* ctx, u64 k, u64 c);
  * @param[out] ctx NTT context to initialize.
  * @param[in]    k log2 of the transform length (\f$n = 2^k\f$, \f$k \le 54\f$).
  *
- * @return RABIN_SUCCESS on success, RABIN_ERR_INVALID_ARG if \f$k > 54\f$,
- *         or RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG (if \f$k > 54\f$), RABIN_ERR_OVERFLOW, or
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rntt_ctx_init()
  */
 rabin_err_t rntt_ctx_init_golden(rntt_ctx_t* ctx, u64 k);
 
@@ -230,8 +231,9 @@ bool rz_check_ntt_safety(u64 ntt_size, u64 bit_width, const rz_t* p);
  * \f$\bmod p\f$ (and \f$\psi\f$, a primitive \f$(k + 1)\f$-th root; \f$g\f$ and
  * \f$c\f$ are accepted for interface compatibility).
  *
- * Returns true on success. On failure (allocation failure or a
- * non-invertible root) the context is freed and false is returned.
+ * On failure (\f$k = 0\f$, \f$k > 54\f$, allocation failure, or a
+ * non-invertible root) the context is freed and the appropriate error is
+ * returned.
  *
  * Complexity:
  *   - Time: \f$O(n \cdot k^2)\f$ - \f$n\f$ modular multiplications per table (4
@@ -248,8 +250,9 @@ bool rz_check_ntt_safety(u64 ntt_size, u64 bit_width, const rz_t* p);
  * @param[in]     k   log2 of the transform length (\f$n = 2^k\f$).
  * @param[in]     c   Odd multiplier (accepted for interface compatibility).
  *
- * @return RABIN_SUCCESS on success, RABIN_ERR_INVALID_ARG for a
- *         non-invertible root, or RABIN_ERR_OUT_OF_MEMORY.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG (if \f$k = 0\f$, \f$k > 54\f$, or the root is not
+ * invertible \f$\bmod p\f$), RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
                           const rz_t* omega, const rz_t* psi, u64 k, u64 c);
