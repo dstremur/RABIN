@@ -23,7 +23,7 @@ void benchmark_mul(u64 n)
   rz_t* C = malloc(sizeof(rz_t) * n);
   for (u64 i = 0; i < n; i++) {
     rz_init(&C[i]);
-    rz_set_u64(&C[i], i + 1);  // Avoid all zeros
+    rz_set_u64(&C[i], 2 * i + 1);  // Avoid all zeros
   }
   rpol_set(&a, C, n - 1);
   rpol_set(&b, C, n - 1);
@@ -33,7 +33,7 @@ void benchmark_mul(u64 n)
   // 1. Standard Multiplication Timing
   clock_t start_std = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    // rpol_mul(&r_std, &a, &b);  // Standard O(N^2)
+    rpol_mul(&r_std, &a, &b);  // Standard O(N^2)
   }
   clock_t end_std = clock();
   double time_std = (double)(end_std - start_std) / CLOCKS_PER_SEC;
@@ -48,12 +48,12 @@ void benchmark_mul(u64 n)
 
   clock_t start_ntt_big = clock();
   for (int i = 0; i < ITERATIONS; i++) {
-    rpol_mul_ntt(&r_ntt_big, &a, &b);  // NTT O(N log N)
+    // rpol_mul_ntt(&r_ntt_big, &a, &b);  // NTT O(N log N)
   }
   clock_t end_ntt_big = clock();
   double time_ntt_big = (double)(end_ntt_big - start_ntt_big) / CLOCKS_PER_SEC;
 
-  if (rpol_equal(&r_ntt_big, &r_ntt)) {
+  if (rpol_equal(&r_std, &r_ntt)) {
     printf("Verification: [PASSED] (NTT results match Standard)\n");
   } else {
     printf("Verification: [FAILED] (NTT results differ from Standard!)\n");
@@ -67,6 +67,7 @@ void benchmark_mul(u64 n)
   printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt, ITERATIONS);
   printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big,
          ITERATIONS);
+  printf("Largest Coeff approx: %lu \n", n * n * n);
 
   if (time_ntt < time_std) {
     printf("Result: NTT is %.2fx faster than Standard.\n", time_std / time_ntt);
@@ -128,11 +129,15 @@ int main()
   benchmark_mul(15);
   benchmark_mul(64);
   printf("\n");
+  benchmark_mul(384);
   benchmark_mul(512);
   benchmark_mul(1024);
   benchmark_mul(2048);
+  benchmark_mul(3000);
+  benchmark_mul(4000);
   benchmark_mul(4096);
   benchmark_mul(8192);
+  benchmark_mul(10000);
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
   benchmark_mul(1 << 16);

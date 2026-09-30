@@ -28,6 +28,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+/*
+ * TODO: switch to Gentleman-Sande NTT for the forward pass to eliminate bit
+ * reversal use optimized mod with bit ops only reduce every 4th step preorder
+ * twiddle factors
+ *
+ */
+
 #include <pthread.h>
 
 #include "../../include/u64.h"
@@ -39,14 +46,13 @@ void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
 
   // 1. Bit-reversal permutation AND entering Montgomery space
 
+  // Convert to Montgomery form right as we load the data
   for (u64 i = 0; i < n; i++) {
-    u64 rev = ctx->bit_rev_indices[i];
-    // Convert to Montgomery form right as we load the data
-    a_hat[rev] = u64_mont_in(a[i], &ctx->mctx);
+    a_hat[i] = u64_mont_in(a[i], &ctx->mctx);
   }
 
-  // 2. Cooley-Tukey Butterfly
-  for (u64 len = 2; len <= n; len <<= 1) {
+  // 2. Gentleman-Sande (DIF) Butterfly
+  for (u64 len = n; len >= 2; len >>= 1) {
     u64 half = len >> 1;
     u64 step = n / len;
 
@@ -55,16 +61,16 @@ void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
         u64 twiddle =
             ctx->omega_powers[j * step];  // Already in Montgomery form
 
-        u64 even = i + j;
-        u64 odd = i + j + half;
+        u64 u = a_hat[i + j];
+        u64 v = a_hat[i + j + half];
 
-        // t = a_hat[odd] * twiddle (Montgomery multiplication)
-        u64 t = u64_mont_mul(a_hat[odd], twiddle, &ctx->mctx);
-        u64 u = a_hat[even];
+        // GS Butterfly:
+        // Sum term (no twiddle)
+        a_hat[i + j] = u64_mod_add(u, v, q);
 
-        // Montgomery form preserves addition and subtraction natively
-        a_hat[even] = u64_mod_add(u, t, q);
-        a_hat[odd] = u64_mod_sub(u, t, q);
+        // Difference term multiplied by twiddle
+        u64 diff = u64_mod_sub(u, v, q);
+        a_hat[i + j + half] = u64_mont_mul(diff, twiddle, &ctx->mctx);
       }
     }
   }
@@ -202,10 +208,9 @@ void u64_ntt_cyclic_inverse(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
   u64 n = ctx->n;
   u64 q = ctx->q;
 
-  // 1. Bit-reversal permutation AND entering Montgomery space
+  // 1. Entering Montgomery space
   for (u64 i = 0; i < n; i++) {
-    u64 rev = ctx->bit_rev_indices[i];
-    a_hat[rev] = u64_mont_in(a[i], &ctx->mctx);
+    a_hat[i] = u64_mont_in(a[i], &ctx->mctx);
   }
 
   // 2. Cooley-Tukey Butterfly
@@ -248,8 +253,7 @@ void u64_ntt_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
 
   // 1. Bit-reversal permutation AND entering Montgomery space
   for (u64 i = 0; i < n; i++) {
-    u64 rev = ctx->bit_rev_indices[i];
-    a_hat[rev] = a[i];
+    a_hat[i] = a[i];
   }
 
   // 2. Cooley-Tukey Butterfly
