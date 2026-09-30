@@ -27,7 +27,7 @@ int main()
   for (int i = 0; i < num_to_generate; i++) {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    rz_gen_provable_arithmetic(&p, bits, NULL);
+    rz_gen_provable_arithmetic(&p, bits, &cert);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed =
@@ -37,7 +37,7 @@ int main()
     rz_println(&p);
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
 
-    // print_pocklington_cert(cert);
+    print_pocklington_cert(cert);
     rzcert_clear(cert);
   }
 

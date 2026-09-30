@@ -67,8 +67,11 @@ void benchmark_mul(u64 n)
   printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt, ITERATIONS);
   printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big,
          ITERATIONS);
-  printf("Largest Coeff approx: %lu \n", n * n * n);
-
+  if ((2 * n * n * n) < 5 * (1ULL << 55)) {
+    printf("STILL FITS\n");
+  } else {
+    printf("TOO LARGE\n");
+  }
   if (time_ntt < time_std) {
     printf("Result: NTT is %.2fx faster than Standard.\n", time_std / time_ntt);
     printf("Result: NTT is %.2fx faster than NTT rz_t.\n",
