@@ -39,40 +39,90 @@
 
 #include "../../include/u64.h"
 
+static inline u64 reduce_2q(u64 val, u64 two_q)
+{
+  u64 mask = -(u64)(val >= two_q);
+  return val - (two_q & mask);
+}
+
+// Harvey Gentleman-Sande (DIF) Butterfly
+static inline void harvey_dif_butterfly(u64* u_ptr, u64* v_ptr, u64 twiddle,
+                                        u64 q, u64 two_q,
+                                        const u64_mont_ctx_t* mctx)
+{
+  u64 u = *u_ptr;
+  u64 v = *v_ptr;
+
+  // Sum term: bounded in [0, 2q)
+  *u_ptr = reduce_2q(u + v, two_q);
+
+  // Diff term: (u + 2q - v) is strictly positive and < 4q
+  u64 diff = u + two_q - v;
+
+  // Montgomery multiplication reduces output back to < q
+  *v_ptr = u64_mont_mul(diff, twiddle, mctx);
+}
+
+// Harvey Cooley-Tukey (DIT) Butterfly
+static inline void harvey_dit_butterfly(u64* u_ptr, u64* v_ptr, u64 twiddle,
+                                        u64 q, u64 two_q,
+                                        const u64_mont_ctx_t* mctx)
+{
+  u64 u = *u_ptr;
+  u64 v = *v_ptr;
+
+  // t = v * twiddle < q
+  u64 t = u64_mont_mul(v, twiddle, mctx);
+
+  *u_ptr = reduce_2q(u + t, two_q);
+  *v_ptr = u + two_q - t;
+}
+
 void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
+  u64 two_q = q << 1;
+  u64 tw_offset = 0;
+  u64 half = n >> 1;
+  const u64* twiddles = &ctx->twiddle_forward[tw_offset];
 
-  // 1. Bit-reversal permutation AND entering Montgomery space
+  // 1. Entering Montgomery space and computing first pass
+  for (u64 i = 0; i < half; i++) {
+    u64 u = u64_mont_in(a[i], &ctx->mctx);
+    u64 v = u64_mont_in(a[i + half], &ctx->mctx);
 
-  // Convert to Montgomery form right as we load the data
-  for (u64 i = 0; i < n; i++) {
-    a_hat[i] = u64_mont_in(a[i], &ctx->mctx);
+    a_hat[i] = reduce_2q(u + v, two_q);
+    u64 diff = u + two_q - v;
+    a_hat[i + half] = u64_mont_mul(diff, twiddles[i], &ctx->mctx);
   }
 
+  tw_offset += half;
+
   // 2. Gentleman-Sande (DIF) Butterfly
-  for (u64 len = n; len >= 2; len >>= 1) {
+  for (u64 len = n >> 1; len >= 2; len >>= 1) {
     u64 half = len >> 1;
     u64 step = n / len;
-
+    twiddles = &ctx->twiddle_forward[tw_offset];
     for (u64 i = 0; i < n; i += len) {
-      for (u64 j = 0; j < half; j++) {
-        u64 twiddle =
-            ctx->omega_powers[j * step];  // Already in Montgomery form
-
-        u64 u = a_hat[i + j];
-        u64 v = a_hat[i + j + half];
-
-        // GS Butterfly:
-        // Sum term (no twiddle)
-        a_hat[i + j] = u64_mod_add(u, v, q);
-
-        // Difference term multiplied by twiddle
-        u64 diff = u64_mod_sub(u, v, q);
-        a_hat[i + j + half] = u64_mont_mul(diff, twiddle, &ctx->mctx);
+      u64 j = 0;
+      // loop unrolling for simd
+      for (; j + 3 < half; j += 4) {
+        harvey_dif_butterfly(&a_hat[i + j + 0], &a_hat[i + j + 0 + half],
+                             twiddles[j + 0], q, two_q, &ctx->mctx);
+        harvey_dif_butterfly(&a_hat[i + j + 1], &a_hat[i + j + 1 + half],
+                             twiddles[j + 1], q, two_q, &ctx->mctx);
+        harvey_dif_butterfly(&a_hat[i + j + 2], &a_hat[i + j + 2 + half],
+                             twiddles[j + 2], q, two_q, &ctx->mctx);
+        harvey_dif_butterfly(&a_hat[i + j + 3], &a_hat[i + j + 3 + half],
+                             twiddles[j + 3], q, two_q, &ctx->mctx);
+      }
+      for (; j < half; j++) {
+        harvey_dif_butterfly(&a_hat[i + j], &a_hat[i + j + half], twiddles[j],
+                             q, two_q, &ctx->mctx);
       }
     }
+    tw_offset += half;
   }
 }
 
@@ -147,6 +197,9 @@ rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
   ctx->omega_inv_powers = malloc(sizeof(u64) * n);
   ctx->bit_rev_indices = malloc(sizeof(u64) * n);
 
+  ctx->twiddle_forward = malloc(sizeof(u64) * n);
+  ctx->twiddle_inverse = malloc(sizeof(u64) * n);
+
   if (ctx->omega_powers == NULL || ctx->omega_inv_powers == NULL ||
       ctx->bit_rev_indices == NULL) {
     free(ctx->omega_powers);
@@ -155,6 +208,7 @@ rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
     ctx->omega_powers = NULL;
     ctx->omega_inv_powers = NULL;
     ctx->bit_rev_indices = NULL;
+    // u64 ntt ct clear
     return RABIN_ERR_OUT_OF_MEMORY;
   }
 
@@ -188,6 +242,28 @@ rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
     ctx->bit_rev_indices[i] = rev;
   }
 
+  // --- PRE-ORDER TWIDDLE TABLES (Unit Stride Access) ---
+
+  // 1. Forward Pass Twiddles (DIF)
+  u64 fwd_idx = 0;
+  for (u64 len = n; len >= 2; len >>= 1) {
+    u64 half = len >> 1;
+    u64 step = n / len;
+    for (u64 j = 0; j < half; j++) {
+      ctx->twiddle_forward[fwd_idx++] = ctx->omega_powers[j * step];
+    }
+  }
+
+  // 2. Inverse Pass Twiddles (DIT)
+  u64 inv_idx = 0;
+  for (u64 len = 2; len <= n; len <<= 1) {
+    u64 half = len >> 1;
+    u64 step = n / len;
+    for (u64 j = 0; j < half; j++) {
+      ctx->twiddle_inverse[inv_idx++] = ctx->omega_inv_powers[j * step];
+    }
+  }
+
   return RABIN_SUCCESS;
 }
 
@@ -198,9 +274,13 @@ void u64_ntt_ctx_clear(u64_ntt_ctx_t* ctx)
   free(ctx->omega_powers);
   free(ctx->omega_inv_powers);
   free(ctx->bit_rev_indices);
+  free(ctx->twiddle_forward);
+  free(ctx->twiddle_inverse);
   ctx->omega_powers = NULL;
   ctx->omega_inv_powers = NULL;
   ctx->bit_rev_indices = NULL;
+  ctx->twiddle_forward = NULL;
+  ctx->twiddle_inverse = NULL;
 }
 
 void u64_ntt_cyclic_inverse(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)

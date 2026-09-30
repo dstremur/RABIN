@@ -29,6 +29,9 @@ typedef struct {
   u64* omega_powers;      // all in Montgomery form
   u64* omega_inv_powers;  // all in Montgomery form
   u64* bit_rev_indices;
+
+  u64* twiddle_forward;
+  u64* twiddle_inverse;
   u64_mont_ctx_t mctx;
 } u64_ntt_ctx_t;
 
