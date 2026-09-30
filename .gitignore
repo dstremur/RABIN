@@ -58,6 +58,7 @@ dkms.conf
 build/
 
 PLAN.md
+plan.md
 PROBLEMS.md
 # Doxygen output
 html/
