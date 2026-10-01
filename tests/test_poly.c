@@ -3,7 +3,7 @@
 
 #include "../include/rabin.h"
 #include "../include/rpol.h"
-#define ITERATIONS 1
+#define ITERATIONS 5
 // #define POLY_SIZE 512
 
 void benchmark_mul(u64 n)
@@ -63,9 +63,9 @@ void benchmark_mul(u64 n)
   }
 
   // Results Output
-  printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std, ITERATIONS);
-  printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt, ITERATIONS);
-  printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big,
+  printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std / ITERATIONS, ITERATIONS);
+  printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt /ITERATIONS, ITERATIONS);
+  printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big /ITERATIONS,
          ITERATIONS);
   if ((2 * n * n * n) < 5 * (1ULL << 55)) {
     printf("STILL FITS\n");
