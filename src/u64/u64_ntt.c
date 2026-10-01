@@ -384,40 +384,66 @@ void u64_ntt_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
 {
   u64 n = ctx->n;
   u64 q = ctx->q;
+  u64 two_q = q << 1;
+  u64 tw_offset = 0;
 
-  // 1. Bit-reversal permutation AND entering Montgomery space
   for (u64 i = 0; i < n; i++) {
     a_hat[i] = a[i];
   }
 
   // 2. Cooley-Tukey Butterfly
-  for (u64 len = 2; len <= n; len <<= 1) {
+  for (u64 len = 2; len < n; len <<= 1) {
     u64 half = len >> 1;
-    u64 step = n / len;
+    const u64* twiddles = &ctx->twiddle_inverse[tw_offset];
 
     for (u64 i = 0; i < n; i += len) {
-      for (u64 j = 0; j < half; j++) {
-        u64 twiddle =
-            ctx->omega_inv_powers[j * step];  // Already in Montgomery form
+      u64 j = 0;
+      for (; j + 3 < half; j += 4) {
+        harvey_dit_butterfly(&a_hat[i + j + 0], &a_hat[i + j + 0 + half],
+                             twiddles[j + 0], q, two_q, &ctx->mctx);
+        harvey_dit_butterfly(&a_hat[i + j + 1], &a_hat[i + j + 1 + half],
+                             twiddles[j + 1], q, two_q, &ctx->mctx);
+        harvey_dit_butterfly(&a_hat[i + j + 2], &a_hat[i + j + 2 + half],
+                             twiddles[j + 2], q, two_q, &ctx->mctx);
+        harvey_dit_butterfly(&a_hat[i + j + 3], &a_hat[i + j + 3 + half],
+                             twiddles[j + 3], q, two_q, &ctx->mctx);
+      }
 
-        u64 even = i + j;
-        u64 odd = i + j + half;
-
-        u64 t = u64_mont_mul(a_hat[odd], twiddle, &ctx->mctx);
-        u64 u = a_hat[even];
-
-        a_hat[even] = u64_mod_add(u, t, q);
-        a_hat[odd] = u64_mod_sub(u, t, q);
+      for (; j < half; j++) {
+        harvey_dit_butterfly(&a_hat[i + j], &a_hat[i + j + half], twiddles[j],
+                             q, two_q, &ctx->mctx);
       }
     }
+    tw_offset += half;
   }
 
-  // 3. Scale by n^-1 mod q AND exit Montgomery space
-  for (u64 i = 0; i < n; i++) {
-    // Multiply by n_inv (which is in Montgomery form)
-    a_hat[i] = u64_mont_mul(a_hat[i], ctx->n_inv, &ctx->mctx);
+  u64 half = n >> 1;
+  const u64* twiddles = &ctx->twiddle_inverse[tw_offset];
+  u64 j = 0;
 
-    // Exit Montgomery space to get the final standard integer
-    a_hat[i] = u64_mont_out(a_hat[i], &ctx->mctx);
+#define FUSED_INV_STEP(idx)                                                    \
+  do {                                                                         \
+    u64 u = a_hat[(idx)];                                                      \
+    u64 v = a_hat[(idx) + half];                                               \
+    u64 t = u64_mont_mul(v, twiddles[(idx)], &ctx->mctx);                      \
+    u64 res_u = reduce_2q(u + t, two_q);                                       \
+    u64 res_v = u + two_q - t;                                                 \
+    a_hat[(idx)] =                                                             \
+        u64_mont_out(u64_mont_mul(res_u, ctx->n_inv, &ctx->mctx), &ctx->mctx); \
+    a_hat[(idx) + half] =                                                      \
+        u64_mont_out(u64_mont_mul(res_v, ctx->n_inv, &ctx->mctx), &ctx->mctx); \
+  } while (0)
+
+  // Unrolled final fused pass
+  for (; j + 3 < half; j += 4) {
+    FUSED_INV_STEP(j + 0);
+    FUSED_INV_STEP(j + 1);
+    FUSED_INV_STEP(j + 2);
+    FUSED_INV_STEP(j + 3);
   }
+  for (; j < half; j++) {
+    FUSED_INV_STEP(j);
+  }
+
+#undef FUSED_INV_STEP
 }
