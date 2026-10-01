@@ -149,6 +149,33 @@ rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k)
   return u64_ntt_ctx_init(ctx, p, k, omega, psi);
 }
 
+rabin_err_t u64_ntt_ctx_init_goldilocks(u64_ntt_ctx_t* ctx, u64 k)
+{
+  if (ctx == NULL) return RABIN_ERR_NULL_PTR;
+
+  // Maximum supported transform degree exponent for 2^64 - 2^32 + 1 is 31
+  if (k > 31) return RABIN_ERR_INVALID_ARG;
+
+  // Goldilocks prime p = 2^64 - 2^32 + 1
+  u64 p = 0xFFFFFFFF00000001ULL;
+  u64 g = 7ULL;  // Minimal primitive root mod p
+
+  // p - 1 = 4294967295 * 2^32
+  // We need psi to be a primitive (2^(k+1))-th root of unity.
+  // exp = (p - 1) / 2^(k + 1) = 4294967295 * 2^(32 - (k + 1))
+  u64 c = 4294967295ULL;  // (2^32 - 1)
+  u64 exp = c << (32 - (k + 1));
+
+  // psi = g^exp mod p
+  u64 psi = u64_mod_pow(g, exp, p);
+
+  // omega = psi^2 mod p
+  u64 omega = u64_mod_mul(psi, psi, p);
+
+  // Initialize the Montgomery NTT context
+  return u64_ntt_ctx_init(ctx, p, k, omega, psi);
+}
+
 /*
  * Cached Goldilocks NTT contexts, one per transform size k (0..54).
  *

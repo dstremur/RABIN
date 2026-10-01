@@ -566,4 +566,6 @@ u64 u64_mat_det(u64_mat_t* M);
  */
 u64 u64_mat_det_optimized(u64* mat, u64 n, const u64_mont_ctx_t* ctx);
 
+rabin_err_t u64_ntt_ctx_init_goldilocks(u64_ntt_ctx_t* ctx, u64 k);
+
 #endif

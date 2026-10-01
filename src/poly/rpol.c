@@ -356,10 +356,9 @@ rabin_err_t rpol_mul_ntt_u64(rpol_t* r, const rpol_t* p, const rpol_t* q)
     k++;
   }
 
-  u64_ntt_ctx_t* ctx = u64_ntt_ctx_golden_cached(k);
-  if (!ctx) {
-    return RABIN_ERR_OUT_OF_MEMORY;
-  }
+  u64_ntt_ctx_t ctx;
+  rabin_err_t err = u64_ntt_ctx_init_golden(&ctx, k);
+  if (err != RABIN_SUCCESS) return err;
 
   // 1. One arena block for all six flat u64 arrays (zeroed, like calloc)
   if (ntt_size > SIZE_MAX / (6 * sizeof(u64))) return RABIN_ERR_OVERFLOW;
@@ -384,18 +383,18 @@ rabin_err_t rpol_mul_ntt_u64(rpol_t* r, const rpol_t* p, const rpol_t* q)
   }
 
   // 3. Perform Forward NTTs
-  u64_ntt_cyclic_forward(p_hat, p_arr, ctx);
-  u64_ntt_cyclic_forward(q_hat, q_arr, ctx);
+  u64_ntt_cyclic_forward(p_hat, p_arr, &ctx);
+  u64_ntt_cyclic_forward(q_hat, q_arr, &ctx);
 
   // 4. Pointwise Multiplication
   for (u64 i = 0; i < ntt_size; i++) {
-    r_hat[i] = u64_mont_mul(p_hat[i], q_hat[i], &ctx->mctx);
+    r_hat[i] = u64_mont_mul(p_hat[i], q_hat[i], &ctx.mctx);
   }
 
   // 5. Perform Inverse NTT
-  u64_ntt_cyclic_inverse_montgomery_in(r_arr, r_hat, ctx);
+  u64_ntt_cyclic_inverse_montgomery_in(r_arr, r_hat, &ctx);
 
-  rabin_err_t err = rpol_clear(r);
+  err = rpol_clear(r);
   if (err != RABIN_SUCCESS) goto out;
   rpol_init(r);
   if ((err = rpol_alloc(r, required_len)) != RABIN_SUCCESS) goto out;
