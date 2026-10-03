@@ -289,7 +289,7 @@ static void run_internal_comparison()
 {
   printf("\n--- rz_mul: schoolbook vs Karatsuba (internal) ---\n");
   int sizes[] = {16,   32,   64,   128,   256,   512,   1024,
-                 2048, 4096, 8192, 10000, 20000, 40000, 80000};
+                 2048, 4096, 8192, 10000, 20000, 40000, 80000, 100000, 120000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_internal(sizes[i]);
   }
@@ -510,7 +510,7 @@ static void run_ntt_benchmark()
 {
   printf("\n--- rz_mul: Karatsuba vs NTT (internal) ---\n");
   int sizes[] = {8192,   16384,  32768,  65536, 100000,
-                 200000, 256000, 300000, 500000};
+                 200000, 256000, 300000, 500000, 1000000, 2000000, 4000000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_ntt_vs_karat(sizes[i]);
   }
@@ -552,6 +552,12 @@ int main()
   benchmark_mul(462144, bench_budget(462144), state);
   benchmark_mul(562144, bench_budget(562144), state);
   benchmark_mul(662144, bench_budget(662144), state);
+  benchmark_mul(1000000, bench_budget(1000000), state);
+  benchmark_mul(2000000, bench_budget(2000000), state);
+  benchmark_mul(4000000, bench_budget(4000000), state);
+  benchmark_mul(5000000, bench_budget(5000000), state);
+  benchmark_mul(6000000, bench_budget(6000000), state);
+  benchmark_mul(8000000, bench_budget(8000000), state);
   print_table_footer();
 
   run_internal_comparison();

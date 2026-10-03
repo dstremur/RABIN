@@ -1,9 +1,9 @@
 # Compiler
 CC = gcc
 AS = nasm
-AR = ar
+AR = gcc-ar
 # Flags
-CFLAGS = -Iinclude -Wall -Wextra -g -O3 -fopenmp  -funroll-loops -fopenmp 
+CFLAGS = -Iinclude -Wall -Wextra -g -march=x86-64-v4 -O3 -fopenmp -flto -funroll-loops -fopenmp 
 LDFLAGS = -fopenmp -lm -flto -lgmp
 ASFLAGS = -f elf64
 
@@ -156,3 +156,20 @@ test-valgrind:
 # Clean up all build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
+
+
+# --- Profile-Guided Optimization (PGO) ---
+.PHONY: pgo pgo-clean
+
+pgo: clean
+	@echo "==> Step 1/3: Compiling instrumented binaries..."
+	$(MAKE) all CFLAGS="$(CFLAGS) -fprofile-generate" LDFLAGS="$(LDFLAGS) -fprofile-generate"
+	@echo "==> Step 2/3: Generating profile data from workloads..."
+	$(MAKE) test_complete CFLAGS="$(CFLAGS) -fprofile-generate" LDFLAGS="$(LDFLAGS) -fprofile-generate"
+	@echo "==> Step 3/3: Rebuilding optimized library with profile feedback..."
+	@find $(BUILD_DIR) -name "*.o" -delete
+	$(MAKE) all CFLAGS="$(CFLAGS) -fprofile-use -fprofile-correction" LDFLAGS="$(LDFLAGS) -fprofile-use"
+	@echo "==> PGO build complete!"
+
+pgo-clean: clean
+	@find . -name "*.gcda" -o -name "*.gcno" -delete
