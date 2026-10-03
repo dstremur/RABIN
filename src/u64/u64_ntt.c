@@ -228,13 +228,18 @@ rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
   ctx->twiddle_inverse = malloc(sizeof(u64) * n);
 
   if (ctx->omega_powers == NULL || ctx->omega_inv_powers == NULL ||
-      ctx->bit_rev_indices == NULL) {
+      ctx->bit_rev_indices == NULL || ctx->twiddle_forward == NULL ||
+      ctx->twiddle_inverse == NULL) {
     free(ctx->omega_powers);
     free(ctx->omega_inv_powers);
     free(ctx->bit_rev_indices);
+    free(ctx->twiddle_forward);
+    free(ctx->twiddle_inverse);
     ctx->omega_powers = NULL;
     ctx->omega_inv_powers = NULL;
     ctx->bit_rev_indices = NULL;
+    ctx->twiddle_forward = NULL;
+    ctx->twiddle_inverse = NULL;
     // u64 ntt ct clear
     return RABIN_ERR_OUT_OF_MEMORY;
   }

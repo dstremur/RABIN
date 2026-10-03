@@ -15,6 +15,14 @@ typedef unsigned __int128 u128;
 /* limb count below which multiplication falls back to schoolbook */
 #define RZ_KARATSUBA_LIMIT 128
 
+/* limb count at which rz_mul() switches to the u64-NTT path (tune via
+   tests/test_mul.c internal comparison) */
+#define RZ_NTT_LIMIT 16384
+
+/* max number of 16-bit chunks per operand for an exact single-prime
+   (p = 5*2^55+1) convolution: min(na,nb) <= (p-1)/2^32 = 5*2^23 */
+#define RZ_NTT_U64_MAX_CHUNKS (5ULL << 23)
+
 /*---------------------------------------------------------------------------
  *  carry / borrow primitives
  *-------------------------------------------------------------------------*/

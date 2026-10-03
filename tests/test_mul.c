@@ -6,8 +6,10 @@
  *   1. Edge cases: 0, 1, -1, 2^64-1, 2^64 boundaries, limb-boundary carries
  *      + pointer aliasing (r == a and r == b)
  *   2. 1000 randomized cases (1..4096 bits) vs mpz_mul
- *   3. Time-based benchmark vs GMP at 512/1024/2048/4096 bits
- *   4. (kept) schoolbook vs Karatsuba comparison per size
+ *   3. Time-based benchmark vs GMP at 2048..262144 bits
+ *   4. (kept) schoolbook vs rz_mul (Karatsuba/NTT) comparison per size
+ *   5. u64-NTT path: threshold-straddling, asymmetric, carry, squaring vs GMP
+ *   6. Karatsuba vs NTT timing for tuning RZ_NTT_LIMIT
  *
  * Copyright (C) 2026 Diego Strebel
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -265,7 +267,7 @@ static void benchmark_mul_internal(int limbs)
   clock_t end = clock();
   double time_school = (double)(end - start) / CLOCKS_PER_SEC;
 
-  // 2. Time Karatsuba
+  // 2. Time rz_mul (Karatsuba below RZ_NTT_LIMIT, NTT above it)
   start = clock();
   rz_mul(&res_karat, &a, &b);
   end = clock();
@@ -276,7 +278,7 @@ static void benchmark_mul_internal(int limbs)
     printf("[FAIL] Mismatch at %d limbs!\n", limbs);
   } else {
     double speedup = (time_karat > 0.0) ? (time_school / time_karat) : 0.0;
-    printf("Limbs: %4d | School: %.6fs | Karatsuba: %.6fs | Speedup: %.2fx\n",
+    printf("Limbs: %4d | School: %.6fs | rz_mul: %.6fs | Speedup: %.2fx\n",
            limbs, time_school, time_karat, speedup);
   }
 
@@ -290,6 +292,227 @@ static void run_internal_comparison()
                  2048, 4096, 8192, 10000, 20000, 40000, 80000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_internal(sizes[i]);
+  }
+}
+
+// =============================================================================
+// PART 5: NTT PATH (threshold-straddling, asymmetry, carry, squaring)
+// =============================================================================
+
+// Fast GMP reference check: imports the limb arrays directly (O(n)),
+// avoiding the quadratic decimal string round-trip at multi-Mbit sizes.
+static void assert_match_gmp(const char* op, const rz_t* a, const rz_t* b,
+                             const rz_t* res)
+{
+  mpz_t za, zb, zr, zref;
+  mpz_inits(za, zb, zr, zref, NULL);
+
+  mpz_import(za, a->size, 0, 8, 1, 64, a->limbs);
+  mpz_import(zb, b->size, 0, 8, 1, 64, b->limbs);
+  mpz_import(zr, res->size, 0, 8, 1, 64, res->limbs);
+  if (a->is_neg) mpz_neg(za, za);
+  if (b->is_neg) mpz_neg(zb, zb);
+  if (res->is_neg) mpz_neg(zr, zr);
+
+  mpz_mul(zref, za, zb);
+  if (mpz_cmp(zr, zref) != 0) {
+    fprintf(stderr, "\n[FATAL ERROR] Correctness failure in %s!\n", op);
+    char* sa = rz_to_string(a);
+    char* sb = rz_to_string(b);
+    char* sr = rz_to_string(res);
+    char* sg = mpz_get_str(NULL, 10, zref);
+    fprintf(stderr, "Input A: %s\n", sa ? sa : "(null)");
+    fprintf(stderr, "Input B: %s\n", sb ? sb : "(null)");
+    fprintf(stderr, "GMP Result:    %s\n", sg);
+    fprintf(stderr, "Custom Result: %s\n", sr ? sr : "(null)");
+    free(sa);
+    free(sb);
+    free(sr);
+    free(sg);
+    mpz_clears(za, zb, zr, zref, NULL);
+    exit(EXIT_FAILURE);
+  }
+
+  mpz_clears(za, zb, zr, zref, NULL);
+}
+
+static void run_ntt_case(int limbs_a, int limbs_b, const char* name)
+{
+  rz_t a, b, res;
+  char detail[96];
+
+  rz_init_multi(&a, &b, &res, NULL);
+
+  rz_gen_random(&a, (u64)limbs_a * 64);
+  rz_gen_random(&b, (u64)limbs_b * 64);
+
+  snprintf(detail, sizeof(detail), "rz_mul [NTT %s]", name);
+  rz_mul(&res, &a, &b);
+  assert_match_gmp(detail, &a, &b, &res);
+
+  rz_clear_multi(&a, &b, &res, NULL);
+}
+
+static void run_ntt_cases()
+{
+  printf("\n--- rz_mul: NTT threshold-straddling cases vs GMP ---\n");
+  run_ntt_case(RZ_NTT_LIMIT / 2, RZ_NTT_LIMIT / 2, "limit/2");
+  run_ntt_case(RZ_NTT_LIMIT / 2 + 1, RZ_NTT_LIMIT / 2 + 1, "limit/2+1");
+  run_ntt_case(RZ_NTT_LIMIT - 1, RZ_NTT_LIMIT - 1, "limit-1");
+  run_ntt_case(RZ_NTT_LIMIT, RZ_NTT_LIMIT, "limit");
+  run_ntt_case(RZ_NTT_LIMIT + 1, RZ_NTT_LIMIT + 1, "limit+1");
+  run_ntt_case(4 * RZ_NTT_LIMIT, 4 * RZ_NTT_LIMIT, "4*limit");
+  run_ntt_case(16 * RZ_NTT_LIMIT, 16 * RZ_NTT_LIMIT, "16*limit");
+  printf("all NTT threshold cases passed\n");
+}
+
+static void run_ntt_asymmetric()
+{
+  printf("\n--- rz_mul: NTT asymmetric pairs vs GMP ---\n");
+
+  // 4:1 ratio straddles the asymmetry guard: dispatches to the NTT path
+  run_ntt_case(4 * RZ_NTT_LIMIT, RZ_NTT_LIMIT, "4:1 via rz_mul");
+  run_ntt_case(RZ_NTT_LIMIT, 4 * RZ_NTT_LIMIT, "1:4 via rz_mul");
+
+  // Extreme ratio: rz_mul() falls back to schoolbook; rz_mul_fast()
+  // exercises the explicit NTT kernel's zero-padding either way
+  {
+    rz_t a, b, res, res_fast;
+    char detail[96];
+
+    rz_init_multi(&a, &b, &res, &res_fast, NULL);
+
+    rz_gen_random(&a, (u64)(4 * RZ_NTT_LIMIT) * 64);
+    rz_set_u64(&b, 123456789);
+
+    rz_mul(&res, &a, &b);
+    snprintf(detail, sizeof(detail), "rz_mul [4*limit x 1, fallback]");
+    assert_match_gmp(detail, &a, &b, &res);
+
+    rz_mul_fast(&res_fast, &a, &b);
+    snprintf(detail, sizeof(detail), "rz_mul_fast [4*limit x 1]");
+    assert_match_gmp(detail, &a, &b, &res_fast);
+
+    rz_mul(&res, &b, &a);
+    snprintf(detail, sizeof(detail), "rz_mul [1 x 4*limit, fallback]");
+    assert_match_gmp(detail, &b, &a, &res);
+
+    rz_mul_fast(&res_fast, &b, &a);
+    snprintf(detail, sizeof(detail), "rz_mul_fast [1 x 4*limit]");
+    assert_match_gmp(detail, &b, &a, &res_fast);
+
+    rz_clear_multi(&a, &b, &res, &res_fast, NULL);
+  }
+  printf("all NTT asymmetric cases passed\n");
+}
+
+static void run_ntt_carry()
+{
+  printf(
+      "\n--- rz_mul: worst-case carry (all-0xFFFF limbs, self square) ---\n");
+  int limbs = 2 * RZ_NTT_LIMIT;
+
+  rz_t a, one, res;
+  char detail[96];
+
+  rz_init_multi(&a, &one, &res, NULL);
+
+  // a = 2^(64*limbs) - 1, i.e. every limb is 0xFFFF
+  rz_set_u64(&one, 1);
+  rz_lshift(&a, &one, 64 * limbs);
+  rz_sub(&a, &a, &one);
+
+  rz_mul(&res, &a, &a);
+  snprintf(detail, sizeof(detail), "rz_mul [all-0xFFFF %d limbs ^2]", limbs);
+  assert_match_gmp(detail, &a, &a, &res);
+
+  rz_clear_multi(&a, &one, &res, NULL);
+  printf("worst-case carry passed\n");
+}
+
+static void run_ntt_sqr()
+{
+  printf("\n--- rz_mul: squaring dispatch (a == b) vs GMP ---\n");
+  int limbs = 2 * RZ_NTT_LIMIT;
+
+  rz_t a, res;
+  char detail[96];
+
+  rz_init_multi(&a, &res, NULL);
+
+  rz_gen_random(&a, (u64)limbs * 64);
+
+  rz_mul(&res, &a, &a); /* a == b -> rz_sqr() -> NTT path */
+  snprintf(detail, sizeof(detail), "rz_sqr [NTT %d limbs]", limbs);
+  assert_match_gmp(detail, &a, &a, &res);
+
+  rz_clear_multi(&a, &res, NULL);
+  printf("squaring dispatch passed\n");
+}
+
+// =============================================================================
+// PART 6: NTT vs KARATSUBA TIMING (for tuning RZ_NTT_LIMIT)
+// =============================================================================
+
+static void benchmark_mul_ntt_vs_karat(int limbs)
+{
+  rz_t a, b, res_dispatch, res_karat, res_ntt;
+  rz_init_multi(&a, &b, &res_dispatch, &res_karat, &res_ntt, NULL);
+
+  rz_gen_random(&a, (u64)limbs * 64);
+  rz_gen_random(&b, (u64)limbs * 64);
+
+  // Establish a capacity-2n buffer via the dispatch path; keep a copy
+  // as the correctness reference for the raw kernel below.
+  rz_mul(&res_dispatch, &a, &b);
+  rz_copy(&res_karat, &res_dispatch);
+
+  // 1. Time the explicit NTT path
+  clock_t start = clock();
+  rz_mul_fast(&res_ntt, &a, &b);
+  clock_t end = clock();
+  double time_ntt = (double)(end - start) / CLOCKS_PER_SEC;
+
+  // 2. Time Karatsuba (raw kernel, both operands zero-padded to `limbs`)
+  u64* buf = rz_scratch_get(10 * (u64)limbs);
+  u64* pad_a = buf;
+  u64* pad_b = buf + (u64)limbs;
+  u64* scratch = buf + 2 * (u64)limbs;
+  memset(pad_a, 0, (size_t)limbs * sizeof(u64));
+  memset(pad_b, 0, (size_t)limbs * sizeof(u64));
+  memcpy(pad_a, a.limbs, a.size * sizeof(u64));
+  memcpy(pad_b, b.limbs, b.size * sizeof(u64));
+
+  start = clock();
+  limbs_mul_karatsuba(res_dispatch.limbs, pad_a, pad_b, (u64)limbs, scratch);
+  end = clock();
+  double time_karat = (double)(end - start) / CLOCKS_PER_SEC;
+  rz_scratch_release();
+
+  res_dispatch.size = 2 * (u64)limbs;
+  res_dispatch.is_neg = false;
+  rz_trim(&res_dispatch);
+
+  // 3. Verify all three results agree
+  if (rz_cmp(&res_ntt, &res_karat) != 0 ||
+      rz_cmp(&res_dispatch, &res_karat) != 0) {
+    printf("[FAIL] Mismatch (NTT/Karatsuba) at %d limbs!\n", limbs);
+  } else {
+    double speedup = (time_ntt > 0.0) ? (time_karat / time_ntt) : 0.0;
+    printf("Limbs: %5d | Karatsuba: %.6fs | NTT: %.6fs | Speedup: %.2fx\n",
+           limbs, time_karat, time_ntt, speedup);
+  }
+
+  rz_clear_multi(&a, &b, &res_dispatch, &res_karat, &res_ntt, NULL);
+}
+
+static void run_ntt_benchmark()
+{
+  printf("\n--- rz_mul: Karatsuba vs NTT (internal) ---\n");
+  int sizes[] = {8192,   16384,  32768,  65536, 100000,
+                 200000, 256000, 300000, 500000};
+  for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+    benchmark_mul_ntt_vs_karat(sizes[i]);
   }
 }
 
@@ -324,9 +547,19 @@ int main()
   benchmark_mul(8192, bench_budget(8192), state);
   benchmark_mul(32768, bench_budget(32768), state);
   benchmark_mul(65536, bench_budget(65536), state);
+  benchmark_mul(262144, bench_budget(262144), state);
+  benchmark_mul(362144, bench_budget(362144), state);
+  benchmark_mul(462144, bench_budget(462144), state);
+  benchmark_mul(562144, bench_budget(562144), state);
+  benchmark_mul(662144, bench_budget(662144), state);
   print_table_footer();
 
   run_internal_comparison();
+  run_ntt_cases();
+  run_ntt_asymmetric();
+  run_ntt_carry();
+  run_ntt_sqr();
+  run_ntt_benchmark();
 
   gmp_randclear(state);
   rz_clear_constants();
