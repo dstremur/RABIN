@@ -410,6 +410,8 @@ rabin_err_t rpol_mul_ntt_u64(rpol_t* r, const rpol_t* p, const rpol_t* q)
 out:
   // 7. Cleanup
   rz_scratch_release();
+  u64_ntt_ctx_clear(&ctx);
+
   return err;
 }
 
