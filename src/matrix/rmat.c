@@ -33,6 +33,7 @@
 
 #include "../../include/rmat.h"
 
+#include <math.h>
 #include <omp.h>
 #include <stdio.h>
 #include <string.h>
@@ -40,6 +41,7 @@
 #include "../../include/rns.h"
 #include "../../include/rns_primes.h"
 #include "../../include/rpol.h"
+#include "../../include/rq.h"
 #include "../../include/rzmath.h"
 
 rabin_err_t rmat_init(rmat_t* M, u64 r, u64 c)
@@ -1915,4 +1917,701 @@ bool rmat_hnf_verify(const rmat_t* A, const rmat_t* H, const rmat_t* U)
   // multiplication and the determinant only if it passes
   return rmat_hnf_check_structure(H) &&
          rmat_hnf_check_transformation(A, H, U) && rmat_hnf_check_unimodular(U);
+}
+
+/* ------------------------------------------------------------------ */
+/* LLL basis reduction                                                 */
+/* ------------------------------------------------------------------ */
+/*
+ * rmat_lll()  implements Cohen's Algorithm 2.6.7 (all-integer LLL,
+ *             full rank only).
+ * rmat_mlll() handles zero / dependent columns as a two-phase rebuild:
+ *             (1) a rank-revealing HNF column reduction (Cohen 2.4.5)
+ *             tracking the unimodular transform U with
+ *                 B_orig * U = [ 0_{m x (n-p)} | W ],
+ *             so the first n-p columns of U are a Z-basis of the
+ *             relation space and W (m x p) a Z-basis of the column
+ *             lattice;
+ *             (2) rmat_lll() on W, W <- W * Q, and
+ *                 B <- [ 0 | W ],  H <- [ U_rel | U_lift * Q ].
+ *
+ * rmat_lll() maintains the current generator vectors V (initially a
+ * copy of B) together with the unimodular transform H such that
+ * V = B_orig * H holds at all times; on success B is overwritten with
+ * V. It stores the scaled Gram-Schmidt data (1-based indices as in
+ * Cohen; 0-based here)
+ *
+ *     lambda[i][j] = d[j+1] * mu[i+1][j+1]     (0 <= j < i < n)
+ *     d[0] = 1,  d[i+1] = ||b_{i+1}||^2 * d[i]
+ *
+ * so that all quantities are integers. In rmat_lll(), RED(k, l)
+ * size-reduces vector k against vector l and SWAP exchanges vectors
+ * k-1 and k (0-based).
+ */
+
+/* scratch used by the RED/SWAP steps */
+typedef struct {
+  rz_t u, v, w;  // general temporaries
+  rz_t one, two;
+} lll_scr_t;
+
+static rabin_err_t lll_scr_init(lll_scr_t* s)
+{
+  if (rz_init_multi(&s->u, &s->v, &s->w, &s->one, &s->two, NULL) !=
+      RABIN_SUCCESS)
+    return RABIN_ERR_OUT_OF_MEMORY;
+
+  rabin_err_t err = rz_set_u64(&s->one, 1);
+  if (err == RABIN_SUCCESS) err = rz_set_u64(&s->two, 2);
+  return err;
+}
+
+static void lll_scr_clear(lll_scr_t* s)
+{
+  rz_clear_multi(&s->u, &s->v, &s->w, &s->one, &s->two, NULL);
+}
+
+/*
+ * Convert a bignum to double using its top 53 significant bits. Values
+ * with bit length > 1024 saturate to +-inf. Only used for the
+ * non-exact delta fallback.
+ */
+static double lll_rz_to_double(const rz_t* a)
+{
+  if (rz_is_zero(a)) return 0.0;
+
+  int bits = rz_bit_length(a);
+  double v;
+  if (bits <= 53) {
+    v = (double)a->limbs[0];
+  } else if (bits > 1024) {
+    v = INFINITY;
+  } else {
+    size_t t = (size_t)(bits - 1) / 64;
+    size_t s = (size_t)bits - 53;
+    uint64_t mant;
+    if (64 * t > s) {
+      int sh = (int)(64 * t - s);
+      mant = (a->limbs[t] << sh) | (a->limbs[t - 1] >> (64 - sh));
+    } else {
+      mant = a->limbs[t] >> (s - 64 * t);
+    }
+    v = ldexp((double)mant, (int)s);
+  }
+  return a->is_neg ? -v : v;
+}
+
+/* r = (column a of V) . (column b of V) */
+static rabin_err_t lll_dot(rz_t* r, const rmat_t* V, u64 a, u64 b, rz_t* t)
+{
+  rabin_err_t err = rz_set_u64(r, 0);
+  if (err != RABIN_SUCCESS) return err;
+
+  for (u64 i = 0; i < V->rows; i++) {
+    if ((err = rz_mul(t, RMAT_GET(V, i, a), RMAT_GET(V, i, b))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_add(r, r, t)) != RABIN_SUCCESS) return err;
+  }
+  return RABIN_SUCCESS;
+}
+
+/* ---------------------- LLL (Cohen 2.6.7) ------------------------- */
+
+/* RED1: size-reduce vector k against vector l (0-based, l < k). */
+static rabin_err_t lll_red1(rmat_t* V, rmat_t* H, rmat_t* lam, const rz_t* dv,
+                            u64 k, u64 l, lll_scr_t* s)
+{
+  rz_t* lk = RMAT_GET(lam, k, l);
+
+  // stop if |2 * lambda[k][l]| <= d[l+1]
+  rabin_err_t err = rz_mul(&s->u, &s->two, lk);
+  if (err != RABIN_SUCCESS) return err;
+  if (rz_cmp_abs(&s->u, &dv[l + 1]) <= 0) return RABIN_SUCCESS;
+
+  // q = nearest(lambda[k][l] / d[l+1]) =
+  //     floor((2*lambda[k][l] + d[l+1]) / (2*d[l+1]))
+  err = rz_add(&s->v, &s->u, &dv[l + 1]);
+  if (err == RABIN_SUCCESS) err = rz_mul(&s->u, &s->two, &dv[l + 1]);
+  if (err == RABIN_SUCCESS) err = rz_div_euclid(&s->w, &s->v, &s->u);
+  if (err != RABIN_SUCCESS) return err;
+  rz_t* q = &s->w;
+
+  // V_k -= q * V_l
+  for (u64 i = 0; i < V->rows; i++) {
+    if ((err = rz_mul(&s->u, q, RMAT_GET(V, i, l))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_sub(RMAT_GET(V, i, k), RMAT_GET(V, i, k), &s->u)) !=
+        RABIN_SUCCESS)
+      return err;
+  }
+  // H[:, k] -= q * H[:, l]
+  for (u64 i = 0; i < H->rows; i++) {
+    if ((err = rz_mul(&s->u, q, RMAT_GET(H, i, l))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_sub(RMAT_GET(H, i, k), RMAT_GET(H, i, k), &s->u)) !=
+        RABIN_SUCCESS)
+      return err;
+  }
+
+  // lambda[k][l] -= q * d[l+1];  lambda[k][i] -= q * lambda[l][i]  (i < l)
+  if ((err = rz_mul(&s->u, q, &dv[l + 1])) != RABIN_SUCCESS) return err;
+  if ((err = rz_sub(lk, lk, &s->u)) != RABIN_SUCCESS) return err;
+  for (u64 i = 0; i < l; i++) {
+    if ((err = rz_mul(&s->u, q, RMAT_GET(lam, l, i))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_sub(RMAT_GET(lam, k, i), RMAT_GET(lam, k, i), &s->u)) !=
+        RABIN_SUCCESS)
+      return err;
+  }
+  return RABIN_SUCCESS;
+}
+
+/* SWAP1: swap vectors k-1 and k (0-based, k >= 1). */
+static rabin_err_t lll_swap1(rmat_t* V, rmat_t* H, rmat_t* lam, rz_t* dv, u64 k,
+                             u64 kmax, lll_scr_t* s)
+{
+  rabin_err_t err;
+
+  // swap V columns k and k-1
+  for (u64 i = 0; i < V->rows; i++) {
+    if ((err = rz_copy(&s->u, RMAT_GET(V, i, k))) != RABIN_SUCCESS) return err;
+    if ((err = rz_copy(RMAT_GET(V, i, k), RMAT_GET(V, i, k - 1))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(V, i, k - 1), &s->u)) != RABIN_SUCCESS)
+      return err;
+  }
+  // swap H columns k and k-1
+  for (u64 i = 0; i < H->rows; i++) {
+    if ((err = rz_copy(&s->u, RMAT_GET(H, i, k))) != RABIN_SUCCESS) return err;
+    if ((err = rz_copy(RMAT_GET(H, i, k), RMAT_GET(H, i, k - 1))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(H, i, k - 1), &s->u)) != RABIN_SUCCESS)
+      return err;
+  }
+  // swap lambda[k][j] <-> lambda[k-1][j]  (j < k-1)
+  for (u64 j = 0; j + 1 < k; j++) {
+    if ((err = rz_copy(&s->u, RMAT_GET(lam, k, j))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(lam, k, j), RMAT_GET(lam, k - 1, j))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(lam, k - 1, j), &s->u)) != RABIN_SUCCESS)
+      return err;
+  }
+
+  // A <- lambda[k][k-1]  (= lambda_{s+1,s} with s = k, 1-based)
+  rz_t* A = RMAT_GET(lam, k, k - 1);
+
+  // for i > k (up to kmax), 1-based I = i+1 > s+1:
+  //   t <- lambda[i][k]   (old lambda_{I,s+1})
+  //   lambda[i][k]   <- (d[k+1]*lambda[i][k-1] - A*t) / d[k] (lambda'_{I,s+1})
+  //   lambda[i][k-1] <- (A*lambda[i][k-1] + d[k-1]*t) / d[k]   (lambda'_{I,s})
+  for (u64 i = k + 1; i <= kmax; i++) {
+    if ((err = rz_copy(&s->w, RMAT_GET(lam, i, k))) != RABIN_SUCCESS)
+      return err;
+    rz_t* t = &s->w;
+    if ((err = rz_mul(&s->u, &dv[k + 1], RMAT_GET(lam, i, k - 1))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_mul(&s->v, A, t)) != RABIN_SUCCESS) return err;
+    if ((err = rz_sub(&s->u, &s->u, &s->v)) != RABIN_SUCCESS) return err;
+    if ((err = rz_div_exact(RMAT_GET(lam, i, k), &s->u, &dv[k])) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_mul(&s->v, A, RMAT_GET(lam, i, k - 1))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_mul(&s->u, &dv[k - 1], t)) != RABIN_SUCCESS) return err;
+    if ((err = rz_add(&s->v, &s->v, &s->u)) != RABIN_SUCCESS) return err;
+    if ((err = rz_div_exact(RMAT_GET(lam, i, k - 1), &s->v, &dv[k])) !=
+        RABIN_SUCCESS)
+      return err;
+  }
+
+  // d[k] <- (d[k+1]*d[k-1] + A^2) / d[k]   (new d_{s+1}, 1-based)
+  err = rz_mul(&s->u, &dv[k + 1], &dv[k - 1]);
+  if (err == RABIN_SUCCESS) err = rz_sqr(&s->v, A);
+  if (err == RABIN_SUCCESS) err = rz_add(&s->u, &s->u, &s->v);
+  if (err == RABIN_SUCCESS) err = rz_div_exact(&s->v, &s->u, &dv[k]);
+  if (err != RABIN_SUCCESS) return err;
+  return rz_copy(&dv[k], &s->v);
+}
+
+/*
+ * Cohen 2.6.7 main loop, with 1-based k and kmax exactly as in Cohen
+ * (0-based array indices are k-1 etc.). Requires full rank; returns
+ * RABIN_ERR_INVALID_ARG when a d[k] becomes zero.
+ */
+static rabin_err_t rmat_lll_run(rmat_t* V, rmat_t* H, rmat_t* lam, rz_t* dv,
+                                u64 n, double delta)
+{
+  lll_scr_t s;
+  if (lll_scr_init(&s) != RABIN_SUCCESS) return RABIN_ERR_OUT_OF_MEMORY;
+
+  rabin_err_t err = rz_set_u64(&dv[0], 1);
+  u64 k = 1;
+  u64 kmax = 0;
+  bool exact = (delta == 0.75);
+
+step2:
+  // [Initialize GS data for vector k]
+  if (k > kmax) {
+    kmax = k;
+    for (u64 j = 1; j <= k; j++) {
+      if ((err = lll_dot(&s.u, V, k - 1, j - 1, &s.v)) != RABIN_SUCCESS)
+        goto cleanup;
+      // U <- (d[i]*U - lambda[k][i]*lambda[j][i]) / d[i-1]   (1-based i < j,
+      // d[1] = 1, d[i] stored in dv[i-1] (0-based))
+      for (u64 i = 1; i < j; i++) {
+        if ((err = rz_mul(&s.w, &dv[i], &s.u)) != RABIN_SUCCESS) goto cleanup;
+        if ((err = rz_mul(&s.v, RMAT_GET(lam, k - 1, i - 1),
+                          RMAT_GET(lam, j - 1, i - 1))) != RABIN_SUCCESS)
+          goto cleanup;
+        if ((err = rz_sub(&s.w, &s.w, &s.v)) != RABIN_SUCCESS) goto cleanup;
+        if ((err = rz_div_exact(&s.u, &s.w, &dv[i - 1])) != RABIN_SUCCESS)
+          goto cleanup;
+      }
+      if (j < k) {
+        if ((err = rz_copy(RMAT_GET(lam, k - 1, j - 1), &s.u)) != RABIN_SUCCESS)
+          goto cleanup;
+      } else {
+        if ((err = rz_copy(&dv[k], &s.u)) != RABIN_SUCCESS) goto cleanup;
+        if (rz_is_zero(&dv[k])) {
+          err = RABIN_ERR_INVALID_ARG;
+          goto cleanup;
+        }
+      }
+    }
+  }
+
+  // [LLL test: size-reduce k against k-1, check the Lovasz condition]
+  if (k > 1) {
+    if ((err = lll_red1(V, H, lam, dv, k - 1, k - 2, &s)) != RABIN_SUCCESS)
+      goto cleanup;
+
+    // Lovasz condition (1-based k, lambda = lambda[k][k-1], d[i] in dv[i-1]):
+    //   swap iff d[k+1]*d[k-1] < delta*d[k]^2 - lambda^2
+    // (i.e. ||b*_k||^2 < (delta - mu^2) * ||b*_{k-1}||^2 with mu =
+    // lambda/d[k]). exact branch is for delta = 3/4: 4*d[k+1]*d[k-1] < 3*d[k]^2
+    // - 4*lambda^2
+    bool swap = false;
+    if (exact) {
+      if ((err = rz_mul(&s.u, &dv[k], &dv[k - 2])) != RABIN_SUCCESS)
+        goto cleanup;
+      if ((err = rz_mul_i64(&s.v, &s.u, 4)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_sqr(&s.w, &dv[k - 1])) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_mul_i64(&s.w, &s.w, 3)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_sqr(&s.u, RMAT_GET(lam, k - 1, k - 2))) != RABIN_SUCCESS)
+        goto cleanup;
+      if ((err = rz_mul_i64(&s.u, &s.u, 4)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_sub(&s.w, &s.w, &s.u)) != RABIN_SUCCESS) goto cleanup;
+      swap = (rz_cmp(&s.v, &s.w) < 0);
+    } else {
+      // swap iff d[k+1]*d[k-1] < delta*d[k]^2 - lambda^2
+      if ((err = rz_mul(&s.u, &dv[k], &dv[k - 2])) != RABIN_SUCCESS)
+        goto cleanup;
+      if ((err = rz_sqr(&s.v, &dv[k - 1])) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_sqr(&s.w, RMAT_GET(lam, k - 1, k - 2))) != RABIN_SUCCESS)
+        goto cleanup;
+      swap = (lll_rz_to_double(&s.u) <
+              delta * lll_rz_to_double(&s.v) - lll_rz_to_double(&s.w));
+    }
+
+    if (swap) {
+      if ((err = lll_swap1(V, H, lam, dv, k - 1, kmax - 1, &s)) !=
+          RABIN_SUCCESS)
+        goto cleanup;
+      k--;
+      // the swapped-in vector now sits at k and must be re-examined
+      // (size-reduce + Lovasz) before advancing: restart at step2.
+      goto step2;
+    }
+  }
+
+  // descending: RED1(k,l) updates lambda[k][i] for i < l, so l must decrease
+  for (u64 l = k - 1; l >= 1; l--) {
+    if ((err = lll_red1(V, H, lam, dv, k - 1, l - 1, &s)) != RABIN_SUCCESS)
+      goto cleanup;
+  }
+  k++;
+  if (k <= n) goto step2;
+
+  err = RABIN_SUCCESS;
+cleanup:
+  lll_scr_clear(&s);
+  return err;
+}
+
+rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H)
+{
+  if (B == NULL || H == NULL) return RABIN_ERR_NULL_PTR;
+  if (!(delta > 0.0 && delta <= 1.0)) return RABIN_ERR_INVALID_ARG;
+  if (n != B->cols) return RABIN_ERR_INVALID_ARG;
+
+  // nothing to reduce; H is re-initialized to the n x n identity
+  rabin_err_t err = rmat_init(H, n, n);
+  if (err != RABIN_SUCCESS) return err;
+  err = rmat_id(H, n);
+  if (err != RABIN_SUCCESS) return err;
+  if (n <= 1) return RABIN_SUCCESS;
+
+  rmat_t V = {0}, lam = {0};
+  rz_t* dv = NULL;
+
+  if (rmat_init(&V, B->rows, n) != RABIN_SUCCESS)
+    return RABIN_ERR_OUT_OF_MEMORY;
+  if (rmat_init(&lam, n, n) != RABIN_SUCCESS) {
+    rmat_clear(&V);
+    return RABIN_ERR_OUT_OF_MEMORY;
+  }
+  dv = malloc((n + 1) * sizeof(rz_t));
+  if (dv == NULL) {
+    rmat_clear(&V);
+    rmat_clear(&lam);
+    return RABIN_ERR_OUT_OF_MEMORY;
+  }
+  for (u64 i = 0; i <= n; i++) {
+    if (rz_init(&dv[i]) != RABIN_SUCCESS) {
+      for (u64 j = 0; j < i; j++) rz_clear(&dv[j]);
+      free(dv);
+      rmat_clear(&V);
+      rmat_clear(&lam);
+      return RABIN_ERR_OUT_OF_MEMORY;
+    }
+  }
+
+  err = rmat_copy(&V, B);
+  if (err == RABIN_SUCCESS) err = rmat_id(H, n);
+  if (err == RABIN_SUCCESS) err = rmat_lll_run(&V, H, &lam, dv, n, delta);
+  if (err == RABIN_SUCCESS) err = rmat_copy(B, &V);
+
+  for (u64 i = 0; i <= n; i++) rz_clear(&dv[i]);
+  free(dv);
+  rmat_clear(&V);
+  rmat_clear(&lam);
+  return err;
+}
+
+/* ---------------------- MLLL (Cohen 2.6.8) ------------------------ */
+
+/*
+ * HNF via the exact column reduction (Cohen's Algorithm 2.4.5, same
+ * loop as rmat_hermite_gcd()), additionally tracking the unimodular
+ * column transformation.
+ *
+ * The reduction drives (n - p) columns to zero and drops them from the
+ * left (p = rank of A), so on success:
+ *
+ *   W = A_work[:, k_final..n-1]   (m x p, HNF of the column lattice)
+ *   A * U = [ 0_{m x (n-p)} | W ]
+ *
+ * Hence the first n - p columns of U form a Z-basis of the relation
+ * space { x in Z^n : A x = 0 }, and the last p columns of U are
+ * integer lifts of the HNF basis. W and U must point to empty
+ * (zero-initialized) rmat_t objects; on success they hold the result.
+ */
+static rabin_err_t hnf_with_transform(rmat_t* W, rmat_t* U, const rmat_t* A)
+{
+  if (W == NULL || U == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
+
+  u64 m = A->rows;
+  u64 n = A->cols;
+  if (m == 0 || n == 0) return RABIN_ERR_INVALID_ARG;
+
+  u64 i = m - 1;
+  u64 j = n - 1;
+  u64 k = n - 1;
+  u64 l = 0;
+  if (m > n) {
+    l = m - n;
+  }
+
+  rmat_t A_work = {0};
+  rabin_err_t err = rmat_init(&A_work, m, n);
+  if (err != RABIN_SUCCESS) return err;
+  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto cleanup;
+
+  bool u_live = false;
+  if ((err = rmat_init(U, n, n)) != RABIN_SUCCESS) goto cleanup;
+  u_live = true;
+  if ((err = rmat_id(U, n)) != RABIN_SUCCESS) goto cleanup;
+
+  rz_t* B = malloc(m * sizeof(rz_t));
+  if (B == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup;
+  }
+  u64 b_done = 0;
+  for (u64 x = 0; x < m; x++) {
+    if ((err = rz_init(&B[x])) != RABIN_SUCCESS) goto cleanup_B;
+    b_done++;
+  }
+
+  rz_t* C = malloc(n * sizeof(rz_t));
+  if (C == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup_B;
+  }
+  u64 c_done = 0;
+  for (u64 x = 0; x < n; x++) {
+    if ((err = rz_init(&C[x])) != RABIN_SUCCESS) goto cleanup_C;
+    c_done++;
+  }
+
+  rz_t u, v, d, temp, temp2, b, q_k, q_j;
+  if ((err = rz_init_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL)) !=
+      RABIN_SUCCESS)
+    goto cleanup_C;
+
+// 2. [Check zero]
+step2:
+  if (j == 0) {
+    goto step4;
+  }
+  j--;
+  if (rz_is_zero(RMAT_GET(&A_work, i, j))) {
+    goto step2;
+  }
+
+  // 3. [Euclidean step]
+  if ((err = rz_gcd_extended_lehmer(&u, &v, &d, RMAT_GET(&A_work, i, k),
+                                    RMAT_GET(&A_work, i, j))) != RABIN_SUCCESS)
+    goto cleanup_temps;
+  if ((err = hnf_bezout_minimal(&u, &v, &d, RMAT_GET(&A_work, i, k),
+                                RMAT_GET(&A_work, i, j))) != RABIN_SUCCESS)
+    goto cleanup_temps;
+
+  // B = u*col_k + v*col_j
+  for (u64 x = 0; x < m; x++) {
+    if ((err = rz_mul(&B[x], &u, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_mul(&temp, &v, RMAT_GET(&A_work, x, j))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_add(&B[x], &B[x], &temp)) != RABIN_SUCCESS)
+      goto cleanup_temps;
+  }
+
+  if ((err = rz_div_euclid(&q_k, RMAT_GET(&A_work, i, k), &d)) != RABIN_SUCCESS)
+    goto cleanup_temps;
+  if ((err = rz_div_euclid(&q_j, RMAT_GET(&A_work, i, j), &d)) != RABIN_SUCCESS)
+    goto cleanup_temps;
+
+  // col_j <- q_k*col_j - q_j*col_k,  col_k <- B
+  for (u64 x = 0; x < m; x++) {
+    if ((err = rz_mul(&temp, &q_k, RMAT_GET(&A_work, x, j))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_mul(&temp2, &q_j, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_sub(RMAT_GET(&A_work, x, j), &temp, &temp2)) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_copy(RMAT_GET(&A_work, x, k), &B[x])) != RABIN_SUCCESS)
+      goto cleanup_temps;
+  }
+
+  // apply the same transformation to the columns of U
+  // (new col_k = u*old col_k + v*old col_j,
+  //  new col_j = -q_j*old col_k + q_k*old col_j)
+  for (u64 x = 0; x < n; x++) {
+    if ((err = rz_mul(&C[x], &u, RMAT_GET(U, x, k))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_mul(&temp, &v, RMAT_GET(U, x, j))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_add(&C[x], &C[x], &temp)) != RABIN_SUCCESS)
+      goto cleanup_temps;
+  }
+  for (u64 x = 0; x < n; x++) {
+    if ((err = rz_mul(&temp, &q_k, RMAT_GET(U, x, j))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_mul(&temp2, &q_j, RMAT_GET(U, x, k))) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_sub(RMAT_GET(U, x, j), &temp, &temp2)) != RABIN_SUCCESS)
+      goto cleanup_temps;
+    if ((err = rz_copy(RMAT_GET(U, x, k), &C[x])) != RABIN_SUCCESS)
+      goto cleanup_temps;
+  }
+  goto step2;
+
+  // 4. [Final reduction]
+step4:
+  if ((err = rz_copy(&b, RMAT_GET(&A_work, i, k))) != RABIN_SUCCESS)
+    goto cleanup_temps;
+  if (b.is_neg && !rz_is_zero(&b)) {
+    for (u64 x = 0; x < m; x++) {
+      if ((err = rz_neg(RMAT_GET(&A_work, x, k), RMAT_GET(&A_work, x, k))) !=
+          RABIN_SUCCESS)
+        goto cleanup_temps;
+    }
+    for (u64 x = 0; x < n; x++) {
+      if ((err = rz_neg(RMAT_GET(U, x, k), RMAT_GET(U, x, k))) != RABIN_SUCCESS)
+        goto cleanup_temps;
+    }
+    if ((err = rz_neg(&b, &b)) != RABIN_SUCCESS) goto cleanup_temps;
+  }
+
+  if (rz_is_zero(&b)) {
+    k++;
+    goto step5;
+  }
+
+  for (u64 j_0 = k + 1; j_0 < n; j_0++) {
+    if ((err = rz_div_euclid(&temp2, RMAT_GET(&A_work, i, j_0), &b)) !=
+        RABIN_SUCCESS)
+      goto cleanup_temps;
+    for (u64 x = 0; x < m; x++) {
+      if ((err = rz_mul(&temp, &temp2, RMAT_GET(&A_work, x, k))) !=
+          RABIN_SUCCESS)
+        goto cleanup_temps;
+      if ((err = rz_sub(RMAT_GET(&A_work, x, j_0), RMAT_GET(&A_work, x, j_0),
+                        &temp)) != RABIN_SUCCESS)
+        goto cleanup_temps;
+    }
+    for (u64 x = 0; x < n; x++) {
+      if ((err = rz_mul(&temp, &temp2, RMAT_GET(U, x, k))) != RABIN_SUCCESS)
+        goto cleanup_temps;
+      if ((err = rz_sub(RMAT_GET(U, x, j_0), RMAT_GET(U, x, j_0), &temp)) !=
+          RABIN_SUCCESS)
+        goto cleanup_temps;
+    }
+  }
+
+step5:
+  // 5. [Finished]
+  if (i == l) {
+    if ((err = rmat_init(W, m, n - k)) != RABIN_SUCCESS) goto cleanup_temps;
+    for (u64 x = 0; x < n - k; x++) {
+      for (u64 y = 0; y < m; y++) {
+        if ((err = rz_copy(RMAT_GET(W, y, x), RMAT_GET(&A_work, y, x + k))) !=
+            RABIN_SUCCESS)
+          goto cleanup_temps;
+      }
+    }
+    err = RABIN_SUCCESS;
+    u_live = false;  // keep U for the caller
+    goto cleanup_temps;
+  }
+
+  i--;
+  k--;
+  j = k;
+  goto step2;
+
+cleanup_temps:
+  rz_clear_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL);
+cleanup_C:
+  for (u64 x = 0; x < c_done; x++) rz_clear(&C[x]);
+  free(C);
+cleanup_B:
+  for (u64 x = 0; x < b_done; x++) rz_clear(&B[x]);
+  free(B);
+cleanup:
+  if (u_live) rmat_clear(U);
+  rmat_clear(&A_work);
+  return err;
+}
+
+rabin_err_t rmat_mlll(rmat_t* B, u64 n, double delta, rmat_t* H, u64* rank)
+{
+  if (B == NULL || H == NULL || rank == NULL) return RABIN_ERR_NULL_PTR;
+  if (!(delta > 0.0 && delta <= 1.0)) return RABIN_ERR_INVALID_ARG;
+  if (n != B->cols) return RABIN_ERR_INVALID_ARG;
+
+  // the HNF machinery (and Cohen 2.6.8) is stated for d <= n: the
+  // column reduction only inspects the bottom n rows
+  if (B->rows > n) return RABIN_ERR_INVALID_ARG;
+
+  *rank = 0;
+
+  // no coordinates (or no vectors): every column is the zero vector
+  if (n == 0 || B->rows == 0) {
+    rabin_err_t e = rmat_init(H, n, n);
+    if (e != RABIN_SUCCESS) return e;
+    return rmat_id(H, n);
+  }
+
+  rmat_t A = {0};  // original generator matrix (kept for B_orig * H checks)
+  rmat_t W = {0};  // HNF of the column lattice (m x p)
+  rmat_t U = {0};  // unimodular: A * U = [ 0 | W ]
+  rmat_t Q = {0};  // LLL transformation of W (p x p)
+  rmat_t A_work = {0};
+  rmat_t H_lift = {0};  // U[:, n-p..n-1] (n x p)
+  rmat_t H_tail = {0};  // H_lift * Q (n x p)
+
+  rabin_err_t err = rmat_init(&A, B->rows, n);
+  if (err != RABIN_SUCCESS) return err;
+  err = rmat_copy(&A, B);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  // 1. [Rank-revealing column reduction]
+  err = hnf_with_transform(&W, &U, &A);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  u64 p = W.cols;
+  *rank = p;
+
+  // 2. [LLL-reduce the lattice basis]
+  if (p > 0) {
+    if ((err = rmat_lll(&W, p, delta, &Q)) != RABIN_SUCCESS) goto cleanup;
+  }
+
+  // 3. [Assemble B = [ 0 | W ] and H = [ U_rel | U_lift * Q ]]
+  err = rmat_init(H, n, n);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rmat_id(H, n);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  for (u64 x = 0; x < n - p; x++) {
+    for (u64 y = 0; y < n; y++) {
+      if ((err = rmat_set(H, RMAT_GET(&U, y, x), y, x)) != RABIN_SUCCESS)
+        goto cleanup;
+    }
+  }
+  if (p > 0) {
+    if ((err = rmat_init(&H_lift, n, p)) != RABIN_SUCCESS) goto cleanup;
+    for (u64 x = 0; x < p; x++) {
+      for (u64 y = 0; y < n; y++) {
+        if ((err = rmat_set(&H_lift, RMAT_GET(&U, y, n - p + x), y, x)) !=
+            RABIN_SUCCESS)
+          goto cleanup;
+      }
+    }
+    if ((err = rmat_init(&H_tail, n, p)) != RABIN_SUCCESS) goto cleanup;
+    if ((err = rmat_mul(&H_tail, &H_lift, &Q)) != RABIN_SUCCESS) goto cleanup;
+    for (u64 x = 0; x < p; x++) {
+      for (u64 y = 0; y < n; y++) {
+        if ((err = rmat_set(H, RMAT_GET(&H_tail, y, x), y, n - p + x)) !=
+            RABIN_SUCCESS)
+          goto cleanup;
+      }
+    }
+  }
+  // B = [ 0_{m x (n-p)} | W ]
+  err = rmat_init(B, B->rows, n);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  for (u64 x = 0; x < p; x++) {
+    for (u64 y = 0; y < B->rows; y++) {
+      if ((err = rmat_set(B, RMAT_GET(&W, y, x), y, n - p + x)) !=
+          RABIN_SUCCESS)
+        goto cleanup;
+    }
+  }
+
+  // 4. [Verify B == A_orig * H before returning]
+  if ((err = rmat_init(&A_work, B->rows, n)) != RABIN_SUCCESS) goto cleanup;
+  if ((err = rmat_mul(&A_work, &A, H)) != RABIN_SUCCESS) goto cleanup;
+  if (!rmat_equal(&A_work, B)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  err = RABIN_SUCCESS;
+cleanup:
+  rmat_clear(&A_work);
+  rmat_clear(&H_tail);
+  rmat_clear(&H_lift);
+  rmat_clear(&Q);
+  rmat_clear(&U);
+  rmat_clear(&W);
+  rmat_clear(&A);
+  return err;
 }
