@@ -590,6 +590,13 @@ rabin_err_t rmat_det(rz_t* d, const rmat_t* A)
 
   u64 k = rns_estimate_det(&T);
 
+  // not enough primes in the table: fall back to the exact Bareiss route
+  const u64 np = sizeof(RNS_PRIMES) / sizeof(RNS_PRIMES[0]);
+  if (k == 0 || k > np) {
+    rmat_clear(&T);
+    return rmat_det_bareiss(d, A);
+  }
+
   rns_ctx_t ctx;
   if ((err = rns_ctx_init(&ctx, RNS_PRIMES, k)) != RABIN_SUCCESS) goto out;
 
@@ -2659,4 +2666,730 @@ cleanup:
   rmat_clear(&W);
   rmat_clear(&A);
   return err;
+}
+
+/* ------------- Kernel and image of a matrix (Cohen 2.7) ------------- */
+
+/*
+ * Extract columns [c0, c0 + len) of src into a fresh matrix dst.
+ */
+static rabin_err_t rmat_extract_cols(rmat_t* dst, const rmat_t* src, u64 c0,
+                                     u64 len)
+{
+  if (dst == NULL || src == NULL) return RABIN_ERR_NULL_PTR;
+  if (c0 + len > src->cols) return RABIN_ERR_INVALID_ARG;
+
+  rabin_err_t err = rmat_init(dst, src->rows, len);
+  if (err != RABIN_SUCCESS) return err;
+  for (u64 x = 0; x < src->rows && err == RABIN_SUCCESS; x++) {
+    for (u64 y = 0; y < len; y++) {
+      err = rz_copy(RMAT_GET(dst, x, y), RMAT_GET(src, x, c0 + y));
+    }
+  }
+  return err;
+}
+
+/*
+ * Kernel-only LLL (Cohen 2.7.2): integer Gram-Schmidt with flags iota[]
+ * marking the vectors that are nonzero in the Gram-Schmidt sense (iota = 1
+ * iff B_k != 0). When u == 0 the convention d_k <- d_{k-1} keeps every d_k
+ * nonzero, so no division ever hits zero and dependent vectors are simply
+ * pushed to the front by SWAPK until iota[0..r-1] == 0 exactly delimits the
+ * kernel: the first r columns of H then form a Z-basis of ker(A).
+ */
+
+/*
+ * Exact integer Gram-Schmidt for one column (1-based row i of lam): fills
+ * lambda[i][j] (j < i), d_i and iota[i-1] from the vectors in V and the GS
+ * data of the rows below i. Mirrors the step-2 loop of rmat_lll_run.
+ */
+static rabin_err_t lll_gsrow(rmat_t* V, rmat_t* lam, rz_t* dv, bool* iota,
+                             u64 i, lll_scr_t* s)
+{
+  rabin_err_t err;
+  for (u64 j = 1; j <= i; j++) {
+    if (!iota[j - 1] && j < i) {
+      if ((err = rz_set_u64(RMAT_GET(lam, i - 1, j - 1), 0)) != RABIN_SUCCESS)
+        return err;
+      continue;
+    }
+    if ((err = lll_dot(&s->u, V, i - 1, j - 1, &s->v)) != RABIN_SUCCESS)
+      return err;
+    for (u64 x = 1; x < j; x++) {
+      if (!iota[x - 1]) continue;
+      if ((err = rz_mul(&s->w, &dv[x], &s->u)) != RABIN_SUCCESS) return err;
+      if ((err = rz_mul(&s->v, RMAT_GET(lam, i - 1, x - 1),
+                        RMAT_GET(lam, j - 1, x - 1))) != RABIN_SUCCESS)
+        return err;
+      if ((err = rz_sub(&s->w, &s->w, &s->v)) != RABIN_SUCCESS) return err;
+      if ((err = rz_div_exact(&s->u, &s->w, &dv[x - 1])) != RABIN_SUCCESS)
+        return err;
+    }
+    if (j < i) {
+      if ((err = rz_copy(RMAT_GET(lam, i - 1, j - 1), &s->u)) != RABIN_SUCCESS)
+        return err;
+    } else {
+      if (!rz_is_zero(&s->u)) {
+        if ((err = rz_copy(&dv[i], &s->u)) != RABIN_SUCCESS) return err;
+        iota[i - 1] = true;
+      } else {
+        if ((err = rz_copy(&dv[i], &dv[i - 1])) != RABIN_SUCCESS) return err;
+        iota[i - 1] = false;
+      }
+    }
+  }
+  return RABIN_SUCCESS;
+}
+
+/*
+ * SWAPK (Cohen 2.7.2): exchange the vectors at (1-based) positions k-1 and k.
+ * On entry iota[k-2] is true and iota[k-1] is false (the vector at position
+ * k is Gram-Schmidt-zero). Instead of updating lambda/d incrementally, the
+ * GS data of rows k-1..kmax is recomputed from the (already swapped) vectors
+ * with lll_gsrow(); this is exact by construction and keeps iota in sync.
+ */
+static rabin_err_t lll_swapk(rmat_t* V, rmat_t* H, rmat_t* lam, rz_t* dv,
+                             bool* iota, u64 k, u64 kmax, lll_scr_t* s)
+{
+  rabin_err_t err;
+
+  // swap the columns k-1 and k of V and H
+  for (u64 i = 0; i < V->rows; i++) {
+    if ((err = rz_copy(&s->u, RMAT_GET(V, i, k - 1))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(V, i, k - 1), RMAT_GET(V, i, k - 2))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(V, i, k - 2), &s->u)) != RABIN_SUCCESS)
+      return err;
+  }
+  for (u64 i = 0; i < H->rows; i++) {
+    if ((err = rz_copy(&s->u, RMAT_GET(H, i, k - 1))) != RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(H, i, k - 1), RMAT_GET(H, i, k - 2))) !=
+        RABIN_SUCCESS)
+      return err;
+    if ((err = rz_copy(RMAT_GET(H, i, k - 2), &s->u)) != RABIN_SUCCESS)
+      return err;
+  }
+
+  // recompute the GS data of all rows at or below the swap (ascending, so
+  // each row sees the freshly updated data of the rows above it)
+  for (u64 i = k - 1; i <= kmax; i++) {
+    if ((err = lll_gsrow(V, lam, dv, iota, i, s)) != RABIN_SUCCESS) return err;
+  }
+  return RABIN_SUCCESS;
+}
+
+static rabin_err_t rmat_kernel_lll_run(rmat_t* V, rmat_t* H, rmat_t* lam,
+                                       rz_t* dv, bool* iota, u64 n)
+{
+  lll_scr_t s;
+  if (lll_scr_init(&s) != RABIN_SUCCESS) return RABIN_ERR_OUT_OF_MEMORY;
+
+  rabin_err_t err = rz_set_u64(&dv[0], 1);  // d_0 = 1
+  if (err != RABIN_SUCCESS) {
+    lll_scr_clear(&s);
+    return err;
+  }
+
+  u64 k = 1;
+  u64 kmax = 0;
+
+step2:
+  // [Initialize Gram-Schmidt data for vector k]
+  if (k > kmax) {
+    kmax = k;
+    if ((err = lll_gsrow(V, lam, dv, iota, k, &s)) != RABIN_SUCCESS)
+      goto cleanup;
+  }
+
+step3:
+  // [Test]
+  if (k >= 2) {
+    if (iota[k - 2]) {
+      if ((err = lll_red1(V, H, lam, dv, k - 1, k - 2, &s)) != RABIN_SUCCESS)
+        goto cleanup;
+      if (!iota[k - 1]) {
+        if ((err = lll_swapk(V, H, lam, dv, iota, k, kmax, &s)) !=
+            RABIN_SUCCESS)
+          goto cleanup;
+        if (k > 2) k--;  // k <- max(2, k-1)
+        goto step3;
+      }
+    }
+    // descending: RED(k,l) updates lambda[k][i] for i < l
+    for (u64 l = k - 2; l >= 1; l--) {
+      if (!iota[l - 1]) continue;
+      if ((err = lll_red1(V, H, lam, dv, k - 1, l - 1, &s)) != RABIN_SUCCESS)
+        goto cleanup;
+    }
+  }
+  k++;
+  if (k <= n) goto step2;
+
+  err = RABIN_SUCCESS;
+cleanup:
+  lll_scr_clear(&s);
+  return err;
+}
+
+/*
+ * Nearest integer of the rational x (ties go up): with den > 0 the invariant
+ * of rq_t,
+ *
+ *   round(num/den) = floor((2*num + den) / (2*den)),
+ *
+ * evaluated with the exact Euclidean quotient. t1, t2 are scratch.
+ */
+static rabin_err_t rz_round_nearest(rz_t* q, const rq_t* x, rz_t* t1, rz_t* t2)
+{
+  rabin_err_t err = rz_lshift(t1, &x->num, 1);  // 2*num
+  if (err == RABIN_SUCCESS) err = rz_add(t1, t1, &x->den);
+  if (err == RABIN_SUCCESS) err = rz_lshift(t2, &x->den, 1);  // 2*den > 0
+  if (err == RABIN_SUCCESS) err = rz_div_euclid(q, t1, t2);
+  return err;
+}
+
+/*
+ * Invert the r x r rational matrix G by Gauss-Jordan elimination, returning
+ * the inverse as a freshly allocated row-major array of r*r rationals
+ * (freed by the caller with rq_clear + free). Fails with
+ * RABIN_ERR_INVALID_ARG when G is singular.
+ */
+static rabin_err_t rq_mat_inverse(rq_t** Dout, const rmat_t* G, u64 r)
+{
+  if (Dout == NULL || G == NULL) return RABIN_ERR_NULL_PTR;
+  *Dout = NULL;
+  if (G->rows != r || G->cols != r) return RABIN_ERR_INVALID_ARG;
+  if (r == 0) return RABIN_SUCCESS;
+
+  rq_t* A = calloc(r * 2 * r, sizeof(rq_t));
+  if (A == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+  u64 a_done = 0;
+  for (u64 x = 0; x < r * 2 * r; x++) {
+    if (rq_init(&A[x]) != RABIN_SUCCESS) goto fail;
+    a_done++;
+  }
+
+  rabin_err_t err = RABIN_SUCCESS;
+  rq_t pv, f, t;
+  bool temps = false;
+  if ((err = rq_init_multi(&pv, &f, &t, NULL)) != RABIN_SUCCESS) goto fail;
+  temps = true;
+
+  for (u64 x = 0; x < r && err == RABIN_SUCCESS; x++) {
+    for (u64 y = 0; y < 2 * r; y++) {
+      if (y < r) {
+        err = rq_set(&A[x * 2 * r + y], RMAT_GET(G, x, y));
+      } else {
+        err = rq_set_u64(&A[x * 2 * r + y], y - r == x ? 1 : 0);
+      }
+    }
+  }
+
+  for (u64 c = 0; c < r && err == RABIN_SUCCESS; c++) {
+    u64 p = c;
+    while (p < r && rz_is_zero(&A[p * 2 * r + c].num)) p++;
+    if (p == r) {
+      err = RABIN_ERR_INVALID_ARG;  // singular
+      break;
+    }
+    if (p != c) {
+      for (u64 y = 0; y < 2 * r; y++) {
+        err = rq_copy(&t, &A[p * 2 * r + y]);
+        if (err == RABIN_SUCCESS)
+          err = rq_copy(&A[p * 2 * r + y], &A[c * 2 * r + y]);
+        if (err == RABIN_SUCCESS) err = rq_copy(&A[c * 2 * r + y], &t);
+        if (err != RABIN_SUCCESS) break;
+      }
+    }
+    if (err != RABIN_SUCCESS) break;
+
+    // normalize row c so that the pivot becomes 1
+    err = rq_copy(&pv, &A[c * 2 * r + c]);
+    for (u64 y = c + 1; err == RABIN_SUCCESS && y < 2 * r; y++) {
+      err = rq_div(&A[c * 2 * r + y], &A[c * 2 * r + y], &pv);
+    }
+    if (err == RABIN_SUCCESS) err = rq_set_u64(&A[c * 2 * r + c], 1);
+
+    // clear the other rows
+    for (u64 x = 0; x < r && err == RABIN_SUCCESS; x++) {
+      if (x == c) continue;
+      if (rz_is_zero(&A[x * 2 * r + c].num)) continue;
+      err = rq_copy(&f, &A[x * 2 * r + c]);
+      if (err == RABIN_SUCCESS) err = rq_set_u64(&A[x * 2 * r + c], 0);
+      for (u64 y = c + 1; err == RABIN_SUCCESS && y < 2 * r; y++) {
+        if (rz_is_zero(&A[c * 2 * r + y].num)) continue;
+        err = rq_mul(&t, &f, &A[c * 2 * r + y]);
+        if (err == RABIN_SUCCESS)
+          err = rq_sub(&A[x * 2 * r + y], &A[x * 2 * r + y], &t);
+      }
+    }
+  }
+  if (err != RABIN_SUCCESS) goto fail;
+
+  rq_t* D = malloc(r * r * sizeof(rq_t));
+  if (D == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto fail;
+  }
+  u64 d_done = 0;
+  for (u64 x = 0; x < r * r; x++) {
+    if (rq_init(&D[x]) != RABIN_SUCCESS) goto fail_D;
+    d_done++;
+    if (rq_copy(&D[x], &A[(x / r) * 2 * r + r + (x % r)]) != RABIN_SUCCESS) {
+      // roll back below via d_done bookkeeping
+      for (u64 y = 0; y < d_done; y++) rq_clear(&D[y]);
+      free(D);
+      err = RABIN_ERR_OUT_OF_MEMORY;
+      goto fail;
+    }
+  }
+  *Dout = D;
+  if (temps) rq_clear_multi(&pv, &f, &t, NULL);
+  for (u64 x = 0; x < a_done; x++) rq_clear(&A[x]);
+  free(A);
+  return RABIN_SUCCESS;
+
+fail_D:
+  for (u64 x = 0; x < d_done; x++) rq_clear(&D[x]);
+  free(D);
+fail:
+  if (err == RABIN_SUCCESS) err = RABIN_ERR_OUT_OF_MEMORY;
+  if (temps) rq_clear_multi(&pv, &f, &t, NULL);
+  for (u64 x = 0; x < a_done; x++) rq_clear(&A[x]);
+  free(A);
+  return err;
+}
+
+/*
+ * Steps 3-5 of Cohen 2.7.1: size-reduce every column of H with index
+ * >= r against the (fixed) kernel basis formed by the first r columns.
+ * H is updated in place.
+ */
+static rabin_err_t rmat_reduce_against_kernel(rmat_t* H, u64 n, u64 r)
+{
+  if (r == 0) return RABIN_SUCCESS;
+
+  rabin_err_t err = RABIN_SUCCESS;
+  rmat_t G = {0};
+  rz_t* mr = NULL;
+  rq_t* vq = NULL;
+  rq_t* D = NULL;
+  u64 mr_done = 0;
+  rq_t acc, tmpq;
+  rz_t t1, t2;
+  bool temps = false;
+
+  if ((err = rmat_init(&G, r, r)) != RABIN_SUCCESS) return err;
+  mr = calloc(r, sizeof(rz_t));
+  vq = calloc(r, sizeof(rq_t));
+  if (mr == NULL || vq == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup;
+  }
+  for (u64 j = 0; j < r; j++) {
+    if (rz_init(&mr[j]) != RABIN_SUCCESS) goto cleanup;
+    mr_done++;
+  }
+  for (u64 j = 0; j < r; j++) {
+    if (rq_init(&vq[j]) != RABIN_SUCCESS) goto cleanup;
+  }
+  if ((err = rq_init_multi(&acc, &tmpq, NULL)) != RABIN_SUCCESS) goto cleanup;
+  if ((err = rz_init_multi(&t1, &t2, NULL)) != RABIN_SUCCESS) goto cleanup;
+  temps = true;
+
+  // e = Gram matrix of the kernel basis columns
+  for (u64 j = 0; j < r && err == RABIN_SUCCESS; j++) {
+    for (u64 k = 0; k < r; k++) {
+      err = lll_dot(RMAT_GET(&G, j, k), H, j, k, &t1);
+    }
+  }
+  if (err == RABIN_SUCCESS) err = rq_mat_inverse(&D, &G, r);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  for (u64 i = r; i < n && err == RABIN_SUCCESS; i++) {
+    // v_j = H_i . H_j
+    for (u64 j = 0; j < r; j++) {
+      err = lll_dot(&t1, H, i, j, &t2);
+      if (err != RABIN_SUCCESS) break;
+      err = rq_set(&vq[j], &t1);
+    }
+    if (err != RABIN_SUCCESS) break;
+
+    // m_j = nearest integer of x_j = sum_k D[j][k] * v_k
+    for (u64 j = 0; j < r; j++) {
+      err = rq_set_u64(&acc, 0);
+      for (u64 k = 0; err == RABIN_SUCCESS && k < r; k++) {
+        err = rq_mul(&tmpq, &D[j * r + k], &vq[k]);
+        if (err == RABIN_SUCCESS) err = rq_add(&acc, &acc, &tmpq);
+      }
+      if (err != RABIN_SUCCESS) break;
+      err = rz_round_nearest(&mr[j], &acc, &t1, &t2);
+    }
+    if (err != RABIN_SUCCESS) break;
+
+    // H_i <- H_i - sum_j m_j * H_j
+    for (u64 j = 0; j < r; j++) {
+      if (rz_is_zero(&mr[j])) continue;
+      for (u64 x = 0; x < n; x++) {
+        err = rz_mul(&t1, &mr[j], RMAT_GET(H, x, j));
+        if (err == RABIN_SUCCESS)
+          err = rz_sub(RMAT_GET(H, x, i), RMAT_GET(H, x, i), &t1);
+        if (err != RABIN_SUCCESS) break;
+      }
+      if (err != RABIN_SUCCESS) break;
+    }
+  }
+
+cleanup:
+  if (temps) {
+    rq_clear_multi(&acc, &tmpq, NULL);
+    rz_clear_multi(&t1, &t2, NULL);
+  }
+  if (D != NULL) {
+    for (u64 x = 0; x < r * r; x++) rq_clear(&D[x]);
+    free(D);
+  }
+  for (u64 j = 0; j < r && vq != NULL; j++) rq_clear(&vq[j]);
+  free(vq);
+  for (u64 j = 0; j < mr_done; j++) rz_clear(&mr[j]);
+  free(mr);
+  rmat_clear(&G);
+  return err;
+}
+
+rabin_err_t rmat_kernel(const rmat_t* A, rmat_t* K)
+{
+  if (A == NULL || K == NULL) return RABIN_ERR_NULL_PTR;
+
+  const u64 n = A->cols;
+  if (n == 0) return rmat_init(K, 0, 0);
+
+  rmat_t W = {0}, U = {0}, Uk = {0};
+  rmat_t Kraw = {0};
+
+  // no coordinates: every vector of Z^n is in the kernel
+  if (A->rows == 0) {
+    rabin_err_t err = rmat_init(K, n, n);
+    if (err != RABIN_SUCCESS) return err;
+    return rmat_id(K, n);
+  }
+
+  rabin_err_t err = hnf_with_transform(&W, &U, A);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  const u64 r = n - W.cols;
+  if (r == 0) {
+    err = rmat_init(K, n, 0);
+    goto cleanup;
+  }
+
+  err = rmat_extract_cols(&Kraw, &U, 0, r);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  if (r > 1) {
+    err = rmat_lll(&Kraw, r, 0.75, &Uk);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+  rmat_swap(K, &Kraw);
+
+cleanup:
+  rmat_clear(&Kraw);
+  rmat_clear(&Uk);
+  rmat_clear(&U);
+  rmat_clear(&W);
+  return err;
+}
+
+rabin_err_t rmat_kernel_lll(const rmat_t* A, rmat_t* K)
+{
+  if (A == NULL || K == NULL) return RABIN_ERR_NULL_PTR;
+
+  const u64 n = A->cols;
+  if (n == 0) return rmat_init(K, 0, 0);
+
+  rmat_t V = {0}, H = {0}, lam = {0}, Kraw = {0}, Uk = {0};
+  rz_t* dv = NULL;
+  bool* iota = NULL;
+
+  // no coordinates: every vector of Z^n is in the kernel
+  if (A->rows == 0) {
+    rabin_err_t err = rmat_init(K, n, n);
+    if (err != RABIN_SUCCESS) return err;
+    return rmat_id(K, n);
+  }
+
+  rabin_err_t err = rmat_init(&V, A->rows, n);
+  if (err != RABIN_SUCCESS) return err;
+  err = rmat_copy(&V, A);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  if ((err = rmat_init(&H, n, n)) != RABIN_SUCCESS) goto cleanup;
+  if ((err = rmat_id(&H, n)) != RABIN_SUCCESS) goto cleanup;
+  if ((err = rmat_init(&lam, n, n)) != RABIN_SUCCESS) goto cleanup;
+
+  u64 dv_done = 0;
+  dv = malloc((n + 1) * sizeof(rz_t));
+  iota = calloc(n, sizeof(bool));
+  if (dv == NULL || iota == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup;
+  }
+  for (u64 x = 0; x <= n; x++) {
+    if (rz_init(&dv[x]) != RABIN_SUCCESS) goto cleanup;
+    dv_done++;
+  }
+
+  err = rmat_kernel_lll_run(&V, &H, &lam, dv, iota, n);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  // r+1 is the first index with a nonzero flag: the first r columns of H
+  // form a Z-basis of the kernel (they are independent)
+  u64 r = 0;
+  while (r < n && !iota[r]) r++;
+
+  if (r == 0) {
+    err = rmat_init(K, n, 0);
+    goto cleanup;
+  }
+  err = rmat_extract_cols(&Kraw, &H, 0, r);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  if (r > 1) {
+    err = rmat_lll(&Kraw, r, 0.75, &Uk);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+  rmat_swap(K, &Kraw);
+
+cleanup:
+  if (dv != NULL) {
+    for (u64 x = 0; x < dv_done; x++) rz_clear(&dv[x]);
+    free(dv);
+  }
+  free(iota);
+  rmat_clear(&Kraw);
+  rmat_clear(&Uk);
+  rmat_clear(&lam);
+  rmat_clear(&H);
+  rmat_clear(&V);
+  return err;
+}
+
+rabin_err_t rmat_kernel_image(const rmat_t* A, rmat_t* H, u64* p)
+{
+  if (A == NULL || H == NULL || p == NULL) return RABIN_ERR_NULL_PTR;
+  *p = 0;
+
+  const u64 n = A->cols;
+  if (n == 0) return rmat_init(H, 0, 0);
+
+  rmat_t W = {0}, U = {0}, Q = {0}, Uk = {0}, Kraw = {0}, Usub = {0};
+  rmat_t Tail = {0}, Htmp = {0};
+  rz_t det, one;
+  bool det_live = false;
+
+  // no coordinates: the whole Z^n is the kernel, the image is trivial
+  if (A->rows == 0) {
+    rabin_err_t err = rmat_init(H, n, n);
+    if (err != RABIN_SUCCESS) return err;
+    return rmat_id(H, n);
+  }
+
+  rabin_err_t err = hnf_with_transform(&W, &U, A);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  const u64 rank = W.cols;
+  const u64 r = n - rank;
+
+  // LLL-reduce the HNF image basis W (in place), keeping the transform Q
+  if (rank >= 1 && (err = rmat_lll(&W, rank, 0.75, &Q)) != RABIN_SUCCESS)
+    goto cleanup;
+
+  // LLL-reduce the kernel basis (columns 1..r of U, independent)
+  if (r > 0) {
+    err = rmat_extract_cols(&Kraw, &U, 0, r);
+    if (err != RABIN_SUCCESS) goto cleanup;
+    if (r > 1) err = rmat_lll(&Kraw, r, 0.75, &Uk);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  // image part: columns r..n-1 of U times Q
+  if (rank >= 1) {
+    err = rmat_extract_cols(&Usub, &U, r, rank);
+    if (err == RABIN_SUCCESS) err = rmat_init(&Tail, n, rank);
+    if (err == RABIN_SUCCESS) err = rmat_mul(&Tail, &Usub, &Q);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  // assemble H = [ K | U_tail * Q ] and commit only when every check passed
+  if ((err = rmat_init(&Htmp, n, n)) != RABIN_SUCCESS) goto cleanup;
+  for (u64 y = 0; y < n && err == RABIN_SUCCESS; y++) {
+    for (u64 x = 0; x < r; x++) {
+      err = rz_copy(RMAT_GET(&Htmp, y, x), RMAT_GET(&Kraw, y, x));
+    }
+    for (u64 x = 0; x < rank; x++) {
+      if (err == RABIN_SUCCESS)
+        err = rz_copy(RMAT_GET(&Htmp, y, r + x), RMAT_GET(&Tail, y, x));
+    }
+  }
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  // H must be unimodular
+  if ((err = rz_init_multi(&det, &one, NULL)) != RABIN_SUCCESS) goto cleanup;
+  det_live = true;
+  if ((err = rz_set_u64(&one, 1)) != RABIN_SUCCESS) goto cleanup;
+  if ((err = rmat_det(&det, &Htmp)) != RABIN_SUCCESS) goto cleanup;
+  if (rz_cmp_abs(&det, &one) != 0) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  // steps 3-5: keep the image columns small against the kernel basis
+  if ((err = rmat_reduce_against_kernel(&Htmp, n, r)) != RABIN_SUCCESS)
+    goto cleanup;
+
+  rmat_swap(H, &Htmp);
+  *p = rank;
+
+cleanup:
+  if (det_live) {
+    rz_clear(&det);
+    rz_clear(&one);
+  }
+  rmat_clear(&Htmp);
+  rmat_clear(&Tail);
+  rmat_clear(&Usub);
+  rmat_clear(&Kraw);
+  rmat_clear(&Uk);
+  rmat_clear(&Q);
+  rmat_clear(&U);
+  rmat_clear(&W);
+  return err;
+}
+
+/* ----------------- Dependence relations (Cohen 2.7.4) -------------- */
+
+/* round scale*z to an integer, rejecting values outside the int64 range */
+static rabin_err_t rz_round_scaled(rz_t* q, double z, double scale)
+{
+  if (!isfinite(z) || !(scale > 0.0) || !isfinite(scale) ||
+      fabs(z) > 4.0e18 / scale)
+    return RABIN_ERR_INVALID_ARG;
+  return rz_set_i64(q, llround(scale * z));
+}
+
+/* best-effort double conversion of an integer, used for error residuals */
+static double rz_as_double(const rz_t* z)
+{
+  double d = 0.0;
+  for (size_t i = z->size; i > 0; i--) {
+    d = d * 18446744073709551616.0 + (double)z->limbs[i - 1];
+  }
+  return z->is_neg ? -d : d;
+}
+
+rabin_err_t rmat_linear_dependence(const double* re, const double* im, u64 n,
+                                   double scale, rmat_t* REL, double* err)
+{
+  if (re == NULL || REL == NULL) return RABIN_ERR_NULL_PTR;
+  if (n < 2) return RABIN_ERR_INVALID_ARG;
+  if (!(scale > 0.0) || !isfinite(scale)) return RABIN_ERR_INVALID_ARG;
+
+  const bool complex_in = (im != NULL);
+  for (u64 i = 0; i < n; i++) {
+    if (!isfinite(re[i]) || (complex_in && !isfinite(im[i])))
+      return RABIN_ERR_INVALID_ARG;
+  }
+
+  const u64 m = n + (complex_in ? 2 : 1);
+  rmat_t M = {0};
+  rabin_err_t e = rmat_init(&M, m, n);
+  if (e != RABIN_SUCCESS) return e;
+
+  // symmetric construction: rows 1..n hold the identity, the last rows the
+  // scaled real (and imaginary) parts
+  for (u64 i = 0; i < n && e == RABIN_SUCCESS; i++) {
+    for (u64 j = 0; j < n; j++) {
+      e = rz_set_u64(RMAT_GET(&M, i, j), i == j ? 1 : 0);
+    }
+  }
+  for (u64 j = 0; j < n && e == RABIN_SUCCESS; j++) {
+    e = rz_round_scaled(RMAT_GET(&M, n, j), re[j], scale);
+  }
+  if (e == RABIN_SUCCESS && complex_in) {
+    for (u64 j = 0; j < n; j++) {
+      e = rz_round_scaled(RMAT_GET(&M, n + 1, j), im[j], scale);
+      if (e != RABIN_SUCCESS) break;
+    }
+  }
+
+  // rmat_lll reduces M in place and returns the transformation matrix
+  rmat_t Q = {0};
+  if (e == RABIN_SUCCESS) e = rmat_lll(&M, n, 0.75, &Q);
+  if (e == RABIN_SUCCESS) {
+    e = rmat_init(REL, m, n);
+    if (e == RABIN_SUCCESS) e = rmat_copy(REL, &M);
+  }
+  rmat_clear(&Q);
+  if (e != RABIN_SUCCESS) {
+    rmat_clear(&M);
+    return e;
+  }
+
+  if (err != NULL) {
+    // residual of every candidate relation: |sum_j REL[j][c] * z_j|
+    for (u64 c = 0; c < n; c++) {
+      long double sr = 0.0L, si = 0.0L;
+      for (u64 j = 0; j < n; j++) {
+        const double cj = rz_as_double(RMAT_GET(REL, j, c));
+        sr += (long double)cj * (long double)re[j];
+        if (complex_in) si += (long double)cj * (long double)im[j];
+      }
+      err[c] = (double)sqrtl(sr * sr + si * si);
+    }
+  }
+
+  rmat_clear(&M);
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rmat_algebraic_relation(double re, double im, u64 degree,
+                                    double scale, rmat_t* poly, double* err)
+{
+  if (poly == NULL) return RABIN_ERR_NULL_PTR;
+  if (degree < 1 || degree > 64) return RABIN_ERR_INVALID_ARG;
+  if (!isfinite(re) || !isfinite(im) || !(scale > 0.0) || !isfinite(scale))
+    return RABIN_ERR_INVALID_ARG;
+
+  const u64 n = degree + 1;
+  const bool complex_in = (im != 0.0);
+
+  double* zre = malloc(n * sizeof(double));
+  double* zim = complex_in ? malloc(n * sizeof(double)) : NULL;
+  if (zre == NULL || (complex_in && zim == NULL)) {
+    free(zre);
+    free(zim);
+    return RABIN_ERR_OUT_OF_MEMORY;
+  }
+
+  // z_i = a^i (1-based i, powers of the number)
+  zre[0] = 1.0;
+  if (complex_in) zim[0] = 0.0;
+  for (u64 i = 1; i < n; i++) {
+    if (complex_in) {
+      const double pr = zre[i - 1], pi = zim[i - 1];
+      zre[i] = pr * re - pi * im;
+      zim[i] = pr * im + pi * re;
+    } else {
+      zre[i] = zre[i - 1] * re;
+    }
+    if (!isfinite(zre[i]) || (complex_in && !isfinite(zim[i]))) {
+      free(zre);
+      free(zim);
+      return RABIN_ERR_INVALID_ARG;
+    }
+  }
+
+  const rabin_err_t e = rmat_linear_dependence(zre, zim, n, scale, poly, err);
+  free(zre);
+  free(zim);
+  return e;
 }

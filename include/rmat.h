@@ -1012,4 +1012,155 @@ bool rmat_hnf_check_unimodular(const rmat_t* U);
  * @return true Only if all three invariants hold.
  */
 bool rmat_hnf_verify(const rmat_t* A, const rmat_t* H, const rmat_t* U);
+
+/**
+ * @brief Integer kernel of a matrix: an LLL-reduced basis of
+ * \f$\ker_{\mathbb{Z}}(A)\f$.
+ *
+ * Computes a Z-basis of the kernel \f$\{x \in \mathbb{Z}^n : A x = 0\}\f$
+ * from the transformation matrix of the Hermite normal form of \f$A\f$,
+ * then LLL-reduces it with \f$\delta = 0.75\f$.
+ *
+ * @param[in] A \f$m \times n\f$ integer matrix.
+ * @param[out] K \f$n \times r\f$ matrix whose columns are an LLL-reduced
+ * Z-basis of the kernel (\f$r = n - \mathrm{rank}(A)\f$).
+ *
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR if A or K is
+ * NULL, or a memory allocation error.
+ *
+ * @pre K must be uninitialized or previously cleared.
+ *
+ * @par Algorithm Reference:
+ * Cohen, A Course in Computational Algebraic Number Theory, Alg. 2.7.3
+ * (kernel via HNF transform) followed by rmat_lll().
+ *
+ * @see rmat_kernel_lll(), rmat_kernel_image(), rmat_lll()
+ */
+rabin_err_t rmat_kernel(const rmat_t* A, rmat_t* K);
+
+/**
+ * @brief Integer kernel of a matrix via standalone kernel-LLL (Cohen
+ * 2.7.2).
+ *
+ * Same output contract as rmat_kernel(): an LLL-reduced Z-basis of
+ * \f$\ker_{\mathbb{Z}}(A)\f$ of shape \f$n \times r\f$. Runs a modified
+ * LLL in which Gram-Schmidt-zero vectors are pushed to the front by a
+ * special swap, so the kernel basis is produced directly without first
+ * computing an HNF.
+ *
+ * @param[in] A \f$m \times n\f$ integer matrix.
+ * @param[out] K \f$n \times r\f$ matrix whose columns are an LLL-reduced
+ * Z-basis of the kernel (\f$r = n - \mathrm{rank}(A)\f$).
+ *
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR if A or K is
+ * NULL, or a memory allocation error.
+ *
+ * @pre K must be uninitialized or previously cleared.
+ *
+ * @par Algorithm Reference:
+ * Cohen, A Course in Computational Algebraic Number Theory, Alg. 2.7.2.
+ *
+ * @see rmat_kernel()
+ */
+rabin_err_t rmat_kernel_lll(const rmat_t* A, rmat_t* K);
+
+/**
+ * @brief Kernel and image of a matrix via an LLL-reduced change of basis.
+ *
+ * Produces a unimodular \f$n \times n\f$ matrix \f$H\f$ such that:
+ *   - the first \f$r = n - p\f$ columns are an LLL-reduced Z-basis of
+ *     \f$\ker_{\mathbb{Z}}(A)\f$,
+ *   - the last \f$p = \mathrm{rank}(A)\f$ columns give a basis of a
+ *     complement on which \f$A\f$ acts as an LLL-reduced image lattice,
+ *     size-reduced against the kernel columns.
+ *
+ * @param[in] A \f$m \times n\f$ integer matrix.
+ * @param[out] H Unimodular \f$n \times n\f$ matrix with the property above.
+ * @param[out] p Rank of \f$A\f$ (number of image columns of H).
+ *
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR if any argument
+ * is NULL, or RABIN_ERR_INVALID_ARG if an internal check fails, or a
+ * memory allocation error.
+ *
+ * @pre H must be uninitialized or previously cleared.
+ *
+ * @par Algorithm Reference:
+ * Cohen, A Course in Computational Algebraic Number Theory, Alg. 2.7.1.
+ *
+ * @see rmat_kernel(), rmat_lll()
+ */
+rabin_err_t rmat_kernel_image(const rmat_t* A, rmat_t* H, u64* p);
+
+/**
+ * @brief Search for integer linear dependence relations among real (or
+ * complex) numbers.
+ *
+ * Builds the lattice spanned by the rows
+ * \f$(e_1, \dots, e_n, \alpha \lambda)\f$ (and \f$(0,\dots,0,\beta\lambda)\f$
+ * for complex input), where \f$\lambda\f$ is `scale`, then LLL-reduces it.
+ * Each relation (a short lattice vector with zero identity part) yields an
+ * integer vector \f$(c_1,\dots,c_n)\f$ with \f$\sum_j c_j z_j \approx 0\f$.
+ * A relation is a genuine dependence when the corresponding residual
+ * `err[c]` is small relative to \f$\lambda^{-1}\f$ and the coefficients.
+ *
+ * @param[in] re Real parts of the \f$n \ge 2\f$ numbers \f$z_j\f$.
+ * @param[in] im Imaginary parts, or NULL for real input.
+ * @param[in] n Number of numbers.
+ * @param[in] scale Approximation factor \f$\lambda > 0\f$.
+ * @param[out] REL \f$m \times n\f$ matrix (\f$m = n+1\f$ for real input,
+ * \f$m = n+2\f$ for complex input) whose columns are the LLL-reduced
+ * lattice basis; a column with zero entries in its last one/two
+ * coordinates is a genuine relation with coefficient vector
+ * \f$(c_1,\dots,c_n)\f$.
+ * @param[out] err Optional array of \f$n\f$ residuals
+ * \f$|\sum_j c_j^{(c)} z_j|\f$ for each column of REL, or NULL.
+ *
+ * @return RABIN_SUCCESS on success, RABIN_ERR_NULL_PTR if re or REL is
+ * NULL, RABIN_ERR_INVALID_ARG if n < 2 or the input/scale is not finite or
+ * a coefficient would overflow, or a memory allocation error.
+ *
+ * @pre REL must be uninitialized or previously cleared.
+ *
+ * @par Algorithm Reference:
+ * Cohen, A Course in Computational Algebraic Number Theory, Alg. 2.7.4.
+ *
+ * @see rmat_algebraic_relation(), rmat_lll()
+ */
+rabin_err_t rmat_linear_dependence(const double* re, const double* im, u64 n,
+                                   double scale, rmat_t* REL, double* err);
+
+/**
+ * @brief Find an integer polynomial relation for a real/complex number.
+ *
+ * Builds the powers \f$z_i = a^i\f$, \f$i = 0,\dots,\mathrm{degree}\f$, of
+ * \f$a = \mathrm{re} + i\,\mathrm{im}\f$ and searches for an integer linear
+ * dependence among them with rmat_linear_dependence(). A short column
+ * \f$c_0,\dots,c_d\f$ of the output gives a candidate polynomial
+ * \f$\sum_i c_i x^i\f$ with \f$\sum_i c_i a^i \approx 0\f$; err is the
+ * corresponding residual.
+ *
+ * @param[in] re Real part of \f$a\f$.
+ * @param[in] im Imaginary part of \f$a\f$ (zero for real \f$a\f$).
+ * @param[in] degree Maximum degree \f$d \le 64\f$ of the relation.
+ * @param[in] scale Approximation factor \f$\lambda > 0\f$.
+ * @param[out] poly \f$m \times (\mathrm{degree}+1)\f$ matrix
+ * (\f$m = \mathrm{degree}+2\f$ for real \f$a\f$, \f$m = \mathrm{degree}+3\f$
+ * for complex \f$a\f$); each column is a candidate integer polynomial in
+ * natural order (\f$c_0\f$ is the constant term), followed by one/two
+ * trailing coordinates that are zero for a genuine relation.
+ * @param[out] err Optional array of residuals \f$|\sum_i c_i^{(c)} a^i|\f$.
+ *
+ * @return RABIN_SUCCESS on success, RABIN_ERR_NULL_PTR if poly is NULL,
+ * RABIN_ERR_INVALID_ARG if degree is out of range, the input/scale is not
+ * finite, a power of \f$a\f$ overflows, or a memory allocation error.
+ *
+ * @pre poly must be uninitialized or previously cleared.
+ *
+ * @par Algorithm Reference:
+ * Cohen, A Course in Computational Algebraic Number Theory, Alg. 2.7.5.
+ *
+ * @see rmat_linear_dependence()
+ */
+rabin_err_t rmat_algebraic_relation(double re, double im, u64 degree,
+                                    double scale, rmat_t* poly, double* err);
 #endif

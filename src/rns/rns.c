@@ -69,7 +69,8 @@ rabin_err_t rns_ctx_init(rns_ctx_t* ctx, const u64* primes, u64 count)
   }
 
   ctx->primes = malloc(sizeof(u64) * count);
-  ctx->crt_weights = malloc(sizeof(rz_t) * count);
+  // zero-initialised so a failing init below can still be cleared safely
+  ctx->crt_weights = calloc(count, sizeof(rz_t));
   if (ctx->primes == NULL || ctx->crt_weights == NULL)
     return RABIN_ERR_OUT_OF_MEMORY;
   memcpy(ctx->primes, primes, sizeof(u64) * count);
