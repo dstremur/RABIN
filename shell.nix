@@ -1,12 +1,11 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {}}:
 
 pkgs.mkShell {
-
-  buildInputs = with pkgs; [
-    gmp
-	flint
-	doxygen
-	openssl
+  buildInputs = [
+    pkgs.gmp
+    pkgs.gcc
+    pkgs.flint
+    pkgs.doxygen
+    pkgs.openssl
   ];
-
 }

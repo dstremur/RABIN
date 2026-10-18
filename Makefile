@@ -167,9 +167,10 @@ pgo: clean
 	@echo "==> Step 2/3: Generating profile data from workloads..."
 	$(MAKE) test_complete CFLAGS="$(CFLAGS) -fprofile-generate" LDFLAGS="$(LDFLAGS) -fprofile-generate"
 	@echo "==> Step 3/3: Rebuilding optimized library with profile feedback..."
-	@find $(BUILD_DIR) -name "*.o" -delete
-	$(MAKE) all CFLAGS="$(CFLAGS) -fprofile-use -fprofile-correction" LDFLAGS="$(LDFLAGS) -fprofile-use"
-	@echo "==> PGO build complete!"
+	@find . -type f -name "*.o" -delete
+	@find . -type f -name "*.a" -delete
+	@rm -f $(BUILD_DIR)/bignum
+	$(MAKE) all CFLAGS="$(CFLAGS) -fprofile-use -fprofile-correction -Wno-missing-profile" LDFLAGS="$(LDFLAGS) -fprofile-use"
 
 pgo-clean: clean
 	@find . -name "*.gcda" -o -name "*.gcno" -delete
