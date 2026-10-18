@@ -691,13 +691,16 @@ rabin_err_t rmat_charpoly_adj(rpol_t* p, rmat_t* J, const rmat_t* A);
  * initialized to \f$n \times n\f$) holds the unimodular transformation:
  * \f$B_{\text{new}} = B_{\text{old}} \cdot H\f$.
  *
- * The Lovasz condition is tested with exact integer arithmetic when
- * \f$\delta = 3/4\f$; for other \f$\delta \in (0,1]\f$ a
- * double-precision comparison is used.
+ * The Lovasz condition is tested with exact integer arithmetic for every
+ * \f$\delta \in (0,1]\f$: any double \f$\delta\f$ is exactly a binary
+ * rational \f$\delta = num / 2^e\f$, so the comparison becomes the
+ * integer inequality \f$2^e d_{k+1} d_{k-1} < num \cdot d_k^2 -
+ * 2^e \lambda^2\f$ and the reduced output is independent of any
+ * floating-point rounding.
  *
  * @pre The columns of B must be linearly independent, otherwise
  * RABIN_ERR_INVALID_ARG is returned (see rmat_mlll() for the general
- * rank-deficient case).
+ * rank-deficient case); on failure B is left unchanged.
  *
  * Complexity:
  *   - Time: worst case \f$O(n^2)\f$ RED/SWAP steps, each
@@ -741,9 +744,11 @@ rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H);
  *     \f$n - p\f$ columns form a \f$\mathbb{Z}\f$-basis of the relation
  *     space \f$\{x \in \mathbb{Z}^n : B_{\text{old}} \cdot x = 0\}\f$.
  *
- * The Lovasz condition is tested with exact rational arithmetic when
- * \f$\delta = 3/4\f$; for other \f$\delta \in (0,1]\f$ a
- * double-precision comparison is used.
+ * The Lovasz condition is tested with exact integer arithmetic for every
+ * \f$\delta \in (0,1]\f$: any double \f$\delta\f$ is exactly a binary
+ * rational \f$\delta = num / 2^e\f$, so the comparison becomes an
+ * integer inequality and the reduced output is independent of any
+ * floating-point rounding.
  *
  * Complexity:
  *   - Time: one HNF column reduction (Cohen 2.4.5) plus one
@@ -754,7 +759,8 @@ rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H);
  *   - Output memory: \f$O(n^2 + n \cdot m)\f$ bignums
  *
  * @pre \f$B \text{-}>\text{rows} \le n\f$ (the column-reduction
- * machinery handles wide / square input only, as in Cohen 2.6.8).
+ * machinery handles wide / square input only, as in Cohen 2.6.8);
+ * B is left unchanged when an error is returned.
  *
  * @param[in,out] B Generator matrix, \f$m \times n\f$, columns =
  *                  vectors.

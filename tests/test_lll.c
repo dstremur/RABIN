@@ -103,9 +103,10 @@ static bool lllv_cmp_ge(const rq_t* a, const rq_t* b)
  *   ||b*_k||^2 >= (delta - mu[k][k-1]^2) * ||b*_{k-1}||^2   (if check_lovasz)
  *
  * The size-reduction condition is exact arithmetic and always required.
- * The Lovasz inequality is only verified exactly when check_lovasz is true;
- * rmat_lll() tests it with double precision unless delta == 3/4, so the
- * exact inequality is not guaranteed for other delta at large entry sizes.
+ * The Lovasz inequality is checked exactly when check_lovasz is true;
+ * rmat_lll()/rmat_mlll() evaluate it with exact integer arithmetic for
+ * every double delta, so passing true here asserts the guarantee the
+ * algorithm provides (see strict_lovasz for how targets are chosen).
  */
 static bool check_lll_conds(const rmat_t* B, u64 p, bool check_lovasz, i64 dnum,
                             i64 dden)
@@ -261,14 +262,20 @@ static bool in_col_Z(const rmat_t* W, const rmat_t* b, u64 p)
 /* ------------------------------------------------------------------ */
 
 /*
- * The exact Lovasz inequality is guaranteed by the algorithm only on the
- * exact-arithmetic path (delta == 3/4); for other delta the algorithm uses
- * double, which is exact for small entries. Return true when the exact
- * Lovasz condition must hold.
+ * rmat_lll()/rmat_mlll() evaluate the Lovasz condition with exact integer
+ * arithmetic for every double delta (delta is handled as its exact binary
+ * rational value), so the exact inequality d_{k+1} d_{k-1} < delta d_k^2 -
+ * lambda^2 must always hold. It is checked here at the rational target
+ * dnum/dden; non-binary targets like 9/10 are only used when the double
+ * delta rounds above them (e.g. 0.9 > 9/10), which makes the exact target
+ * a weaker, implied condition.
  */
 static bool strict_lovasz(i64 dnum, i64 dden, u64 bits)
 {
-  return (dnum == 3 && dden == 4) || (bits <= 16);
+  (void)dnum;
+  (void)dden;
+  (void)bits;
+  return true;
 }
 
 /* |det M| == 1 (M must be square) */
@@ -542,7 +549,11 @@ static void test_lll_property(void)
   struct {
     double delta;
     i64 dnum, dden;
-  } deltas[] = {{0.75, 3, 4}, {0.5, 1, 2}, {1.0, 1, 1}};
+    // 0.9 as a double is slightly above 9/10, so checking the exact 9/10
+    // Lovasz target is a weaker but implied condition; 0.875 = 7/8 is exact
+  } deltas[] = {
+      {0.75, 3, 4}, {0.5, 1, 2}, {1.0, 1, 1}, {0.9, 9, 10}, {0.875, 7, 8},
+  };
   u64 ndeltas = sizeof(deltas) / sizeof(deltas[0]);
   u64 bits_list[] = {8, 16, 64, 128};
   u64 nbits = sizeof(bits_list) / sizeof(bits_list[0]);
@@ -701,7 +712,12 @@ static void test_mlll_property(void)
   struct {
     double delta;
     i64 dnum, dden;
-  } deltas[] = {{0.75, 3, 4}, {0.5, 1, 2}};
+  } deltas[] = {
+      {0.75, 3, 4},
+      {0.5, 1, 2},
+      {0.9, 9, 10},
+      {0.875, 7, 8},
+  };
   u64 ndeltas = sizeof(deltas) / sizeof(deltas[0]);
   u64 bits_list[] = {8, 16, 32};
   u64 nbits = sizeof(bits_list) / sizeof(bits_list[0]);
@@ -800,7 +816,8 @@ static void test_lll_timing(void)
     assert(rmat_init(&B, n, n) == RABIN_SUCCESS);
     build_full_rank(&A, n, n, bits, &val);
     assert(rmat_copy(&B, &A) == RABIN_SUCCESS);
-    printf("Benchmarking %llu x %llu (%llu-bit entries) LLL... ", n, n, bits);
+    printf("Benchmarking %zu x %zu (%zu-bit entries) LLL... ", (size_t)n,
+           (size_t)n, (size_t)bits);
     fflush(stdout);
     double start = get_time();
     assert(rmat_lll(&B, n, 0.75, &H) == RABIN_SUCCESS);
@@ -842,6 +859,50 @@ void test_lll_3x3()
   rmat_clear(&H);
 }
 
+// A failed reduction must leave the caller's matrix untouched.
+static void test_lll_failure_untouched(void)
+{
+  // dependent columns -> rmat_lll fails with B unchanged
+  {
+    rmat_t A = {0}, B = {0}, H = {0};
+    assert(rmat_init(&A, 2, 3) == RABIN_SUCCESS);
+    set164(&A, 0, 0, 1);
+    set164(&A, 1, 0, 0);
+    set164(&A, 0, 1, 0);
+    set164(&A, 1, 1, 1);
+    set164(&A, 0, 2, 1);  // col 2 = col 0 + col 1
+    set164(&A, 1, 2, 1);
+    assert(rmat_init(&B, 2, 3) == RABIN_SUCCESS);
+    assert(rmat_copy(&B, &A) == RABIN_SUCCESS);
+    assert(rmat_lll(&B, 3, 0.75, &H) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_equal(&B, &A));
+    rmat_clear(&A);
+    rmat_clear(&B);
+    rmat_clear(&H);
+  }
+
+  // wide matrix (B->rows > n) -> rmat_mlll fails early, B unchanged
+  {
+    rmat_t A = {0}, B = {0}, H = {0};
+    assert(rmat_init(&A, 3, 2) == RABIN_SUCCESS);
+    set164(&A, 0, 0, 1);
+    set164(&A, 1, 0, 0);
+    set164(&A, 2, 0, 5);
+    set164(&A, 0, 1, 0);
+    set164(&A, 1, 1, 1);
+    set164(&A, 2, 1, 7);
+    assert(rmat_init(&B, 3, 2) == RABIN_SUCCESS);
+    assert(rmat_copy(&B, &A) == RABIN_SUCCESS);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 2, 0.75, &H, &rank) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_equal(&B, &A));
+    rmat_clear(&A);
+    rmat_clear(&B);
+    rmat_clear(&H);
+  }
+  printf("[PASS] failed reduction leaves B untouched\n");
+}
+
 int main(void)
 {
   // srand(0x5eedULL);
@@ -849,6 +910,7 @@ int main(void)
   test_lll_property();
   test_lll_large();
   test_lll_edge();
+  test_lll_failure_untouched();
   test_mlll_property();
   test_lll_idempotent();
   test_lll_timing();
