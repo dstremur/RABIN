@@ -180,7 +180,8 @@ bool rz_is_zero(const rz_t* a);
 /**
  * @brief Test whether a rz_t equals a 64-bit signed integer.
  *
- * Returns true iff n has exactly one limb and that limb equals a.
+ * Returns true iff n equals a (single limb, sign considered), so
+ * \f$rz\_is\_eq\_i64(n, -1)\f$ matches -1 but not 1.
  *
  * Complexity:
  *   - Time: \f$O(1)\f$

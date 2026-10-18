@@ -63,10 +63,12 @@ void benchmark_mul(u64 n)
   }
 
   // Results Output
-  printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std / ITERATIONS, ITERATIONS);
-  printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt /ITERATIONS, ITERATIONS);
-  printf("NTT big Mul:      %.5f seconds (%d iterations)\n", time_ntt_big /ITERATIONS,
+  printf("Standard Mul: %.5f seconds (%d iterations)\n", time_std / ITERATIONS,
          ITERATIONS);
+  printf("NTT Mul:      %.5f seconds (%d iterations)\n", time_ntt / ITERATIONS,
+         ITERATIONS);
+  printf("NTT big Mul:      %.5f seconds (%d iterations)\n",
+         time_ntt_big / ITERATIONS, ITERATIONS);
   if ((2 * n * n * n) < 5 * (1ULL << 55)) {
     printf("STILL FITS\n");
   } else {
@@ -144,9 +146,9 @@ int main()
   benchmark_mul(1 << 14);
   benchmark_mul(1 << 15);
   benchmark_mul(1 << 16);
-  benchmark_mul(1 << 17);
-  benchmark_mul(1 << 18);
-  benchmark_mul(1 << 19);
-
+  /*  benchmark_mul(1 << 17);
+    benchmark_mul(1 << 18);
+    benchmark_mul(1 << 19);
+   */
   rz_clear_constants();
 }

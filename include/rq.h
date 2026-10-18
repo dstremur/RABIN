@@ -205,4 +205,104 @@ rabin_err_t rq_normalize(rq_t* r);
  */
 rabin_err_t rq_print(const rq_t* r);
 
+/**
+ * @brief Set a rational to an integer value: \f$r = a\f$.
+ *
+ * The denominator is set to \f$1\f$, so the result is normalized.
+ *
+ * Complexity:
+ *   - Time: \f$O(n)\f$ where \f$n =\f$ the size of \p a in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$ limbs
+ *
+ * @param[out] r Rational to set.
+ * @param[in]  a Integer value.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ */
+rabin_err_t rq_set(rq_t* r, const rz_t* a);
+
+/**
+ * @brief Test whether a rational is zero.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] r Rational to test.
+ * @return true if \f$r = 0\f$, false otherwise.
+ */
+bool rq_is_zero(const rq_t* r);
+
+/**
+ * @brief Compare two rationals.
+ *
+ * Both values are compared via cross-multiplication
+ * \f$a_{\text{num}} \cdot b_{\text{den}}\f$ vs \f$b_{\text{num}} \cdot
+ * a_{\text{den}}\f$; each denominator must be nonzero (any value
+ * produced by the arithmetic operations above satisfies the \f$den >
+ * 0\f$ invariant).
+ *
+ * Complexity:
+ *   - Time: \f$O(n \cdot m)\f$ where \f$n, m\f$ are the limb sizes
+ *   - Auxiliary memory: \f$O(n + m)\f$ limbs
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] a First rational.
+ * @param[in] b Second rational.
+ * @return -1, 0, or 1 if \f$a < b\f$, \f$a = b\f$, or \f$a > b\f$.
+ */
+int rq_cmp(const rq_t* a, const rq_t* b);
+
+/**
+ * @brief Copy a rational: \f$r = a\f$.
+ *
+ * The result is normalized, so copying a value in the empty (zero)
+ * state yields the normalized zero \f$0/1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 \log n)\f$ where \f$n =\f$ the size of \p a in limbs
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(n)\f$ limbs
+ *
+ * @param[out] r Destination. May alias \p a.
+ * @param[in]  a Source rational.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ */
+rabin_err_t rq_copy(rq_t* r, const rq_t* a);
+
+/**
+ * @brief Square a rational: \f$r = a^2\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 \log n)\f$ where \f$n =\f$ the size of \p a in limbs
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(n)\f$ limbs
+ *
+ * @param[out] r Result. May alias \p a.
+ * @param[in]  a Rational to square.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR or
+ * RABIN_ERR_OUT_OF_MEMORY.
+ */
+rabin_err_t rq_sqr(rq_t* r, const rq_t* a);
+
+/**
+ * @brief Set a rational to an unsigned integer value: \f$r = a\f$.
+ *
+ * The denominator is set to \f$1\f$, so the result is normalized.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$ limbs
+ *
+ * @param[out] r Rational to set.
+ * @param[in]  a Unsigned integer value.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR or
+ * RABIN_ERR_OUT_OF_MEMORY.
+ */
+rabin_err_t rq_set_u64(rq_t* r, u64 a);
+
 #endif

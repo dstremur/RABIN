@@ -8,21 +8,23 @@ rabin_err_t rq_add(rq_t* r, const rq_t* p, const rq_t* q)
 
   /* p = a / c, q = b /d
    * p + q = ad + bc / cd
+   * r may alias p or q, so read all of p and q before writing r.
    */
 
-  rz_t t1, t2;
-  rz_init_multi(&t1, &t2, NULL);
+  rz_t t1, t2, td;
+  rz_init_multi(&t1, &t2, &td, NULL);
 
-  rabin_err_t err = rz_mul(&r->den, &p->den, &q->den);
+  rabin_err_t err = rz_mul(&td, &p->den, &q->den);
   if (err == RABIN_SUCCESS) err = rz_mul(&t1, &p->num, &q->den);
   if (err == RABIN_SUCCESS) err = rz_mul(&t2, &q->num, &p->den);
   if (err == RABIN_SUCCESS) err = rz_add(&r->num, &t1, &t2);
+  if (err == RABIN_SUCCESS) err = rz_copy(&r->den, &td);
 
   if (err == RABIN_SUCCESS) {
     err = rq_normalize(r);
   }
 
-  rz_clear_multi(&t1, &t2, NULL);
+  rz_clear_multi(&t1, &t2, &td, NULL);
   return err;
 }
 
@@ -32,21 +34,23 @@ rabin_err_t rq_sub(rq_t* r, const rq_t* p, const rq_t* q)
 
   /* p = a / c, q = b /d
    * p - q = ad - bc / cd
+   * r may alias p or q, so read all of p and q before writing r.
    */
 
-  rz_t t1, t2;
-  rz_init_multi(&t1, &t2, NULL);
+  rz_t t1, t2, td;
+  rz_init_multi(&t1, &t2, &td, NULL);
 
-  rabin_err_t err = rz_mul(&r->den, &p->den, &q->den);
+  rabin_err_t err = rz_mul(&td, &p->den, &q->den);
   if (err == RABIN_SUCCESS) err = rz_mul(&t1, &p->num, &q->den);
   if (err == RABIN_SUCCESS) err = rz_mul(&t2, &q->num, &p->den);
   if (err == RABIN_SUCCESS) err = rz_sub(&r->num, &t1, &t2);
+  if (err == RABIN_SUCCESS) err = rz_copy(&r->den, &td);
 
   if (err == RABIN_SUCCESS) {
     err = rq_normalize(r);
   }
 
-  rz_clear_multi(&t1, &t2, NULL);
+  rz_clear_multi(&t1, &t2, &td, NULL);
   return err;
 }
 
@@ -223,5 +227,64 @@ rabin_err_t rq_clear_multi(rq_t* r, ...)
   }
 
   va_end(arg);
+  return err;
+}
+
+rabin_err_t rq_set(rq_t* r, const rz_t* a)
+{
+  if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err = rz_copy(&r->num, a);
+  if (err == RABIN_SUCCESS) err = rz_set_u64(&r->den, 1);
+  return err;
+}
+
+bool rq_is_zero(const rq_t* r)
+{
+  if (r == NULL) return false;
+
+  return rz_is_zero(&r->num);
+}
+
+int rq_cmp(const rq_t* a, const rq_t* b)
+{
+  if (a == NULL || b == NULL) return 0;
+
+  rz_t t1, t2;
+  if (rz_init_multi(&t1, &t2, NULL) != RABIN_SUCCESS) return 0;
+
+  rz_mul(&t1, &a->num, &b->den);
+  rz_mul(&t2, &b->num, &a->den);
+  int res = rz_cmp(&t1, &t2);
+
+  rz_clear_multi(&t1, &t2, NULL);
+  return res;
+}
+
+rabin_err_t rq_copy(rq_t* r, const rq_t* a)
+{
+  if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+  if (r == a) return RABIN_SUCCESS;
+
+  rabin_err_t err = rz_copy(&r->num, &a->num);
+  if (err == RABIN_SUCCESS) err = rz_copy(&r->den, &a->den);
+  if (err != RABIN_SUCCESS) return err;
+
+  return rq_normalize(r);
+}
+
+rabin_err_t rq_sqr(rq_t* r, const rq_t* a)
+{
+  if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+
+  return rq_mul(r, a, a);
+}
+
+rabin_err_t rq_set_u64(rq_t* r, u64 a)
+{
+  if (r == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err = rz_set_u64(&r->num, a);
+  if (err == RABIN_SUCCESS) err = rz_set_u64(&r->den, 1);
   return err;
 }

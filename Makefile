@@ -7,6 +7,7 @@ CFLAGS = -Iinclude -Wall -Wextra -g -march=x86-64-v4 -O3 -fopenmp -flto -funroll
 LDFLAGS = -fopenmp -lm -flto -lgmp
 ASFLAGS = -f elf64
 
+
 # Build-time AVX-512 detection: enable -mavx512f only when the compiler
  #accepts the flag and the build machine's CPU exposes avx512f.
  HAVE_AVX512 := $(shell grep -qw avx512f /proc/cpuinfo 2>/dev/null && \

@@ -105,7 +105,11 @@ bool rz_is_eq_i64(const rz_t* n, i64 a)
 {
   if (n == NULL) return false;
   if (n->size != 1) return false;
-  return n->limbs[0] == (uint64_t)a;
+  if (a >= 0) {
+    return !n->is_neg && n->limbs[0] == (uint64_t)a;
+  }
+  // a < 0: n must be negative with magnitude |a| (avoid negating INT64_MIN)
+  return n->is_neg && n->limbs[0] == (uint64_t)(-(a + 1)) + 1u;
 }
 
 bool rz_is_one(const rz_t* a)

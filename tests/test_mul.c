@@ -288,8 +288,8 @@ static void benchmark_mul_internal(int limbs)
 static void run_internal_comparison()
 {
   printf("\n--- rz_mul: schoolbook vs Karatsuba (internal) ---\n");
-  int sizes[] = {16,   32,   64,   128,   256,   512,   1024,
-                 2048, 4096, 8192, 10000, 20000, 40000, 80000, 100000, 120000};
+  int sizes[] = {16,   32,   64,    128,   256,   512,   1024,   2048,
+                 4096, 8192, 10000, 20000, 40000, 80000, 100000, 120000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_internal(sizes[i]);
   }
@@ -509,8 +509,8 @@ static void benchmark_mul_ntt_vs_karat(int limbs)
 static void run_ntt_benchmark()
 {
   printf("\n--- rz_mul: Karatsuba vs NTT (internal) ---\n");
-  int sizes[] = {8192,   16384,  32768,  65536, 100000,
-                 200000, 256000, 300000, 500000, 1000000, 2000000, 4000000};
+  int sizes[] = {8192,   16384,  32768,  65536,   100000,  200000,
+                 256000, 300000, 500000, 1000000, 2000000, 4000000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
     benchmark_mul_ntt_vs_karat(sizes[i]);
   }

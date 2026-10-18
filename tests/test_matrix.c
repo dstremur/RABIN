@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -7,6 +8,7 @@
 #include "../include/rns.h"
 #include "../include/rns_primes.h"
 #include "../include/rpol.h"
+#include "../include/rq.h"
 #include "../include/rzmath.h"
 #include "../include/rzrand.h"
 #include "../include/u64.h"
@@ -633,6 +635,711 @@ void test_hnf_verify(void)
   rmat_clear(&U);
   rmat_clear(&H);
   rz_clear(&val);
+}
+/* ----------------- LLL / MLLL tests ------------------------------ */
+
+/* rq-vector helpers (plain arrays of rationals) */
+static rq_t* lllv_new(u64 m)
+{
+  rq_t* v = calloc(m, sizeof(rq_t));
+  assert(v != NULL);
+  for (u64 i = 0; i < m; i++) {
+    assert(rq_init(&v[i]) == RABIN_SUCCESS);
+  }
+  return v;
+}
+
+static void lllv_free(rq_t* v, u64 m)
+{
+  for (u64 i = 0; i < m; i++) {
+    rq_clear(&v[i]);
+  }
+  free(v);
+}
+
+static void lllv_set_col(rq_t* v, const rmat_t* M, u64 c)
+{
+  for (u64 i = 0; i < M->rows; i++) {
+    assert(rq_set(&v[i], RMAT_GET(M, i, c)) == RABIN_SUCCESS);
+  }
+}
+
+static void lllv_dot(rq_t* r, const rq_t* a, const rq_t* b, u64 m)
+{
+  rq_t t;
+  assert(rq_init(&t) == RABIN_SUCCESS);
+  assert(rq_set_u64(r, 0) == RABIN_SUCCESS);
+  for (u64 i = 0; i < m; i++) {
+    assert(rq_mul(&t, &a[i], &b[i]) == RABIN_SUCCESS);
+    assert(rq_add(r, r, &t) == RABIN_SUCCESS);
+  }
+  rq_clear(&t);
+}
+
+/* a - b >= 0 ? (rq values are normalized after every op) */
+static bool lllv_cmp_ge(const rq_t* a, const rq_t* b)
+{
+  rq_t t;
+  assert(rq_init(&t) == RABIN_SUCCESS);
+  assert(rq_sub(&t, a, b) == RABIN_SUCCESS);
+  bool r = !t.num.is_neg;
+  rq_clear(&t);
+  return r;
+}
+
+/*
+ * Exact LLL check: the columns of B (m x p) form an LLL-reduced basis for
+ * delta = dnum/dden. Runs exact rational Gram-Schmidt and verifies
+ *   |mu[k][j]| <= 1/2                          (all j < k)
+ *   ||b*_k||^2 >= (delta - mu[k][k-1]^2) * ||b*_{k-1}||^2
+ */
+static bool test_check_lll(const rmat_t* B, u64 p, i64 dnum, i64 dden)
+{
+  u64 m = B->rows;
+  if (p <= 1) return true;
+
+  rq_t** bs = malloc(p * sizeof(rq_t*));
+  rq_t** bk = malloc(p * sizeof(rq_t*));
+  assert(bs != NULL && bk != NULL);
+  for (u64 k = 0; k < p; k++) {
+    bs[k] = lllv_new(m);
+    bk[k] = lllv_new(m);
+  }
+  rq_t* mu = lllv_new(p * p);  // flattened: mu[k * p + j]
+
+  bool ok = true;
+  rq_t num, two, oneq;
+  assert(rq_init_multi(&num, &two, &oneq, NULL) == RABIN_SUCCESS);
+  assert(rq_set_u64(&two, 2) == RABIN_SUCCESS);
+  assert(rq_set_u64(&oneq, 1) == RABIN_SUCCESS);
+
+  for (u64 k = 0; k < p && ok; k++) {
+    lllv_set_col(bk[k], B, k);
+    for (u64 j = k; j-- > 0;) {
+      rq_t n2, d2;
+      assert(rq_init(&n2) == RABIN_SUCCESS);
+      assert(rq_init(&d2) == RABIN_SUCCESS);
+      lllv_dot(&n2, bk[k], bs[j], m);
+      lllv_dot(&d2, bs[j], bs[j], m);
+      assert(rq_div(&mu[k * p + j], &n2, &d2) == RABIN_SUCCESS);
+      for (u64 i = 0; i < m; i++) {
+        assert(rq_mul(&n2, &mu[k * p + j], &bs[j][i]) == RABIN_SUCCESS);
+        assert(rq_sub(&bk[k][i], &bk[k][i], &n2) == RABIN_SUCCESS);
+      }
+      rq_clear(&n2);
+      rq_clear(&d2);
+    }
+    for (u64 i = 0; i < m; i++) {
+      assert(rq_copy(&bs[k][i], &bk[k][i]) == RABIN_SUCCESS);
+    }
+
+    // size reduction: |2 * mu| <= 1
+    for (u64 j = 0; j < k; j++) {
+      assert(rq_mul(&num, &two, &mu[k * p + j]) == RABIN_SUCCESS);
+      if (!lllv_cmp_ge(&oneq, &num)) ok = false;
+    }
+  }
+
+  // Lovasz condition
+  rq_t s1, s2, dq, dq2, rhs, dn, dd;
+  rz_t dnumz, ddenz;
+  assert(rq_init_multi(&s1, &s2, &dq, &dq2, &rhs, &dn, &dd, NULL) ==
+         RABIN_SUCCESS);
+  assert(rz_init_multi(&dnumz, &ddenz, NULL) == RABIN_SUCCESS);
+  assert(rz_set_i64(&dnumz, dnum) == RABIN_SUCCESS);
+  assert(rz_set_i64(&ddenz, dden) == RABIN_SUCCESS);
+  assert(rq_set(&dn, &dnumz) == RABIN_SUCCESS);
+  assert(rq_set(&dd, &ddenz) == RABIN_SUCCESS);
+  assert(rq_div(&dq, &dn, &dd) == RABIN_SUCCESS);
+  for (u64 k = 1; k < p && ok; k++) {
+    lllv_dot(&s2, bs[k], bs[k], m);
+    lllv_dot(&s1, bs[k - 1], bs[k - 1], m);
+    assert(rq_sqr(&dq2, &mu[k * p + (k - 1)]) == RABIN_SUCCESS);
+    assert(rq_sub(&dq, &dq, &dq2) == RABIN_SUCCESS);
+    assert(rq_mul(&rhs, &dq, &s1) == RABIN_SUCCESS);
+    if (!lllv_cmp_ge(&s2, &rhs)) ok = false;
+  }
+
+  rz_clear_multi(&dnumz, &ddenz, NULL);
+  assert(rq_clear_multi(&s1, &s2, &dq, &dq2, &rhs, &dn, &dd, NULL) ==
+         RABIN_SUCCESS);
+  assert(rq_clear_multi(&num, &two, &oneq, NULL) == RABIN_SUCCESS);
+  for (u64 i = 0; i < p * p; i++) {
+    rq_clear(&mu[i]);
+  }
+  free(mu);
+  for (u64 k = 0; k < p; k++) {
+    lllv_free(bk[k], m);
+    lllv_free(bs[k], m);
+  }
+  free(bk);
+  free(bs);
+  return ok;
+}
+
+/*
+ * Is the integer vector b (length m) an integer combination of the columns
+ * of W (m x p, full column rank)? Solves W x = b over Q via the normal
+ * equations x = (W^T W)^{-1} W^T b (the unique rational solution) and
+ * checks integrality with the adjugate.
+ */
+static bool test_in_col_Z(const rmat_t* W, const rmat_t* b, u64 p)
+{
+  u64 m = W->rows;
+  assert(b->rows == m && b->cols == 1);
+  if (p == 0) return false;
+
+  rmat_t WT = {0}, G = {0}, N = {0}, Adj = {0}, Anum = {0};
+  rpol_t cp = {0};
+  rz_t detG, q, r;
+
+  assert(rmat_init(&WT, p, m) == RABIN_SUCCESS);
+  for (u64 i = 0; i < p; i++) {
+    for (u64 j = 0; j < m; j++) {
+      assert(rmat_set(&WT, RMAT_GET(W, j, i), i, j) == RABIN_SUCCESS);
+    }
+  }
+  assert(rmat_init(&G, p, p) == RABIN_SUCCESS);
+  assert(rmat_mul(&G, &WT, W) == RABIN_SUCCESS);
+  assert(rmat_init(&N, p, 1) == RABIN_SUCCESS);
+  for (u64 i = 0; i < p; i++) {
+    rz_t acc;
+    rz_init(&acc);
+    rz_set_u64(&acc, 0);
+    for (u64 j = 0; j < m; j++) {
+      rz_t t;
+      rz_init(&t);
+      rz_mul(&t, RMAT_GET(W, j, i), RMAT_GET(b, j, 0));
+      rz_add(&acc, &acc, &t);
+      rz_clear(&t);
+    }
+    rmat_set(&N, &acc, i, 0);
+    rz_clear(&acc);
+  }
+  assert(rmat_init(&Adj, p, p) == RABIN_SUCCESS);
+  assert(rmat_init(&Anum, p, 1) == RABIN_SUCCESS);
+  assert(rmat_charpoly_adj(&cp, &Adj, &G) == RABIN_SUCCESS);
+  assert(rmat_mul(&Anum, &Adj, &N) == RABIN_SUCCESS);
+  assert(rmat_det(&detG, &G) == RABIN_SUCCESS);
+  rz_init_multi(&q, &r, NULL);
+
+  bool ok = true;
+  for (u64 i = 0; i < p && ok; i++) {
+    assert(rz_divmod(&q, &r, RMAT_GET(&Anum, i, 0), &detG) == RABIN_SUCCESS);
+    ok = rz_is_zero(&r);
+  }
+
+  rz_clear_multi(&q, &r, NULL);
+  rz_clear(&detG);
+  rpol_clear(&cp);
+  rmat_clear(&Anum);
+  rmat_clear(&Adj);
+  rmat_clear(&N);
+  rmat_clear(&G);
+  rmat_clear(&WT);
+  return ok;
+}
+
+/*
+ * Full invariant check of an rmat_mlll result:
+ *   - B == A0 * H
+ *   - |det H| == 1
+ *   - first n - p columns of B are zero
+ *   - last p columns of B are LLL-reduced (delta = dnum/dden)
+ *   - last p columns of B form a Z-basis of col_Z(A0)
+ *     (rank via HNF, inclusion via the adjugate test)
+ *   - if R_known != NULL (n x (n-p), a known Z-basis of the relation
+ *     space): first n - p columns of H are a Z-basis of it (kernel test,
+ *     inclusion, covolume equality)
+ */
+static bool test_mlll_check(const rmat_t* A0, const rmat_t* B, const rmat_t* H,
+                            u64 p, const rmat_t* R_known, i64 dnum, i64 dden)
+{
+  u64 m = A0->rows;
+  u64 n = A0->cols;
+  bool ok = true;
+
+  // 1. B == A0 * H
+  rmat_t T = {0};
+  assert(rmat_init(&T, m, n) == RABIN_SUCCESS);
+  assert(rmat_mul(&T, A0, H) == RABIN_SUCCESS);
+  ok = rmat_equal(&T, B);
+
+  // 2. |det H| == 1
+  if (n > 0) {
+    rz_t det, one;
+    rz_init_multi(&det, &one, NULL);
+    rz_set_u64(&one, 1);
+    assert(rmat_det(&det, H) == RABIN_SUCCESS);
+    det.is_neg = false;
+    ok = ok && rz_is_eq_i64(&det, 1);
+    rz_clear_multi(&det, &one, NULL);
+  }
+
+  // 3. first n - p columns of B are zero; 3b. relation columns of H are in
+  // the kernel (T = A0 * H already computed)
+  for (u64 x = 0; x < n - p; x++) {
+    for (u64 y = 0; y < m; y++) {
+      ok = ok && rz_is_zero(RMAT_GET(B, y, x));
+      ok = ok && rz_is_zero(RMAT_GET(&T, y, x));
+    }
+  }
+  rmat_clear(&T);
+
+  // 4. LLL-reduced basis block
+  rmat_t Bp = {0};
+  if (p > 0) {
+    assert(rmat_init(&Bp, m, p) == RABIN_SUCCESS);
+    for (u64 x = 0; x < p; x++) {
+      for (u64 y = 0; y < m; y++) {
+        assert(rmat_set(&Bp, RMAT_GET(B, y, n - p + x), y, x) == RABIN_SUCCESS);
+      }
+    }
+    ok = ok && test_check_lll(&Bp, p, dnum, dden);
+  }
+
+  // 5. basis block is a Z-basis of col_Z(A0): W = HNF(A0) is one; check
+  // W has p columns and every column of Bp lies in col_Z(W)
+  rmat_t W = {0};
+  assert(rmat_hermite(&W, A0) == RABIN_SUCCESS);
+  ok = ok && (W.cols == p);
+  if (p > 0) {
+    for (u64 x = 0; x < p && ok; x++) {
+      rmat_t col = {0};
+      assert(rmat_init(&col, m, 1) == RABIN_SUCCESS);
+      for (u64 y = 0; y < m; y++) {
+        assert(rmat_set(&col, RMAT_GET(&Bp, y, x), y, 0) == RABIN_SUCCESS);
+      }
+      ok = test_in_col_Z(&W, &col, p);
+      rmat_clear(&col);
+    }
+  }
+
+  // 6. relation block is a Z-basis of the relation space (vs R_known)
+  if (R_known != NULL) {
+    u64 q = n - p;
+    if (q > 0) {
+      rmat_t Hrel = {0};
+      assert(rmat_init(&Hrel, n, q) == RABIN_SUCCESS);
+      for (u64 x = 0; x < q; x++) {
+        for (u64 y = 0; y < n; y++) {
+          assert(rmat_set(&Hrel, RMAT_GET(H, y, x), y, x) == RABIN_SUCCESS);
+        }
+      }
+      for (u64 x = 0; x < q && ok; x++) {
+        rmat_t col = {0};
+        assert(rmat_init(&col, n, 1) == RABIN_SUCCESS);
+        for (u64 y = 0; y < n; y++) {
+          assert(rmat_set(&col, RMAT_GET(&Hrel, y, x), y, 0) == RABIN_SUCCESS);
+        }
+        ok = test_in_col_Z(R_known, &col, q);
+        rmat_clear(&col);
+      }
+      // covolume equality: det(Gram(Hrel)) == det(Gram(R_known))
+      rmat_t HrelT = {0}, RkT = {0}, GH = {0}, GR = {0};
+      rz_t dH, dR;
+      assert(rmat_init(&HrelT, q, n) == RABIN_SUCCESS);
+      assert(rmat_init(&RkT, q, n) == RABIN_SUCCESS);
+      assert(rmat_init(&GH, q, q) == RABIN_SUCCESS);
+      assert(rmat_init(&GR, q, q) == RABIN_SUCCESS);
+      assert(rz_init(&dH) == RABIN_SUCCESS);
+      assert(rz_init(&dR) == RABIN_SUCCESS);
+      for (u64 i = 0; i < q; i++) {
+        for (u64 j = 0; j < n; j++) {
+          assert(rmat_set(&HrelT, RMAT_GET(&Hrel, j, i), i, j) ==
+                 RABIN_SUCCESS);
+          assert(rmat_set(&RkT, RMAT_GET(R_known, j, i), i, j) ==
+                 RABIN_SUCCESS);
+        }
+      }
+      assert(rmat_mul(&GH, &HrelT, &Hrel) == RABIN_SUCCESS);
+      assert(rmat_mul(&GR, &RkT, R_known) == RABIN_SUCCESS);
+      assert(rmat_det(&dH, &GH) == RABIN_SUCCESS);
+      assert(rmat_det(&dR, &GR) == RABIN_SUCCESS);
+      dH.is_neg = false;
+      dR.is_neg = false;
+      ok = ok && rz_is_eq_i64(&dH, 0) == false && (rz_cmp(&dH, &dR) == 0);
+      rmat_clear(&HrelT);
+      rmat_clear(&RkT);
+      rmat_clear(&GH);
+      rmat_clear(&GR);
+      rz_clear_multi(&dH, &dR, NULL);
+      rmat_clear(&Hrel);
+    }
+  }
+
+  rmat_clear(&W);
+  rmat_clear(&Bp);
+  return ok;
+}
+
+void test_lll(void)
+{
+  // 1. 2x2 full rank: A = [[1, 2], [3, 4]]
+  {
+    rmat_t A = {0}, B = {0}, H = {0};
+    rmat_init(&A, 2, 2);
+    test_set_i64(&A, 0, 0, 1);
+    test_set_i64(&A, 0, 1, 2);
+    test_set_i64(&A, 1, 0, 3);
+    test_set_i64(&A, 1, 1, 4);
+    rmat_init(&B, 2, 2);
+    assert(rmat_copy(&B, &A) == RABIN_SUCCESS);
+    assert(rmat_lll(&B, 2, 0.75, &H) == RABIN_SUCCESS);
+    // invariants: B = A * H, |det H| = 1, LLL conditions
+    rmat_t T = {0};
+    rmat_init(&T, 2, 2);
+    rmat_mul(&T, &A, &H);
+    assert(rmat_equal(&T, &B));
+    rz_t det;
+    rz_init(&det);
+    rmat_det(&det, &H);
+    det.is_neg = false;
+    assert(rz_is_eq_i64(&det, 1));
+    rz_clear(&det);
+    assert(test_check_lll(&B, 2, 3, 4));
+    rmat_clear(&T);
+    rmat_clear(&A);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] lll 2x2 known example\n");
+  }
+
+  // 2. rank deficient 1 x 3 [3, 5, 7]: LLL requires full rank -> rejected
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 1, 3);
+    test_set_i64(&B, 0, 0, 3);
+    test_set_i64(&B, 0, 1, 5);
+    test_set_i64(&B, 0, 2, 7);
+    assert(rmat_lll(&B, 3, 0.75, &H) == RABIN_ERR_INVALID_ARG);
+    rmat_clear(&B);
+    printf("[PASS] lll rank deficient rejected\n");
+  }
+
+  // 3. H passed as an empty (zero-initialized) matrix must work
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 2, 2);
+    test_set_i64(&B, 0, 0, 4);
+    test_set_i64(&B, 0, 1, 1);
+    test_set_i64(&B, 1, 0, 1);
+    test_set_i64(&B, 1, 1, 3);
+    assert(rmat_lll(&B, 2, 0.75, &H) == RABIN_SUCCESS);
+    assert(H.rows == 2 && H.cols == 2);
+    assert(test_check_lll(&B, 2, 3, 4));
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] lll empty H output\n");
+  }
+
+  // 4. dependent columns -> RABIN_ERR_INVALID_ARG
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 2, 2);
+    test_set_i64(&B, 0, 0, 1);
+    test_set_i64(&B, 0, 1, 2);
+    test_set_i64(&B, 1, 0, 2);
+    test_set_i64(&B, 1, 1, 4);
+    assert(rmat_lll(&B, 2, 0.75, &H) == RABIN_ERR_INVALID_ARG);
+    rmat_clear(&B);
+    printf("[PASS] lll dependent columns rejected\n");
+  }
+
+  // 5. argument validation
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 2, 2);
+    assert(rmat_lll(&B, 2, 0.0, &H) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_lll(&B, 2, 1.5, &H) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_lll(&B, 3, 0.75, &H) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_lll(NULL, 2, 0.75, &H) == RABIN_ERR_NULL_PTR);
+    assert(rmat_lll(&B, 2, 0.75, NULL) == RABIN_ERR_NULL_PTR);
+    rmat_clear(&B);
+    printf("[PASS] lll argument validation\n");
+  }
+
+  // 6. random 4 x 3 (tall, full rank), delta = 0.5 (double branch)
+  for (u64 trial = 0; trial < 5; trial++) {
+    rmat_t A = {0}, B = {0}, H = {0}, T = {0};
+    rz_t val;
+    rz_init(&val);
+    rmat_init(&A, 4, 3);
+    rmat_init(&B, 4, 3);
+    for (u64 i = 0; i < 4; i++) {
+      for (u64 j = 0; j < 3; j++) {
+        rz_gen_random(&val, 16);
+        rmat_set(&A, &val, i, j);
+      }
+    }
+    assert(rmat_copy(&B, &A) == RABIN_SUCCESS);
+    if (rmat_lll(&B, 3, 0.5, &H) != RABIN_SUCCESS) continue;  // unlucky rank
+    rmat_init(&T, 4, 3);
+    rmat_mul(&T, &A, &H);
+    assert(rmat_equal(&T, &B));
+    assert(test_check_lll(&B, 3, 1, 2));
+    rmat_clear(&T);
+    rmat_clear(&B);
+    rmat_clear(&A);
+    rmat_clear(&H);
+    rz_clear(&val);
+  }
+  printf("[PASS] lll random 4x3\n");
+}
+
+void test_mlll(void)
+{
+  // 1. [[2, 4]]: rank 1, lattice 2Z
+  {
+    rmat_t A0 = {0}, B = {0}, H = {0};
+    rmat_init(&A0, 1, 2);
+    test_set_i64(&A0, 0, 0, 2);
+    test_set_i64(&A0, 0, 1, 4);
+    rmat_init(&B, 1, 2);
+    assert(rmat_copy(&B, &A0) == RABIN_SUCCESS);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 2, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 1);
+    // W from the HNF is [[2]], so the output is exactly [0 | 2]
+    assert(rz_is_zero(RMAT_GET(&B, 0, 0)));
+    assert(rz_is_eq_i64(RMAT_GET(&B, 0, 1), 2));
+    assert(test_mlll_check(&A0, &B, &H, 1, NULL, 3, 4));
+    rmat_clear(&A0);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll 1x2 known example\n");
+  }
+
+  // 2. 1 x 3 gcd case: [3, 5, 7] -> rank 1, reduced column +-gcd = +-1
+  {
+    rmat_t A0 = {0}, B = {0}, H = {0};
+    rmat_init(&A0, 1, 3);
+    test_set_i64(&A0, 0, 0, 3);
+    test_set_i64(&A0, 0, 1, 5);
+    test_set_i64(&A0, 0, 2, 7);
+    rmat_init(&B, 1, 3);
+    assert(rmat_copy(&B, &A0) == RABIN_SUCCESS);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 3, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 1);
+    // the surviving column is +-gcd(3,5,7) = +-1
+    assert(rz_is_eq_i64(RMAT_GET(&B, 0, 2), 1) ||
+           rz_is_eq_i64(RMAT_GET(&B, 0, 2), -1));
+    assert(test_mlll_check(&A0, &B, &H, 1, NULL, 3, 4));
+    rmat_clear(&A0);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll 1x3 gcd case\n");
+  }
+
+  // 3. dependent 2x3: [[2, 0, 1], [0, 2, 1]], relations = Z * (-1,-1,2)
+  {
+    rmat_t A0 = {0}, B = {0}, H = {0}, Rk = {0};
+    rmat_init(&A0, 2, 3);
+    test_set_i64(&A0, 0, 0, 2);
+    test_set_i64(&A0, 1, 0, 0);
+    test_set_i64(&A0, 0, 1, 0);
+    test_set_i64(&A0, 1, 1, 2);
+    test_set_i64(&A0, 0, 2, 1);
+    test_set_i64(&A0, 1, 2, 1);
+    rmat_init(&B, 2, 3);
+    assert(rmat_copy(&B, &A0) == RABIN_SUCCESS);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 3, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 2);
+    rmat_init(&Rk, 3, 1);
+    test_set_i64(&Rk, 0, 0, -1);
+    test_set_i64(&Rk, 1, 0, -1);
+    test_set_i64(&Rk, 2, 0, 2);
+    assert(test_mlll_check(&A0, &B, &H, 2, &Rk, 3, 4));
+    rmat_clear(&Rk);
+    rmat_clear(&A0);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll 2x3 dependent with known relations\n");
+  }
+
+  // 3. all-zero matrix: rank 0, H = I
+  {
+    rmat_t B = {0}, H = {0}, I3 = {0};
+    rmat_init(&B, 2, 3);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 3, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 0);
+    rmat_init(&I3, 3, 3);
+    rmat_id(&I3, 3);
+    assert(rmat_equal(&H, &I3));
+    assert(rmat_is_zero(&B));
+    rmat_clear(&I3);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll all-zero matrix\n");
+  }
+
+  // 4. single vectors: [[5]] and [[-5]]
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 1, 1);
+    test_set_i64(&B, 0, 0, 5);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 1, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 1);
+    assert(rz_is_eq_i64(RMAT_GET(&B, 0, 0), 5));
+    assert(rz_is_eq_i64(RMAT_GET(&H, 0, 0), 1));
+
+    test_set_i64(&B, 0, 0, -5);
+    assert(rmat_mlll(&B, 1, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 1);
+    assert(rz_is_eq_i64(RMAT_GET(&B, 0, 0), 5));
+    assert(rz_is_eq_i64(RMAT_GET(&H, 0, 0), -1));
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll single vector (+-5)\n");
+  }
+
+  // 5. zero coordinates (0 x 3)
+  {
+    rmat_t B = {0}, H = {0}, I3 = {0};
+    rmat_init(&B, 0, 3);
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 3, 0.75, &H, &rank) == RABIN_SUCCESS);
+    assert(rank == 0);
+    rmat_init(&I3, 3, 3);
+    rmat_id(&I3, 3);
+    assert(rmat_equal(&H, &I3));
+    rmat_clear(&I3);
+    rmat_clear(&B);
+    rmat_clear(&H);
+    printf("[PASS] mlll zero rows\n");
+  }
+
+  // 6. argument validation
+  {
+    rmat_t B = {0}, H = {0};
+    rmat_init(&B, 3, 2);  // tall: m > n -> INVALID_ARG
+    u64 rank = 99;
+    assert(rmat_mlll(&B, 2, 0.75, &H, &rank) == RABIN_ERR_INVALID_ARG);
+    rmat_init(&B, 2, 2);
+    assert(rmat_mlll(&B, 2, 0.0, &H, &rank) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_mlll(&B, 2, 1.5, &H, &rank) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_mlll(&B, 3, 0.75, &H, &rank) == RABIN_ERR_INVALID_ARG);
+    assert(rmat_mlll(NULL, 2, 0.75, &H, &rank) == RABIN_ERR_NULL_PTR);
+    assert(rmat_mlll(&B, 2, 0.75, NULL, &rank) == RABIN_ERR_NULL_PTR);
+    assert(rmat_mlll(&B, 2, 0.75, &H, NULL) == RABIN_ERR_NULL_PTR);
+    rmat_clear(&B);
+    printf("[PASS] mlll argument validation\n");
+  }
+
+  // 7. structured random tests with known rank and known relations:
+  //    A = V * [I | C_r] with V m x p lower triangular (a known Z-basis of
+  //    the column lattice); the known relations are e_j - sum_h c_h e_h.
+  {
+    struct {
+      u64 m, n, p;
+    } shapes[] = {{2, 2, 2}, {2, 3, 1}, {2, 3, 2}, {2, 4, 1}, {2, 4, 2},
+                  {3, 4, 3}, {3, 3, 3}, {3, 4, 2}, {3, 5, 2}, {3, 5, 3},
+                  {3, 5, 1}, {4, 6, 3}, {4, 6, 4}};
+    u64 nshapes = sizeof(shapes) / sizeof(shapes[0]);
+    rz_t val;
+    rz_init(&val);
+    for (u64 s = 0; s < nshapes; s++) {
+      u64 m = shapes[s].m, n = shapes[s].n, p = shapes[s].p;
+      for (int delta_i = 0; delta_i < 2; delta_i++) {
+        double delta = (delta_i == 0) ? 0.75 : 0.5;
+        i64 dnum = (delta_i == 0) ? 3 : 1;
+        i64 dden = (delta_i == 0) ? 4 : 2;
+
+        rmat_t V = {0};   // m x p known basis
+        rmat_t C = {0};   // p x (n-p) random coefficients
+        rmat_t A0 = {0};  // m x n
+        rmat_t Rk = {0};  // n x (n-p) known relations
+        rmat_t B = {0};
+        rmat_t H = {0};
+        rmat_init(&V, m, p);
+        rmat_init(&C, p, n - p);
+        rmat_init(&A0, m, n);
+        rmat_init(&Rk, n, n - p);
+        for (u64 i = 0; i < m; i++) {
+          for (u64 j = 0; j < p; j++) {
+            if (i >= j) {
+              rz_gen_random(&val, 12);
+              // keep the diagonal nonzero and small
+              if (i == j) {
+                rz_t d;
+                rz_init(&d);
+                rz_gen_random(&d, 3);
+                if (rz_is_zero(&d)) rz_set_u64(&d, 1);
+                d.is_neg = (rand() % 2 == 0);
+                rmat_set(&V, &d, i, j);
+                rz_clear(&d);
+              } else {
+                rmat_set(&V, &val, i, j);
+              }
+            }
+          }
+        }
+        for (u64 i = 0; i < p; i++) {
+          for (u64 j = 0; j < n - p; j++) {
+            rz_set_i64(&val, (i64)(rand() % 7) - 3);
+            rmat_set(&C, &val, i, j);
+          }
+        }
+        // A0[:, j] = V[:, j] for j < p;  A0[:, j] = V * C[:, j-p] else
+        for (u64 j = 0; j < n; j++) {
+          for (u64 i = 0; i < m; i++) {
+            rz_t acc;
+            rz_init(&acc);
+            rz_set_u64(&acc, 0);
+            for (u64 h = 0; h < p; h++) {
+              rz_t cv, t;
+              rz_init_multi(&cv, &t, NULL);
+              if (j < p) {
+                if (h == j) rz_set_u64(&cv, 1);
+              } else {
+                rz_copy(&cv, RMAT_GET(&C, h, j - p));
+              }
+              rz_mul(&t, &cv, RMAT_GET(&V, i, h));
+              rz_add(&acc, &acc, &t);
+              rz_clear_multi(&cv, &t, NULL);
+            }
+            rmat_set(&A0, &acc, i, j);
+            rz_clear(&acc);
+          }
+        }
+        // Rk[:, j] = e_{p+j} - sum_h C[h][j] e_h
+        for (u64 j = 0; j < n - p; j++) {
+          for (u64 i = 0; i < n; i++) {
+            rz_t v2;
+            rz_init(&v2);
+            rz_set_u64(&v2, 0);
+            if (i == p + j) {
+              rz_set_u64(&v2, 1);
+            } else if (i < p) {
+              rz_neg(&v2, RMAT_GET(&C, i, j));
+            }
+            rmat_set(&Rk, &v2, i, j);
+            rz_clear(&v2);
+          }
+        }
+        rmat_init(&B, m, n);
+        assert(rmat_copy(&B, &A0) == RABIN_SUCCESS);
+        u64 rank = 99;
+        assert(rmat_mlll(&B, n, delta, &H, &rank) == RABIN_SUCCESS);
+        assert(rank == p);
+        assert(test_mlll_check(&A0, &B, &H, p, (n - p > 0) ? &Rk : NULL, dnum,
+                               dden));
+        rmat_clear(&B);
+        rmat_clear(&H);
+        rmat_clear(&Rk);
+        rmat_clear(&A0);
+        rmat_clear(&C);
+        rmat_clear(&V);
+      }
+    }
+    rz_clear(&val);
+    printf("[PASS] mlll structured random (%llu shapes x 2 deltas)\n",
+           (unsigned long long)nshapes);
+  }
 }
 
 void test_pascal_det(u64 size)
@@ -1286,6 +1993,8 @@ int main()
   test_hermite_mod_d();
   test_hnf_verify();
   test_hnf_mod_d_multilimb();
+  test_lll();
+  test_mlll();
 
   rpol_clear(&p);
 
