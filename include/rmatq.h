@@ -163,6 +163,98 @@ rabin_err_t rmatq_normalize(rmatq_t* M);
  */
 rabin_err_t rmatq_print(const rmatq_t* A);
 
+/**
+ * @brief Read one entry as a rational: \f$a = M[r][c] / den\f$.
+ *
+ * The result is normalized (\f$den > 0\f$, coprime).
+ *
+ * Complexity:
+ *   - Time: \f$O(d^2)\f$ where \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(d)\f$ limbs
+ *
+ * @param[out] a Entry value.
+ * @param[in]  A Matrix.
+ * @param[in]  r Row index.
+ * @param[in]  c Column index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_set()
+ */
+rabin_err_t rmatq_get(rq_t* a, const rmatq_t* A, u64 r, u64 c);
+
+/**
+ * @brief Write one entry: \f$A[r][c] = a\f$.
+ *
+ * If \f$a.den\f$ does not divide the common denominator, every entry of
+ * \f$A.M\f$ and \f$A.den\f$ are first scaled by
+ * \f$\mathrm{lcm}(A.den, a.den) / A.den\f$, so the exact value of \f$a\f$
+ * is representable. \f$A\f$ is normalized afterwards.
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot d^2)\f$ where \f$m \times n\f$ is the
+ * dimension of \f$A\f$ and \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     a Entry value.
+ * @param[in]     r Row index.
+ * @param[in]     c Column index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_get()
+ */
+rabin_err_t rmatq_set(rmatq_t* A, const rq_t* a, u64 r, u64 c);
+
+/**
+ * @brief Set one entry to zero.
+ *
+ * The common denominator is left unchanged.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     r Row index.
+ * @param[in]     c Column index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_INVALID_ARG, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_set()
+ */
+rabin_err_t rmatq_set_zero(rmatq_t* A, u64 r, u64 c);
+
+/**
+ * @brief Cholesky decomposition \f$A = C^t C\f$ of a rational matrix.
+ *
+ * \f$C\f$ is upper triangular and every entry of \f$A\f$ must be
+ * representable exactly: each pivot \f$q_{i,i}\f$ of the reduction must be
+ * positive and a perfect square in \f$\mathbb{Q}\f$, otherwise the
+ * decomposition does not exist over the rationals and the call fails.
+ * \f$C\f$ must already be initialized as \f$n \times n\f$ and is left
+ * untouched when the decomposition fails.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2)\f$ where \f$n \times n\f$ is the dimension
+ * of \f$A\f$ and \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(n^2)\f$ rationals (scratch matrix)
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] C Upper triangular factor with \f$A = C^t C\f$.
+ * @param[in]  A Symmetric positive definite rational matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, RABIN_ERR_OUT_OF_MEMORY,
+ * RABIN_ERR_DIV_BY_ZERO (zero pivot), or RABIN_ERR_INVALID_ARG (negative
+ * pivot or a pivot that is not a rational square).
+ * @par Algorithm Reference:
+ * Algorithm 2.7.6 (Cholesky decomposition), H. Cohen, A Course in
+ * Computational Algebraic Number Theory.
+ * @see rmatq_get(), rmatq_set()
+ */
+rabin_err_t rmatq_cholesky(rmatq_t* C, const rmatq_t* A);
+
 /*
  function rmatq_rref(R, A):
     // Phase 0: Copy input and set up tracking

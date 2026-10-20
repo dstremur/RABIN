@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "../include/rmat.h"
+#include "../include/rmatq.h"
 #include "../include/rns.h"
 #include "../include/rns_primes.h"
 #include "../include/rpol.h"
@@ -1687,6 +1688,126 @@ void test_hnf_mod_d_multilimb(void)
   rz_clear_multi(&D, &val, &bit, &delta, &mult, NULL);
 }
 
+static void test_rmatq_cholesky_case(rmatq_t* C, const rmatq_t* A)
+{
+  rq_t s, t, a, b;
+  rq_init_multi(&s, &t, &a, &b, NULL);
+
+  for (u64 i = 0; i < A->M.rows; i++) {
+    for (u64 j = 0; j < A->M.cols; j++) {
+      rq_set_u64(&s, 0);
+      for (u64 k = 0; k < A->M.rows; k++) {
+        rmatq_get(&a, C, k, i);
+        if (rq_is_zero(&a)) continue;
+        rmatq_get(&b, C, k, j);
+        rq_mul(&t, &a, &b);
+        rq_add(&s, &s, &t);
+      }
+      rmatq_get(&a, A, i, j);
+      int eq = (rq_is_zero(&s) && rq_is_zero(&a)) ||
+               (!rq_is_zero(&s) && !rq_is_zero(&a) && rq_cmp(&s, &a) == 0);
+      assert(eq);
+    }
+  }
+
+  rq_clear_multi(&s, &t, &a, &b, NULL);
+}
+
+static void test_rmatq_cholesky(void)
+{
+  rmatq_t A = {0}, C = {0};
+  rmatq_init(&A, 3, 3);
+  rmatq_init(&C, 3, 3);
+
+  // A = [[4,2,0],[2,5,2],[0,2,5]] = C^t C, C = [[2,1,0],[0,2,1],[0,0,2]].
+  test_set_i64(&A.M, 0, 0, 4);
+  test_set_i64(&A.M, 0, 1, 2);
+  test_set_i64(&A.M, 1, 0, 2);
+  test_set_i64(&A.M, 1, 1, 5);
+  test_set_i64(&A.M, 1, 2, 2);
+  test_set_i64(&A.M, 2, 1, 2);
+  test_set_i64(&A.M, 2, 2, 5);
+
+  assert(rmatq_cholesky(&C, &A) == RABIN_SUCCESS);
+
+  rq_t got, want;
+  rq_init_multi(&got, &want, NULL);
+  const i64 expected[3][3] = {{2, 1, 0}, {0, 2, 1}, {0, 0, 2}};
+  for (u64 i = 0; i < 3; i++) {
+    for (u64 j = 0; j < 3; j++) {
+      rmatq_get(&got, &C, i, j);
+      rq_set_u64(&want, (u64)expected[i][j]);
+      assert(rq_cmp(&got, &want) == 0);
+    }
+  }
+  rq_clear_multi(&got, &want, NULL);
+
+  test_rmatq_cholesky_case(&C, &A);
+  rmatq_clear(&A);
+  rmatq_clear(&C);
+
+  // Pivot 2 is not a rational square: no Cholesky decomposition over Q.
+  rmatq_init(&A, 2, 2);
+  rmatq_init(&C, 2, 2);
+  test_set_i64(&A.M, 0, 0, 2);
+  test_set_i64(&A.M, 0, 1, 1);
+  test_set_i64(&A.M, 1, 0, 1);
+  test_set_i64(&A.M, 1, 1, 2);
+  assert(rmatq_cholesky(&C, &A) == RABIN_ERR_INVALID_ARG);
+  rmatq_clear(&A);
+  rmatq_clear(&C);
+}
+
+static void test_rmatq_cholesky_4x4(void)
+{
+  static const i64 vals[4][4] = {
+      {4, 12, -16, 0}, {12, 37, -43, 0}, {-16, -43, 98, -9}, {0, 0, -9, 13}};
+
+  rmatq_t A = {0}, C = {0};
+  rmatq_init(&A, 4, 4);
+  rmatq_init(&C, 4, 4);
+
+  for (u64 i = 0; i < 4; i++) {
+    for (u64 j = 0; j < 4; j++) {
+      test_set_i64(&A.M, i, j, vals[i][j]);
+    }
+  }
+
+  printf("\nInput A:\n");
+  rmatq_print(&A);
+
+  // Pivots are 4, 1, 9, 4: all rational squares, C = L^t is integral.
+  assert(rmatq_cholesky(&C, &A) == RABIN_SUCCESS);
+
+  printf("C:\n");
+  rmatq_print(&C);
+
+  const i64 expected[4][4] = {
+      {2, 6, -8, 0}, {0, 1, 5, 0}, {0, 0, 3, -3}, {0, 0, 0, 2}};
+  rz_t v;
+  rq_t got, want;
+  rz_init(&v);
+  rq_init_multi(&got, &want, NULL);
+  for (u64 i = 0; i < 4; i++) {
+    for (u64 j = 0; j < 4; j++) {
+      rmatq_get(&got, &C, i, j);
+      rz_set_i64(&v, expected[i][j]);
+      rq_set(&want, &v);
+      int eq =
+          (rq_is_zero(&got) && rq_is_zero(&want)) ||
+          (!rq_is_zero(&got) && !rq_is_zero(&want) && rq_cmp(&got, &want) == 0);
+      assert(eq);
+    }
+  }
+  rq_clear_multi(&got, &want, NULL);
+  rz_clear(&v);
+
+  test_rmatq_cholesky_case(&C, &A);
+
+  rmatq_clear(&A);
+  rmatq_clear(&C);
+}
+
 int main()
 {
   printf("--- Starting BigMatrix Test Suite ---\n");
@@ -2068,6 +2189,12 @@ int main()
   free(testmatrix);
 
   test_pascal_det(50);
+
+  test_rmatq_cholesky();
+  printf("[PASS] Rmatq Cholesky\n");
+
+  test_rmatq_cholesky_4x4();
+  printf("[PASS] Rmatq Cholesky (4x4)\n");
 
   printf("[PASS] Cleanup / Free\n");
   printf("--- All Tests Passed! ---\n");
