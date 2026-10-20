@@ -71,35 +71,34 @@ rabin_err_t rz_lucas_solve(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
   rz_divmod_u64(&n_half, n, 2);
   rabin_err_t err = RABIN_SUCCESS;
 
-  if ((err = rz_lucas_solve(&u_n, &v_n, p, q, &q_n, &n_half)) != RABIN_SUCCESS)
-    goto cleanup;
+  TRY(rz_lucas_solve(&u_n, &v_n, p, q, &q_n, &n_half));
 
   // Precompute used values
-  if ((err = rz_mul(&a, &u_n, &v_n)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_mul(&b, &v_n, &v_n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_mul(&a, &u_n, &v_n));
+  TRY(rz_mul(&b, &v_n, &v_n));
 
   if (rz_is_even(n)) {
     // U_2n = a
-    if ((err = rz_copy(u, &a)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_copy(u, &a));
     // V_2n = b - 2 * Q^k
-    if ((err = rz_copy(v, &b)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_sub(v, v, &q_n)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_sub(v, v, &q_n)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_copy(v, &b));
+    TRY(rz_sub(v, v, &q_n));
+    TRY(rz_sub(v, v, &q_n));
     // Q^n = (Q^n/2)^2
-    if ((err = rz_mul(qn, &q_n, &q_n)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_mul(qn, &q_n, &q_n));
   } else {
-    if ((err = rz_mul(&tmp, p, &a)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_add(&tmp, &tmp, &b)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_rshift1(&tmp)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_sub(u, &tmp, &q_n)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_mul(&tmp, p, &a));
+    TRY(rz_add(&tmp, &tmp, &b));
+    TRY(rz_rshift1(&tmp));
+    TRY(rz_sub(u, &tmp, &q_n));
 
-    if ((err = rz_mul(v, p, u)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_mul(&tmp, q, &a)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_sub(v, v, &tmp)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_sub(v, v, &tmp)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_mul(v, p, u));
+    TRY(rz_mul(&tmp, q, &a));
+    TRY(rz_sub(v, v, &tmp));
+    TRY(rz_sub(v, v, &tmp));
 
-    if ((err = rz_mul(qn, &q_n, &q_n)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_mul(qn, qn, q)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_mul(qn, &q_n, &q_n));
+    TRY(rz_mul(qn, qn, q));
   }
 
   err = RABIN_SUCCESS;
@@ -149,14 +148,14 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
   }
 
   // map constants into Montgomery space
-  if ((err = rz_mont_in(&p_bar, p, &ctx)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_mont_in(&q_bar, q, &ctx)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_copy(&one_bar, &ctx.one_mont)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_mont_in(&p_bar, p, &ctx));
+  TRY(rz_mont_in(&q_bar, q, &ctx));
+  TRY(rz_copy(&one_bar, &ctx.one_mont));
 
   // initialize u, v, qn
-  if ((err = rz_copy(&u_bar, &one_bar)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_copy(&v_bar, &p_bar)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_copy(&qn_bar, &q_bar)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_copy(&u_bar, &one_bar));
+  TRY(rz_copy(&v_bar, &p_bar));
+  TRY(rz_copy(&qn_bar, &q_bar));
 
   u64 len = (u64)rz_bit_length(n);
 #pragma GCC unroll 8
@@ -164,51 +163,44 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
     // Precompute used values
     // a = U_n * V_n = U_2n
     // b = V_n * V_n
-    if ((err = rz_mont_mul(&a, &u_bar, &v_bar, &ctx)) != RABIN_SUCCESS)
-      goto cleanup;
-    if ((err = rz_mont_mul(&b, &v_bar, &v_bar, &ctx)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rz_mont_mul(&a, &u_bar, &v_bar, &ctx));
+    TRY(rz_mont_mul(&b, &v_bar, &v_bar, &ctx));
 
     if (rz_get_bit(n, i) == 0) {
       // U_2n = a
-      if ((err = rz_copy(&u_bar, &a)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_copy(&u_bar, &a));
       // V_2n = b - 2 * Q^k
-      if ((err = rz_sub(&v_bar, &b, &qn_bar)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_sub(&v_bar, &b, &qn_bar));
       if (v_bar.is_neg &&
           (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
         goto cleanup;
-      if ((err = rz_sub(&v_bar, &v_bar, &qn_bar)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_sub(&v_bar, &v_bar, &qn_bar));
       if (v_bar.is_neg &&
           (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
         goto cleanup;
 
       // Q^n = (Q^n/2)^2
-      if ((err = rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx));
     } else {
       // tmp = P * U_2n + V_2n / 2
-      if ((err = rz_mont_mul(&tmp, &p_bar, &a, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rz_add(&tmp, &tmp, &b)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_mont_mul(&tmp, &p_bar, &a, &ctx));
+      TRY(rz_add(&tmp, &tmp, &b));
 
       // fix for modular arethmetic division by 2
       if (!rz_is_even(&tmp)) {
-        if ((err = rz_add(&tmp, &tmp, &ctx.n)) != RABIN_SUCCESS) goto cleanup;
+        TRY(rz_add(&tmp, &tmp, &ctx.n));
       }
-      if ((err = rz_rshift1(&tmp)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_rshift1(&tmp));
 
-      if ((err = rz_copy(&u_bar, &tmp)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_copy(&u_bar, &tmp));
 
       // V_2n+1 = P * U_2n+1 - 2 * Q * U_2n
-      if ((err = rz_mont_mul(&v_bar, &p_bar, &u_bar, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rz_mont_mul(&tmp, &q_bar, &a, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_mont_mul(&v_bar, &p_bar, &u_bar, &ctx));
+      TRY(rz_mont_mul(&tmp, &q_bar, &a, &ctx));
 
       // Subtract Q*a twice
       for (int j = 0; j < 2; j++) {
-        if ((err = rz_sub(&v_bar, &v_bar, &tmp)) != RABIN_SUCCESS) goto cleanup;
+        TRY(rz_sub(&v_bar, &v_bar, &tmp));
         // this needs to be add_abs. I have no idea why
         if (v_bar.is_neg &&
             (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
@@ -216,16 +208,14 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
       }
 
       // Qn = Qn^2 * Q
-      if ((err = rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rz_mont_mul(&qn_bar, &qn_bar, &q_bar, &ctx)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx));
+      TRY(rz_mont_mul(&qn_bar, &qn_bar, &q_bar, &ctx));
     }
   }
 
-  if ((err = rz_mont_out(u, &u_bar, &ctx)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_mont_out(v, &v_bar, &ctx)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_mont_out(qn, &qn_bar, &ctx)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_mont_out(u, &u_bar, &ctx));
+  TRY(rz_mont_out(v, &v_bar, &ctx));
+  TRY(rz_mont_out(qn, &qn_bar, &ctx));
 
   err = RABIN_SUCCESS;
 cleanup:

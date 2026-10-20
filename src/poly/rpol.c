@@ -194,9 +194,9 @@ rabin_err_t rpol_print(const rpol_t* p)
       putchar(' ');
     }
 
-    if ((err = rz_copy(&mag, c)) != RABIN_SUCCESS) goto out;
+    TRY(rz_copy(&mag, c));
     if (neg) {
-      if ((err = rz_neg(&mag, &mag)) != RABIN_SUCCESS) goto out;
+      TRY(rz_neg(&mag, &mag));
     }
 
     /* hide the coefficient 1 on every term except the constant one */
@@ -214,7 +214,7 @@ rabin_err_t rpol_print(const rpol_t* p)
 
   printf("\n");
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&mag);
   return err;
 }
@@ -300,39 +300,35 @@ rabin_err_t rpol_mul_ntt(rpol_t* r, const rpol_t* p, const rpol_t* q)
   rpol_init(&q_hat);
   rpol_init(&r_hat);
 
-  if ((err = rntt_cyclic_forward(&p_hat, p, &ctx)) != RABIN_SUCCESS) goto out;
-  if ((err = rntt_cyclic_forward(&q_hat, q, &ctx)) != RABIN_SUCCESS) goto out;
-  if ((err = rpol_alloc(&r_hat, ntt_size)) != RABIN_SUCCESS) goto out;
+  TRY(rntt_cyclic_forward(&p_hat, p, &ctx));
+  TRY(rntt_cyclic_forward(&q_hat, q, &ctx));
+  TRY(rpol_alloc(&r_hat, ntt_size));
 
   for (u64 i = 0; i < ntt_size; i++) {
     // MontMul(pR, qR) = (pR * qR * R^-1) mod q = (p*q)R mod q
-    if ((err = rz_mont_mul(&r_hat.coeff[i], &p_hat.coeff[i], &q_hat.coeff[i],
-                           &ctx.mctx)) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_mont_mul(&r_hat.coeff[i], &p_hat.coeff[i], &q_hat.coeff[i],
+                    &ctx.mctx));
   }
   r_hat.deg = ntt_size - 1;
 
   rpol_t r_ntt = {0};
   rpol_init(&r_ntt);
-  if ((err = rntt_cyclic_inverse_mont_in(&r_ntt, &r_hat, &ctx)) !=
-      RABIN_SUCCESS)
-    goto out;
+  TRY(rntt_cyclic_inverse_mont_in(&r_ntt, &r_hat, &ctx));
 
   rpol_clear(r);
   rpol_init(r);
-  if ((err = rpol_alloc(r, required_len)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_alloc(r, required_len));
 
   for (u64 i = 0; i < required_len; i++) {
-    if ((err = rz_copy(&r->coeff[i], &r_ntt.coeff[i])) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_copy(&r->coeff[i], &r_ntt.coeff[i]));
   }
 
   r->deg = required_len - 1;
 
-  if ((err = rpol_trim(r)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_trim(r));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rpol_clear(&p_hat);
   rpol_clear(&q_hat);
   rpol_clear(&r_hat);
@@ -395,19 +391,19 @@ rabin_err_t rpol_mul_ntt_u64(rpol_t* r, const rpol_t* p, const rpol_t* q)
   u64_ntt_cyclic_inverse_montgomery_in(r_arr, r_hat, &ctx);
 
   err = rpol_clear(r);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
   rpol_init(r);
-  if ((err = rpol_alloc(r, required_len)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_alloc(r, required_len));
 
   for (u64 i = 0; i < required_len; i++) {
-    if ((err = rz_set_u64(&r->coeff[i], r_arr[i])) != RABIN_SUCCESS) goto out;
+    TRY(rz_set_u64(&r->coeff[i], r_arr[i]));
   }
 
   r->deg = required_len - 1;
-  if ((err = rpol_trim(r)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_trim(r));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   // 7. Cleanup
   rz_scratch_release();
   u64_ntt_ctx_clear(&ctx);
@@ -434,26 +430,22 @@ rabin_err_t rpol_mul_school(rpol_t* r, const rpol_t* p, const rpol_t* q)
 
   for (u64 i = 0; i <= p->deg; i++) {
     for (u64 j = 0; j <= q->deg; j++) {
-      if ((err = rz_mul(&t, &p->coeff[i], &q->coeff[j])) != RABIN_SUCCESS)
-        goto out;
+      TRY(rz_mul(&t, &p->coeff[i], &q->coeff[j]));
 
-      if ((err = rz_add(&temp.coeff[i + j], &temp.coeff[i + j], &t)) !=
-          RABIN_SUCCESS)
-        goto out;
+      TRY(rz_add(&temp.coeff[i + j], &temp.coeff[i + j], &t));
     }
   }
 
-  if ((err = rpol_trim(&temp)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_trim(&temp));
 
-  if ((err = rpol_alloc(r, temp.deg)) != RABIN_SUCCESS) goto out;
+  TRY(rpol_alloc(r, temp.deg));
   for (u64 i = 0; i <= temp.deg; i++) {
-    if ((err = rz_copy(&r->coeff[i], &temp.coeff[i])) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_copy(&r->coeff[i], &temp.coeff[i]));
   }
   r->deg = temp.deg;
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&t);
   rpol_clear(&temp);
   return err;
@@ -473,20 +465,20 @@ rabin_err_t rz_decompose(rpol_t* r, const rz_t* n, u64 width)
   rz_init_multi(&tmp, &mask, &digit, NULL);
 
   rabin_err_t err = rz_copy(&tmp, n);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   // mask = 0xFFFF..
-  if ((err = rz_lshift(&mask, &RZ_ONE, width)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_sub(&mask, &mask, &RZ_ONE)) != RABIN_SUCCESS) goto out;
+  TRY(rz_lshift(&mask, &RZ_ONE, width));
+  TRY(rz_sub(&mask, &mask, &RZ_ONE));
 
   u64 i = 0;
   while (!rz_is_zero(&tmp)) {
-    if ((err = rz_and(&digit, &tmp, &mask)) != RABIN_SUCCESS) goto out;
+    TRY(rz_and(&digit, &tmp, &mask));
 
-    if ((err = rpol_alloc(r, i + 1)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_copy(&r->coeff[i], &digit)) != RABIN_SUCCESS) goto out;
+    TRY(rpol_alloc(r, i + 1));
+    TRY(rz_copy(&r->coeff[i], &digit));
 
-    if ((err = rz_rshift(&tmp, &tmp, width)) != RABIN_SUCCESS) goto out;
+    TRY(rz_rshift(&tmp, &tmp, width));
 
     i++;
   }
@@ -494,7 +486,7 @@ rabin_err_t rz_decompose(rpol_t* r, const rz_t* n, u64 width)
   r->deg = (i > 0) ? i - 1 : 0;
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&tmp, &mask, &digit, NULL);
   return err;
 }
@@ -508,33 +500,33 @@ rabin_err_t rpol_carry_propagation(rpol_t* r, u64 bit_width)
   rz_init_multi(&carry, &base, &mask, &total, NULL);
 
   rabin_err_t err = rz_lshift(&base, &RZ_ONE, bit_width);
-  if (err != RABIN_SUCCESS) goto out;
-  if ((err = rz_sub(&mask, &base, &RZ_ONE)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_set_u64(&carry, 0)) != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_sub(&mask, &base, &RZ_ONE));
+  TRY(rz_set_u64(&carry, 0));
 
   u64 i = 0;
   // Iterate through all coefficients plus any remaining carries
   while (i <= r->deg || !rz_is_zero(&carry)) {
     if (i > r->deg) {
       // Expand poly if carry exceeds current deg
-      if ((err = rpol_alloc(r, i + 1)) != RABIN_SUCCESS) goto out;
+      TRY(rpol_alloc(r, i + 1));
       r->deg = i;
     }
 
     // total = coeff[i] + carry
-    if ((err = rz_add(&total, &r->coeff[i], &carry)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add(&total, &r->coeff[i], &carry));
 
     // carry = total >> bit_width
-    if ((err = rz_rshift(&carry, &total, bit_width)) != RABIN_SUCCESS) goto out;
+    TRY(rz_rshift(&carry, &total, bit_width));
 
     // coeff[i] = total & mask
-    if ((err = rz_and(&r->coeff[i], &total, &mask)) != RABIN_SUCCESS) goto out;
+    TRY(rz_and(&r->coeff[i], &total, &mask));
 
     i++;
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&carry, &base, &mask, &total, NULL);
   return err;
 }
@@ -551,14 +543,13 @@ rabin_err_t rz_recompose(rz_t* n, const rpol_t* p, u64 bit_width)
 
   for (u64 i = 0; i <= p->deg; i++) {
     // term = coeff[i] << (i * bit_width)
-    if ((err = rz_lshift(&term, &p->coeff[i], i * bit_width)) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_lshift(&term, &p->coeff[i], i * bit_width));
     // n += term
-    if ((err = rz_add(n, n, &term)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add(n, n, &term));
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&term);
   return err;
 }

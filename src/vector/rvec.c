@@ -186,11 +186,11 @@ rabin_err_t rvec_norm(rz_t* r, const rvec_t* a)
   rz_init(&temp);
 
   rabin_err_t err = rvec_dot(&temp, a, a);
-  if (err != RABIN_SUCCESS) goto out;
-  if ((err = rz_isqrt(r, &temp)) != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_isqrt(r, &temp));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&temp);
   return err;
 }
@@ -227,13 +227,12 @@ rabin_err_t rvec_dot(rz_t* r, const rvec_t* a, const rvec_t* b)
   rabin_err_t err;
 
   for (u64 i = 0; i < a->size; i++) {
-    if ((err = rz_mul(&temp, &a->data[i], &b->data[i])) != RABIN_SUCCESS)
-      goto out;
-    if ((err = rz_add(r, r, &temp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_mul(&temp, &a->data[i], &b->data[i]));
+    TRY(rz_add(r, r, &temp));
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&temp);
   return err;
 }

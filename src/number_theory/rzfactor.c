@@ -73,43 +73,43 @@ bool rz_pollard_rho_inner(rz_t* f, const rz_t* n)
   rz_t a, b, c, d, tmp;
   rz_init_multi(&a, &b, &c, &d, &tmp, NULL);
 
-  if (rz_set_u64(&a, 2) != RABIN_SUCCESS) goto out;
-  if (rz_set_u64(&b, 2) != RABIN_SUCCESS) goto out;
-  if (rz_gen_random_range(&c, &RZ_TWO, n) != RABIN_SUCCESS) goto out;
+  if (rz_set_u64(&a, 2) != RABIN_SUCCESS) goto cleanup;
+  if (rz_set_u64(&b, 2) != RABIN_SUCCESS) goto cleanup;
+  if (rz_gen_random_range(&c, &RZ_TWO, n) != RABIN_SUCCESS) goto cleanup;
 
   for (u64 i = 0; i < 1000000; i++) {
-    if (rz_mul(&a, &a, &a) != RABIN_SUCCESS) goto out;
-    if (rz_add(&a, &a, &c) != RABIN_SUCCESS) goto out;
-    if (rz_mod(&a, &a, n) != RABIN_SUCCESS) goto out;
+    if (rz_mul(&a, &a, &a) != RABIN_SUCCESS) goto cleanup;
+    if (rz_add(&a, &a, &c) != RABIN_SUCCESS) goto cleanup;
+    if (rz_mod(&a, &a, n) != RABIN_SUCCESS) goto cleanup;
 
-    if (rz_mul(&b, &b, &b) != RABIN_SUCCESS) goto out;
-    if (rz_add(&b, &b, &c) != RABIN_SUCCESS) goto out;
-    if (rz_mod(&b, &b, n) != RABIN_SUCCESS) goto out;
+    if (rz_mul(&b, &b, &b) != RABIN_SUCCESS) goto cleanup;
+    if (rz_add(&b, &b, &c) != RABIN_SUCCESS) goto cleanup;
+    if (rz_mod(&b, &b, n) != RABIN_SUCCESS) goto cleanup;
 
-    if (rz_mul(&b, &b, &b) != RABIN_SUCCESS) goto out;
-    if (rz_add(&b, &b, &c) != RABIN_SUCCESS) goto out;
-    if (rz_mod(&b, &b, n) != RABIN_SUCCESS) goto out;
+    if (rz_mul(&b, &b, &b) != RABIN_SUCCESS) goto cleanup;
+    if (rz_add(&b, &b, &c) != RABIN_SUCCESS) goto cleanup;
+    if (rz_mod(&b, &b, n) != RABIN_SUCCESS) goto cleanup;
 
     if (rz_cmp(&a, &b) >= 0) {
-      if (rz_sub(&tmp, &a, &b) != RABIN_SUCCESS) goto out;
+      if (rz_sub(&tmp, &a, &b) != RABIN_SUCCESS) goto cleanup;
     } else {
-      if (rz_sub(&tmp, &b, &a) != RABIN_SUCCESS) goto out;
+      if (rz_sub(&tmp, &b, &a) != RABIN_SUCCESS) goto cleanup;
     }
 
-    if (rz_gcd(&d, &tmp, n) != RABIN_SUCCESS) goto out;
+    if (rz_gcd(&d, &tmp, n) != RABIN_SUCCESS) goto cleanup;
 
-    if (rz_set_u64(&tmp, 1) != RABIN_SUCCESS) goto out;
+    if (rz_set_u64(&tmp, 1) != RABIN_SUCCESS) goto cleanup;
     if (rz_cmp(&tmp, &d) == -1 && rz_cmp(&d, n) == -1) {
-      if (rz_copy(f, &d) != RABIN_SUCCESS) goto out;
+      if (rz_copy(f, &d) != RABIN_SUCCESS) goto cleanup;
       rz_clear_multi(&a, &b, &c, &d, &tmp, NULL);
       return true;
     }
 
     if (rz_cmp(&d, n) == 0) {
-      goto out;
+      goto cleanup;
     }
   }
-out:
+cleanup:
   rz_clear_multi(&a, &b, &c, &d, &tmp, NULL);
   return false;
 }
@@ -185,11 +185,11 @@ rabin_err_t rz_factorize(rvec_t* v, rz_t* n)
 
   // even case
   if (rz_is_even(&tmp)) {
-    if ((err = rz_set_u64(&f, 2)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rvec_append_distinct(v, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_set_u64(&f, 2));
+    TRY(rvec_append_distinct(v, &f));
 
     while (rz_is_even(&tmp)) {
-      if ((err = rz_div(&tmp, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_div(&tmp, &tmp, &f));
     }
 
     err = rz_factorize(v, &tmp);
@@ -198,13 +198,13 @@ rabin_err_t rz_factorize(rvec_t* v, rz_t* n)
 
   // first rz_trialdiv
   if (!rz_trialdiv_factor(&f, &tmp, 50000)) {
-    if ((err = rvec_append_distinct(v, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rvec_append_distinct(v, &f));
 
-    if ((err = rz_div(&tmp, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_mod(&rem, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_div(&tmp, &tmp, &f));
+    TRY(rz_mod(&rem, &tmp, &f));
     while (rz_is_zero(&rem)) {
-      if ((err = rz_div(&tmp, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
-      if ((err = rz_mod(&rem, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_div(&tmp, &tmp, &f));
+      TRY(rz_mod(&rem, &tmp, &f));
     }
 
     err = rz_factorize(v, &tmp);
@@ -236,20 +236,20 @@ rabin_err_t rz_factorize(rvec_t* v, rz_t* n)
   // rz_println(&f);
 
   if (rz_trialdiv(&f, 10000) && (!rz_is_zero(&f))) {
-    if ((err = rvec_append_distinct(v, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rvec_append_distinct(v, &f));
 
-    if ((err = rz_div(&tmp, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_mod(&rem, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_div(&tmp, &tmp, &f));
+    TRY(rz_mod(&rem, &tmp, &f));
     while (rz_is_zero(&rem)) {
-      if ((err = rz_div(&tmp, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
-      if ((err = rz_mod(&rem, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_div(&tmp, &tmp, &f));
+      TRY(rz_mod(&rem, &tmp, &f));
     }
 
     err = rz_factorize(v, &tmp);
     goto cleanup;
   } else {
-    if ((err = rz_div(&n1, &tmp, &f)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rz_factorize(v, &f)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_div(&n1, &tmp, &f));
+    TRY(rz_factorize(v, &f));
     err = rz_factorize(v, &n1);
     goto cleanup;
   }

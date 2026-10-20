@@ -362,7 +362,7 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
   rz_init_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
 
   rabin_err_t err = rz_set_u64(&two, 2);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   // trial division bound
   u64 g = (u64)(c_opt * k * k + 1);
@@ -376,20 +376,20 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
   // RABIN_ERR_INVALID_ARG means the recursive candidate was rejected, which
   // rejects this whole attempt
   err = rz_provable_prime_inner(&q, (u64)(rel_size * k));
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
-  if ((err = rz_copy(&two_q, &q)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_lshift1(&two_q)) != RABIN_SUCCESS) goto out;
+  TRY(rz_copy(&two_q, &q));
+  TRY(rz_lshift1(&two_q));
 
   // I = 2^(k-1) / 2q
-  if ((err = rz_set_u64(&I, 1)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_lshift(&I, &I, k - 1)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_div(&I, &I, &two_q)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&I, 1));
+  TRY(rz_lshift(&I, &I, k - 1));
+  TRY(rz_div(&I, &I, &two_q));
 
   // twoI = 2^k / 2q
-  if ((err = rz_set_u64(&twoI, 1)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_lshift(&twoI, &twoI, k)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_div(&twoI, &twoI, &two_q)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&twoI, 1));
+  TRY(rz_lshift(&twoI, &twoI, k));
+  TRY(rz_div(&twoI, &twoI, &two_q));
 
   bool success = false;
   u64 attempts = 0;
@@ -397,21 +397,20 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
     attempts++;
     if (attempts > 1000) {
       err = RABIN_ERR_INVALID_ARG;
-      goto out;
+      goto cleanup;
     }
 
-    if ((err = rz_gen_random_range(&R, &I, &twoI)) != RABIN_SUCCESS) goto out;
+    TRY(rz_gen_random_range(&R, &I, &twoI));
 
     // n = 2 * rand(I, 2I) * q + 1
-    if ((err = rz_mul(&n, &R, &q)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_lshift1(&n)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_copy(&n_min1, &n)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_add_u64(&n, &n, 1)) != RABIN_SUCCESS) goto out;
+    TRY(rz_mul(&n, &R, &q));
+    TRY(rz_lshift1(&n));
+    TRY(rz_copy(&n_min1, &n));
+    TRY(rz_add_u64(&n, &n, 1));
 
     if (rz_trialdiv(&n, g)) {
       for (int j = 0; j < 200; j++) {
-        if ((err = rz_gen_random_range(&a, &two, &n_min1)) != RABIN_SUCCESS)
-          goto out;
+        TRY(rz_gen_random_range(&a, &two, &n_min1));
 
         if (rz_check_lemma1(&n, &n_min1, &a, &q)) {
           success = true;
@@ -421,10 +420,10 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
     }
   }
 
-  if ((err = rz_copy(p, &n)) != RABIN_SUCCESS) goto out;
+  TRY(rz_copy(p, &n));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&a, &n, &q, &I, &R, &twoI, &n_min1, &two, &two_q, &tmp, NULL);
   return err;
 }
@@ -445,7 +444,7 @@ rabin_err_t rz_gen_proth_primes(u64 count, u64 k, u64 c)
     err = rz_pow(&two_k, &RZ_TWO, &k_bn);
   }
   rz_clear(&k_bn);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   u64 curr_c = (c & 1) ? c : c + 1;
   u64 found = 0;
@@ -474,13 +473,13 @@ rabin_err_t rz_gen_proth_primes(u64 count, u64 k, u64 c)
     if (curr_c > (UINT64_MAX >> k)) {
       printf("};\n");
       err = RABIN_ERR_OVERFLOW;
-      goto out;
+      goto cleanup;
     }
   }
 
   printf("};\n");
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&p_bn, &c_bn, &two_k, NULL);
   return err;
 }
@@ -496,7 +495,7 @@ rabin_err_t rns_gen_primes(u64 count)
   rz_t tmp;
   rz_init(&tmp);
   rabin_err_t err = rz_set_u64(&tmp, cand);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   printf("static const u64 RNS_PRIMES[] = {\n");
   while (found < count) {
@@ -514,7 +513,7 @@ rabin_err_t rns_gen_primes(u64 count)
   }
 
   printf("}; \n");
-out:
+cleanup:
   rz_clear(&tmp);
   return err;
 }
@@ -557,6 +556,7 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
   }
 
   // F is a proven prime roughly of size 2^(n/2)
+  bool cert_partial = false;
   rz_t F;
   rz_init(&F);
 
@@ -595,27 +595,27 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
   while (!found_prime) {
     // Step 3: draw random number t in (2^(n-2) / F, 2^(n-1) / F - sn)
 
-    if ((err = rz_set_u64(&exp, n - 2)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_set_u64(&exp, n - 2)) != RABIN_SUCCESS) goto cleanup;
     // A = 2^(n - 2) / F
-    if ((err = rz_pow(&A, &RZ_TWO, &exp)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_div(&A, &A, &F)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_pow(&A, &RZ_TWO, &exp)) != RABIN_SUCCESS) goto cleanup;
+    if ((err = rz_div(&A, &A, &F)) != RABIN_SUCCESS) goto cleanup;
 
     // B = 2^(n - 1) / F - sn
-    if ((err = rz_mul(&B, &A, &RZ_TWO)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_set_u64(&temp, s * n)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_sub(&B, &B, &temp)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_mul(&B, &A, &RZ_TWO)) != RABIN_SUCCESS) goto cleanup;
+    if ((err = rz_set_u64(&temp, s * n)) != RABIN_SUCCESS) goto cleanup;
+    if ((err = rz_sub(&B, &B, &temp)) != RABIN_SUCCESS) goto cleanup;
 
-    if ((err = rz_gen_random_range(&t, &A, &B)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_gen_random_range(&t, &A, &B)) != RABIN_SUCCESS) goto cleanup;
 
     // Step 4: Find a prime in the arithmetic progression
     // P = {N | N = N_0 + ia; N_0 = ta + 1; a = 2F; i <= i <= s}
 
     // a = 2F
-    if ((err = rz_mul(&a, &F, &RZ_TWO)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_mul(&a, &F, &RZ_TWO)) != RABIN_SUCCESS) goto cleanup;
 
     // N0 = t * a + 1
-    if ((err = rz_mul(&N0, &t, &a)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_add_u64(&N0, &N0, 1)) != RABIN_SUCCESS) goto out;
+    if ((err = rz_mul(&N0, &t, &a)) != RABIN_SUCCESS) goto cleanup;
+    if ((err = rz_add_u64(&N0, &N0, 1)) != RABIN_SUCCESS) goto cleanup;
 
     // Part 1: Trial division by primes < T_bound
 
@@ -648,15 +648,16 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
       if (found_prime || tab[i]) continue;  // Skip sieved candidates
 
       // N = N0 + i * a
-      if ((err = rz_set_u64(&I, i)) != RABIN_SUCCESS) goto out;
-      if ((err = rz_mul(&term, &a, &I)) != RABIN_SUCCESS) goto out;
-      if ((err = rz_add(&N, &N0, &term)) != RABIN_SUCCESS) goto out;
-      if ((err = rz_sub(&N_minus_1, &N, &RZ_ONE)) != RABIN_SUCCESS) goto out;
+      if ((err = rz_set_u64(&I, i)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_mul(&term, &a, &I)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_add(&N, &N0, &term)) != RABIN_SUCCESS) goto cleanup;
+      if ((err = rz_sub(&N_minus_1, &N, &RZ_ONE)) != RABIN_SUCCESS)
+        goto cleanup;
 
       // Initialize the ctx once
       rz_mont_ctx ctx;
       if ((err = rz_mont_ctx_init(&ctx, &N)) != RABIN_SUCCESS) {
-        if (err == RABIN_ERR_OUT_OF_MEMORY) goto out;
+        if (err == RABIN_ERR_OUT_OF_MEMORY) goto cleanup;
         // candidate rejected (e.g. even modulus); try the next one
         continue;
       }
@@ -671,7 +672,7 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
       // Since F is a prime from Step 2, q = F. We seek a base alpha_q.
       if ((err = rz_div(&pock_pow, &N_minus_1, &F)) != RABIN_SUCCESS) {
         rz_mont_ctx_clear(&ctx);
-        goto out;
+        goto cleanup;
       }
 
       for (u64 b = 0; b < num_bases; b++) {
@@ -700,7 +701,7 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
         }
       }
       rz_mont_ctx_clear(&ctx);
-      if (err != RABIN_SUCCESS) goto out;
+      if (err != RABIN_SUCCESS) goto cleanup;
 
       if (found_prime) {
         if (cert_out != NULL) {
@@ -708,12 +709,13 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
           *cert_out = malloc(sizeof(rzcert_t));
           if (*cert_out == NULL) {
             err = RABIN_ERR_OUT_OF_MEMORY;
-            goto out;
+            goto cleanup;
           }
           **cert_out = (rzcert_t){0};
+          cert_partial = true;
           rz_init(&(*cert_out)->N);
           if ((err = rz_copy(&(*cert_out)->N, &N)) != RABIN_SUCCESS)
-            goto fail_cert;
+            goto cleanup;
 
           // Allocate space for the single factor F we are proving against
           (*cert_out)->size = 1;
@@ -721,27 +723,28 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
           (*cert_out)->data = malloc(sizeof(rzcert_elem_t));
           if ((*cert_out)->data == NULL) {
             err = RABIN_ERR_OUT_OF_MEMORY;
-            goto fail_cert;
+            goto cleanup;
           }
           rz_init(&(*cert_out)->data[0].q);
           rz_init(&(*cert_out)->data[0].alpha_q);
           if ((err = rz_copy(&(*cert_out)->data[0].q, &F)) != RABIN_SUCCESS)
-            goto fail_cert;
+            goto cleanup;
 
           if ((err = rz_copy(&(*cert_out)->data[0].alpha_q, &alpha)) !=
               RABIN_SUCCESS)
-            goto fail_cert;
+            goto cleanup;
 
           // Link the recursive proof for F (ownership transfers to the
           // certificate)
           (*cert_out)->data[0].q_cert = F_cert;
           F_cert = NULL;
+          cert_partial = false;
         } else {
           rzcert_clear(F_cert);
           F_cert = NULL;
         }
 
-        if ((err = rz_copy(p, &N)) != RABIN_SUCCESS) goto out;
+        if ((err = rz_copy(p, &N)) != RABIN_SUCCESS) goto cleanup;
 
         err = RABIN_SUCCESS;
         break;
@@ -750,7 +753,20 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
+  if (cert_partial) {
+    // partially built certificate; q_cert has not been linked yet
+    if ((*cert_out)->data != NULL) {
+      if ((*cert_out)->size > 0) {
+        rz_clear(&(*cert_out)->data[0].q);
+        rz_clear(&(*cert_out)->data[0].alpha_q);
+      }
+      free((*cert_out)->data);
+    }
+    rz_clear(&(*cert_out)->N);
+    free(*cert_out);
+    *cert_out = NULL;
+  }
   if (F_cert != NULL) {
     rzcert_clear(F_cert);
   }
@@ -761,17 +777,4 @@ out:
 
   rz_clear(&F);
   return err;
-fail_cert:
-  // partially built certificate; q_cert has not been linked yet
-  if ((*cert_out)->data != NULL) {
-    if ((*cert_out)->size > 0) {
-      rz_clear(&(*cert_out)->data[0].q);
-      rz_clear(&(*cert_out)->data[0].alpha_q);
-    }
-    free((*cert_out)->data);
-  }
-  rz_clear(&(*cert_out)->N);
-  free(*cert_out);
-  *cert_out = NULL;
-  goto out;
 }

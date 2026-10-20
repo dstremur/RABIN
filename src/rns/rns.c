@@ -78,48 +78,42 @@ rabin_err_t rns_ctx_init(rns_ctx_t* ctx, const u64* primes, u64 count)
 
   rz_t tmp, prev;
   rz_init_multi(&tmp, &prev, NULL);
+  rz_t M_div_tmp, inv_bn;
+  rz_init_multi(&M_div_tmp, &inv_bn, NULL);
   rz_init(&ctx->prod);
   rabin_err_t err = rz_set_u64(&ctx->prod, 1);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   // calculate product M = p_0 * ... * p_{c-1}
   for (u64 i = 0; i < count; i++) {
-    if ((err = rz_set_u64(&tmp, primes[i])) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(&ctx->prod, &ctx->prod, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_set_u64(&tmp, primes[i]));
+    TRY(rz_mul(&ctx->prod, &ctx->prod, &tmp));
   }
 
   // calculate CRT weights w_i = (M / p_i) * (M / p_i)^{-1} mod p_i
-  rz_t M_div_tmp, inv_bn;
-  rz_init_multi(&M_div_tmp, &inv_bn, NULL);
-
   for (u64 i = 0; i < count; i++) {
     rz_init(&ctx->crt_weights[i]);
 
-    if ((err = rz_set_u64(&tmp, primes[i])) != RABIN_SUCCESS) goto crt_fail;
-    if ((err = rz_div(&M_div_tmp, &ctx->prod, &tmp)) != RABIN_SUCCESS)
-      goto crt_fail;
+    TRY(rz_set_u64(&tmp, primes[i]));
+    TRY(rz_div(&M_div_tmp, &ctx->prod, &tmp));
 
     // find inverse of (M / p_i) mod p_i
     u64 m_mod_p = rz_mod_u64(&M_div_tmp, primes[i]);
     u64 inv = u64_mod_inverse_euclid(m_mod_p, primes[i]);
     if (inv == 0) {
       err = RABIN_ERR_INVALID_ARG;
-      goto crt_fail;
+      goto cleanup;
     }
 
-    if ((err = rz_set_u64(&inv_bn, inv)) != RABIN_SUCCESS) goto crt_fail;
-    if ((err = rz_mul(&ctx->crt_weights[i], &M_div_tmp, &inv_bn)) !=
-        RABIN_SUCCESS)
-      goto crt_fail;
+    TRY(rz_set_u64(&inv_bn, inv));
+    TRY(rz_mul(&ctx->crt_weights[i], &M_div_tmp, &inv_bn));
   }
-
-  rz_clear_multi(&M_div_tmp, &inv_bn, NULL);
 
   // one Montgomery context per prime
   ctx->m_ctxs = malloc(sizeof(u64_mont_ctx_t) * count);
   if (ctx->m_ctxs == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto out;
+    goto cleanup;
   }
   for (u64 i = 0; i < count; i++) {
     u64_mont_init(&ctx->m_ctxs[i], primes[i]);
@@ -129,28 +123,27 @@ rabin_err_t rns_ctx_init(rns_ctx_t* ctx, const u64* primes, u64 count)
   ctx->garner_weights = malloc(sizeof(u64) * count);
   if (ctx->garner_weights == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto out;
+    goto cleanup;
   }
   ctx->garner_weights[0] = 1;
 
-  if ((err = rz_set_u64(&prev, 1)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&prev, 1));
 
   for (u64 i = 1; i < count; i++) {
-    if ((err = rz_set_u64(&tmp, primes[i - 1])) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(&prev, &prev, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_set_u64(&tmp, primes[i - 1]));
+    TRY(rz_mul(&prev, &prev, &tmp));
 
     u64 m_prev_mod = rz_mod_u64(&prev, primes[i]);
     ctx->garner_weights[i] = u64_mod_inverse_euclid(m_prev_mod, primes[i]);
   }
 
-  rz_clear_multi(&M_div_tmp, &inv_bn, NULL);
   rz_clear_multi(&tmp, &prev, NULL);
+  rz_clear_multi(&M_div_tmp, &inv_bn, NULL);
   return RABIN_SUCCESS;
 
-crt_fail:
-  rz_clear_multi(&M_div_tmp, &inv_bn, NULL);
-out:
+cleanup:
   rz_clear_multi(&tmp, &prev, NULL);
+  rz_clear_multi(&M_div_tmp, &inv_bn, NULL);
   rns_ctx_clear(ctx);
   return err;
 }
@@ -245,7 +238,7 @@ rabin_err_t rns_export(rz_t* a, rns_num_t* v, const rns_ctx_t* ctx)
   rz_init_multi(&prod_prev, &term, &rz_u, &rz_p, NULL);
 
   // Initialize the running product of primes (m_1 in the algorithm)
-  if ((err = rz_set_u64(&prod_prev, ctx->primes[0])) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&prod_prev, ctx->primes[0]));
 
   // Step 3: For i from 2 to t (1 to t-1 in 0-based indexing)
   for (u64 i = 1; i < t; i++) {
@@ -264,18 +257,17 @@ rabin_err_t rns_export(rz_t* a, rns_num_t* v, const rns_ctx_t* ctx)
                   ctx->primes[i]);
 
     // x = x + u * prod_{j=1}^{i-1} m_j
-    if ((err = rz_set_u64(&rz_u, u)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(&term, &rz_u, &prod_prev)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_add(a, a, &term)) != RABIN_SUCCESS) goto out;
+    TRY(rz_set_u64(&rz_u, u));
+    TRY(rz_mul(&term, &rz_u, &prod_prev));
+    TRY(rz_add(a, a, &term));
 
     // Update the running product for the next iteration: prod_prev *= m_i
-    if ((err = rz_set_u64(&rz_p, ctx->primes[i])) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(&prod_prev, &prod_prev, &rz_p)) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_set_u64(&rz_p, ctx->primes[i]));
+    TRY(rz_mul(&prod_prev, &prod_prev, &rz_p));
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&prod_prev, &term, &rz_u, &rz_p, NULL);
   return err;
 }
@@ -352,29 +344,29 @@ rabin_err_t rmat_det_rns(rz_t* det, const rmat_t* A, const rns_ctx_t* ctx)
   r.size = ctx->count;
 
   // reconstruct x in [0, M - 1]
-  if ((err = rns_export(det, &r, ctx)) != RABIN_SUCCESS) goto out;
+  TRY(rns_export(det, &r, ctx));
 
   // if d > M / 2 det is negative
   rz_t M_half;
   rz_init_multi(&M_half, NULL);
   if ((err = rz_copy(&M_half, &ctx->prod)) != RABIN_SUCCESS) {
     rz_clear(&M_half);
-    goto out;
+    goto cleanup;
   }
   if ((err = rz_rshift1(&M_half)) != RABIN_SUCCESS) {
     rz_clear(&M_half);
-    goto out;
+    goto cleanup;
   }
 
   if (rz_cmp(det, &M_half) > 0) {
     if ((err = rz_sub(det, det, &ctx->prod)) != RABIN_SUCCESS) {
       rz_clear(&M_half);
-      goto out;
+      goto cleanup;
     }
   }
 
   rz_clear(&M_half);
-out:
+cleanup:
   free(residues);
   return err;
 }

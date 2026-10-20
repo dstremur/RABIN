@@ -84,23 +84,19 @@ rabin_err_t rz_mont_exp(rz_t* r_bar, const rz_t* a_bar, const rz_t* d,
   rz_t tab[16];
   for (u64 i = 0; i < 16; i++) rz_init(&tab[i]);
 
-  if ((err = rz_copy(&tab[1], a_bar)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_mont_mul(&tab[2], a_bar, a_bar, ctx)) != RABIN_SUCCESS)
-    goto cleanup;
+  TRY(rz_copy(&tab[1], a_bar));
+  TRY(rz_mont_mul(&tab[2], a_bar, a_bar, ctx));
   for (u64 v = 3; v <= 15; v += 2) {
-    if ((err = rz_mont_mul(&tab[v], &tab[v - 2], &tab[2], ctx)) !=
-        RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rz_mont_mul(&tab[v], &tab[v - 2], &tab[2], ctx));
   }
 
   // Start with the most significant bit: r = a
-  if ((err = rz_copy(r_bar, a_bar)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_copy(r_bar, a_bar));
   i64 i = bits - 2;
 
   while (i >= 0) {
     if (!rz_get_bit(d, i)) {
-      if ((err = rz_mont_mul(r_bar, r_bar, r_bar, ctx)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_mont_mul(r_bar, r_bar, r_bar, ctx));
       i--;
       continue;
     }
@@ -119,11 +115,9 @@ rabin_err_t rz_mont_exp(rz_t* r_bar, const rz_t* a_bar, const rz_t* d,
 
     // r = r^(2^L) * a^wval
     for (i64 k = 0; k < L; k++) {
-      if ((err = rz_mont_mul(r_bar, r_bar, r_bar, ctx)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_mont_mul(r_bar, r_bar, r_bar, ctx));
     }
-    if ((err = rz_mont_mul(r_bar, r_bar, &tab[wval], ctx)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rz_mont_mul(r_bar, r_bar, &tab[wval], ctx));
 
     i = i - L;
   }

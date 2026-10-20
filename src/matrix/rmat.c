@@ -338,21 +338,20 @@ rabin_err_t rmat_mv(rvec_t* r, const rmat_t* A, rvec_t* v)
   if (r == NULL || A == NULL || v == NULL) return RABIN_ERR_NULL_PTR;
   if (r->size != A->rows || v->size != A->cols) return RABIN_ERR_MATRIX_DIM;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rvec_t tmp = {0};
-  rabin_err_t err = rvec_init(&tmp, A->cols);
-  if (err != RABIN_SUCCESS) return err;
-
   rz_t dot;
   rz_init(&dot);
 
+  TRY(rvec_init(&tmp, A->cols));
+
   for (u64 i = 0; i < A->rows; i++) {
-    if ((err = rmat_get_row(&tmp, A, i)) != RABIN_SUCCESS) goto out;
-    if ((err = rvec_dot(&dot, v, &tmp)) != RABIN_SUCCESS) goto out;
-    if ((err = rvec_set(r, &dot, i)) != RABIN_SUCCESS) goto out;
+    TRY(rmat_get_row(&tmp, A, i));
+    TRY(rvec_dot(&dot, v, &tmp));
+    TRY(rvec_set(r, &dot, i));
   }
 
-  err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&dot);
   rvec_clear(&tmp);
   return err;
@@ -363,21 +362,20 @@ rabin_err_t rmat_vm(rvec_t* r, const rmat_t* A, rvec_t* v)
   if (r == NULL || A == NULL || v == NULL) return RABIN_ERR_NULL_PTR;
   if (r->size != A->cols || v->size != A->rows) return RABIN_ERR_MATRIX_DIM;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rvec_t tmp = {0};
-  rabin_err_t err = rvec_init(&tmp, A->rows);
-  if (err != RABIN_SUCCESS) return err;
-
   rz_t dot;
   rz_init(&dot);
 
+  TRY(rvec_init(&tmp, A->rows));
+
   for (u64 i = 0; i < A->cols; i++) {
-    if ((err = rmat_get_col(&tmp, A, i)) != RABIN_SUCCESS) goto out;
-    if ((err = rvec_dot(&dot, v, &tmp)) != RABIN_SUCCESS) goto out;
-    if ((err = rvec_set(r, &dot, i)) != RABIN_SUCCESS) goto out;
+    TRY(rmat_get_col(&tmp, A, i));
+    TRY(rvec_dot(&dot, v, &tmp));
+    TRY(rvec_set(r, &dot, i));
   }
 
-  err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&dot);
   rvec_clear(&tmp);
   return err;
@@ -387,25 +385,23 @@ rabin_err_t rmat_hadamard(rz_t* r, const rmat_t* A)
 {
   if (r == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
 
-  rabin_err_t err = rz_set_u64(r, 1);
-  if (err != RABIN_SUCCESS) return err;
-
+  rabin_err_t err = RABIN_SUCCESS;
   rvec_t v = {0};
-  if ((err = rvec_init(&v, A->rows)) != RABIN_SUCCESS) return err;
   rz_t tmp;
   rz_init(&tmp);
 
-  for (u64 i = 0; i < A->cols; i++) {
-    if ((err = rmat_get_col(&v, A, i)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(r, 1));
+  TRY(rvec_init(&v, A->rows));
 
-    if ((err = rvec_norm(&tmp, &v)) != RABIN_SUCCESS) goto out;
+  for (u64 i = 0; i < A->cols; i++) {
+    TRY(rmat_get_col(&v, A, i));
+    TRY(rvec_norm(&tmp, &v));
     // add 1 since norm uses isqrt
-    if ((err = rz_add_u64(&tmp, &tmp, 1)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(r, r, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add_u64(&tmp, &tmp, 1));
+    TRY(rz_mul(r, r, &tmp));
   }
 
-  err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear(&tmp);
   rvec_clear(&v);
   return err;
@@ -538,15 +534,13 @@ rabin_err_t rmat_mul(rmat_t* R, const rmat_t* A, const rmat_t* B)
   if (R->rows != A->rows || R->cols != B->cols) return RABIN_ERR_MATRIX_DIM;
 
   // Transpose B
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t B_T = {0};
-  rabin_err_t err = rmat_init(&B_T, B->cols, B->rows);
-  if (err != RABIN_SUCCESS) return err;
+  TRY(rmat_init(&B_T, B->cols, B->rows));
 
   for (u64 i = 0; i < B->rows; i++) {
     for (u64 j = 0; j < B->cols; j++) {
-      if ((err = rz_copy(&B_T.data[j * B_T.cols + i],
-                         &B->data[i * B->cols + j])) != RABIN_SUCCESS)
-        goto out;
+      TRY(rz_copy(&B_T.data[j * B_T.cols + i], &B->data[i * B->cols + j]));
     }
   }
 #pragma omp parallel
@@ -573,8 +567,7 @@ rabin_err_t rmat_mul(rmat_t* R, const rmat_t* A, const rmat_t* B)
     rz_clear(&tmp);
   }
 
-  err = RABIN_SUCCESS;
-out:
+cleanup:
   rmat_clear(&B_T);
   return err;
 }
@@ -584,10 +577,11 @@ rabin_err_t rmat_det(rz_t* d, const rmat_t* A)
   if (d == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
   if (A->cols != A->rows) return RABIN_ERR_MATRIX_DIM;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t T = {0};
-  rabin_err_t err = rmat_init(&T, A->cols, A->rows);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&T, A)) != RABIN_SUCCESS) goto out;
+  rns_ctx_t ctx = {0};
+  TRY(rmat_init(&T, A->cols, A->rows));
+  TRY(rmat_copy(&T, A));
 
   u64 k = rns_estimate_det(&T);
 
@@ -598,14 +592,11 @@ rabin_err_t rmat_det(rz_t* d, const rmat_t* A)
     return rmat_det_bareiss(d, A);
   }
 
-  rns_ctx_t ctx;
-  if ((err = rns_ctx_init(&ctx, RNS_PRIMES, k)) != RABIN_SUCCESS) goto out;
+  TRY(rns_ctx_init(&ctx, RNS_PRIMES, k));
+  TRY(rmat_det_rns(d, &T, &ctx));
 
-  if ((err = rmat_det_rns(d, &T, &ctx)) != RABIN_SUCCESS) goto out;
-
+cleanup:
   rns_ctx_clear(&ctx);
-  err = RABIN_SUCCESS;
-out:
   rmat_clear(&T);
   return err;
 }
@@ -626,14 +617,14 @@ rabin_err_t rmat_det_bareiss(rz_t* det, const rmat_t* A)
   }
 
   // Work on a local copy of the matrix to preserve the input
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t T = {0};
-  rabin_err_t err = rmat_init(&T, n, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&T, A)) != RABIN_SUCCESS) goto out;
-
   rz_t p0;
   rz_init(&p0);
-  if ((err = rz_set_u64(&p0, 1)) != RABIN_SUCCESS) goto out;
+
+  TRY(rmat_init(&T, n, n));
+  TRY(rmat_copy(&T, A));
+  TRY(rz_set_u64(&p0, 1));
 
   int sign = 1;
   bool det_zero = false;
@@ -702,16 +693,15 @@ rabin_err_t rmat_det_bareiss(rz_t* det, const rmat_t* A)
 
   // Set final result
   if (det_zero) {
-    err = rz_set_u64(det, 0);
+    TRY(rz_set_u64(det, 0));
   } else {
-    if ((err = rz_copy(det, RMAT_GET(&T, n - 1, n - 1))) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_copy(det, RMAT_GET(&T, n - 1, n - 1)));
     if (sign < 0) {
-      if ((err = rz_neg(det, det)) != RABIN_SUCCESS) goto out;
+      TRY(rz_neg(det, det));
     }
   }
 
-out:
+cleanup:
   rz_clear(&p0);
   rmat_clear(&T);
   return err;
@@ -763,62 +753,68 @@ rabin_err_t rmat_charpoly_adj(rpol_t* p, rmat_t* J, const rmat_t* A)
   // 1. [Initialize]
   u64 n = A->cols;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t C = {0}, T = {0};
-  rabin_err_t err = rmat_init(&C, n, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_init(&T, n, n)) != RABIN_SUCCESS) goto fail_C;
-  if ((err = rmat_id(&C, n)) != RABIN_SUCCESS) goto fail_T;
-
   rz_t temp, trace;
   rz_init_multi(&temp, &trace, NULL);
-  rz_t* a = malloc((n + 1) * sizeof(rz_t));
-  if (a == NULL) goto fail_T;
+  rz_t* a = NULL;
+
+  TRY(rmat_init(&C, n, n));
+  TRY(rmat_init(&T, n, n));
+  TRY(rmat_id(&C, n));
+
+  a = malloc((n + 1) * sizeof(rz_t));
+  if (a == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup;
+  }
   for (u64 i = 0; i <= n; i++) {
     rz_init(&a[i]);
   }
-  if ((err = rz_set_u64(&a[0], 1)) != RABIN_SUCCESS) goto fail_a;
+  TRY(rz_set_u64(&a[0], 1));
 
   // 2. [Finished?]
   for (u64 i = 1; i <= n; i++) {
     // 3. [Compute next a_i and C]
-    if ((err = rmat_mul(&T, A, &C)) != RABIN_SUCCESS) goto fail_a;
+    TRY(rmat_mul(&T, A, &C));
 
-    if ((err = rmat_trace(&trace, &T)) != RABIN_SUCCESS) goto fail_a;
+    TRY(rmat_trace(&trace, &T));
 
-    if ((err = rz_set_u64(&temp, i)) != RABIN_SUCCESS) goto fail_a;
+    TRY(rz_set_u64(&temp, i));
     rz_divmod_u64(&a[i], &trace, i);
 
-    if ((err = rz_neg(&a[i], &a[i])) != RABIN_SUCCESS) goto fail_a;
+    TRY(rz_neg(&a[i], &a[i]));
 
     if (J && i == n) {
-      if ((err = rmat_copy(J, &C)) != RABIN_SUCCESS) goto fail_a;
+      TRY(rmat_copy(J, &C));
       if ((n - 1) & 1) {
-        if ((err = rmat_neg(J)) != RABIN_SUCCESS) goto fail_a;
+        TRY(rmat_neg(J));
       }
     }
-    if ((err = rmat_copy(&C, &T)) != RABIN_SUCCESS) goto fail_a;
+    TRY(rmat_copy(&C, &T));
     for (u64 j = 0; j < n; j++) {
-      if ((err = rz_add(&temp, RMAT_GET(&C, j, j), &a[i])) != RABIN_SUCCESS)
-        goto fail_a;
-      if ((err = rmat_set(&C, &temp, j, j)) != RABIN_SUCCESS) goto fail_a;
+      TRY(rz_add(&temp, RMAT_GET(&C, j, j), &a[i]));
+      TRY(rmat_set(&C, &temp, j, j));
     }
   }
 
-  if ((err = rpol_alloc(p, n + 1)) != RABIN_SUCCESS) goto fail_a;
+  TRY(rpol_alloc(p, n + 1));
 
   for (u64 i = 0; i <= n; i++) {
-    if ((err = rz_copy(&p->coeff[n - i], &a[i])) != RABIN_SUCCESS) goto fail_a;
+    TRY(rz_copy(&p->coeff[n - i], &a[i]));
     rz_clear(&a[i]);
   }
 
   p->deg = n;
-  err = RABIN_SUCCESS;
 
-fail_a:
-  free(a);
-fail_T:
+cleanup:
+  if (a != NULL) {
+    for (u64 i = 0; i <= n; i++) {
+      rz_clear(&a[i]);
+    }
+    free(a);
+  }
   rmat_clear(&T);
-fail_C:
   rmat_clear(&C);
   rz_clear_multi(&temp, &trace, NULL);
   return err;
@@ -853,24 +849,23 @@ rabin_err_t rmat_id(rmat_t* I, const u64 n)
   if (I == NULL) return RABIN_ERR_NULL_PTR;
   if (I->rows != n || I->cols != n) return RABIN_ERR_MATRIX_DIM;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rz_t a, b;
   rz_init_multi(&a, &b, NULL);
-  rabin_err_t err = rz_set_u64(&a, 1);
-  if (err != RABIN_SUCCESS) goto out;
-  if ((err = rz_set_u64(&b, 0)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&a, 1));
+  TRY(rz_set_u64(&b, 0));
 
   for (u64 i = 0; i < n; i++) {
     for (u64 j = 0; j < n; j++) {
       if (i == j) {
-        if ((err = rmat_set(I, &a, i, j)) != RABIN_SUCCESS) goto out;
+        TRY(rmat_set(I, &a, i, j));
       } else {
-        if ((err = rmat_set(I, &b, i, j)) != RABIN_SUCCESS) goto out;
+        TRY(rmat_set(I, &b, i, j));
       }
     }
   }
 
-  err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&a, &b, NULL);
   return err;
 }
@@ -938,20 +933,20 @@ rabin_err_t rmat_hermite(rmat_t* W, const rmat_t* A)
     l = m - n;
   }
 
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t A_work = {0};
-  rabin_err_t err = rmat_init(&A_work, m, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&A_work, m, n));
+  TRY(rmat_copy(&A_work, A));
 
   rz_t b, q, rem, temp, one, t2;
   rz_init_multi(&b, &q, &rem, &temp, &one, &t2, NULL);
-  if ((err = rz_set_u64(&one, 1)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_set_u64(&one, 1));
 
 // 2. [Row finished?]
 step2:
   if (rmat_row_prefix_is_zero(&A_work, i, k)) {
     if (RMAT_GET(&A_work, i, k)->is_neg) {
-      if ((err = rmat_neg_col(&A_work, k)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rmat_neg_col(&A_work, k));
     }
     goto step5;
   }
@@ -959,47 +954,39 @@ step2:
   // 3. [Choose non-zero entry]
   u64 j_0 = rmat_min_abs_index(&A_work, i, k);
   if ((i64)j_0 < k) {
-    if ((err = rmat_swap_col(&A_work, k, j_0)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rmat_swap_col(&A_work, k, j_0));
   }
   if (RMAT_GET(&A_work, i, k)->is_neg) {
-    if ((err = rmat_neg_col(&A_work, k)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rmat_neg_col(&A_work, k));
   }
 
-  if ((err = rz_copy(&b, RMAT_GET(&A_work, i, k))) != RABIN_SUCCESS)
-    goto cleanup;
+  TRY(rz_copy(&b, RMAT_GET(&A_work, i, k)));
 
   // 4. [Reduce]
   for (u64 j = 0; j < (u64)k; j++) {
-    if ((err = rz_div_euclid(&q, RMAT_GET(&A_work, i, j), &b)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rz_div_euclid(&q, RMAT_GET(&A_work, i, j), &b));
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_mul(&temp, &q, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rz_sub(&t2, RMAT_GET(&A_work, x, j), &temp)) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rmat_set(&A_work, &t2, x, j)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_mul(&temp, &q, RMAT_GET(&A_work, x, k)));
+      TRY(rz_sub(&t2, RMAT_GET(&A_work, x, j), &temp));
+      TRY(rmat_set(&A_work, &t2, x, j));
     }
   }
   goto step2;
 
 // 5. [Final reductions]
 step5:
-  if ((err = rz_copy(&b, RMAT_GET(&A_work, i, k))) != RABIN_SUCCESS)
-    goto cleanup;
+  TRY(rz_copy(&b, RMAT_GET(&A_work, i, k)));
   if (rz_is_zero(&b)) {
     k++;
     goto step6;
   }
 
   for (u64 j = k + 1; j < n; j++) {
-    if ((err = rz_div_euclid(&q, RMAT_GET(&A_work, i, j), &b)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rz_div_euclid(&q, RMAT_GET(&A_work, i, j), &b));
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_mul(&temp, &q, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rz_sub(&t2, RMAT_GET(&A_work, x, j), &temp)) != RABIN_SUCCESS)
-        goto cleanup;
-      if ((err = rmat_set(&A_work, &t2, x, j)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_mul(&temp, &q, RMAT_GET(&A_work, x, k)));
+      TRY(rz_sub(&t2, RMAT_GET(&A_work, x, j), &temp));
+      TRY(rmat_set(&A_work, &t2, x, j));
     }
   }
 
@@ -1011,18 +998,15 @@ step6:
     goto step2;
   }
 
-  if ((err = rmat_init(W, m, n - k)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(W, m, n - k));
 
   // copy result
   for (u64 j = 0; j < n - k; j++) {
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_copy(RMAT_GET(W, x, j), RMAT_GET(&A_work, x, j + k))) !=
-          RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rz_copy(RMAT_GET(W, x, j), RMAT_GET(&A_work, x, j + k)));
     }
   }
 
-  err = RABIN_SUCCESS;
 cleanup:
   rz_clear_multi(&b, &q, &rem, &temp, &one, &t2, NULL);
   rmat_clear(&A_work);
@@ -1063,13 +1047,13 @@ static rabin_err_t hnf_bezout_minimal(rz_t* u, rz_t* v, const rz_t* d,
 
   if (rz_is_zero(a)) {
     // v*sign(b) = d/|b| = 1 is forced; u is free, take u = 0
-    if ((err = rz_set_u64(u, 0)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_set_u64(u, 0));
     if (rz_is_zero(b)) {
-      if ((err = rz_set_u64(v, 0)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_u64(v, 0));
     } else if (b->is_neg) {
-      if ((err = rz_set_i64(v, -1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_i64(v, -1));
     } else {
-      if ((err = rz_set_u64(v, 1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_u64(v, 1));
     }
     goto cleanup;
   }
@@ -1077,51 +1061,51 @@ static rabin_err_t hnf_bezout_minimal(rz_t* u, rz_t* v, const rz_t* d,
   if (rz_is_zero(b)) {
     // u*sign(a) = 1 is forced; v = 0
     if (a->is_neg) {
-      if ((err = rz_set_i64(u, -1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_i64(u, -1));
     } else {
-      if ((err = rz_set_u64(u, 1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_u64(u, 1));
     }
-    if ((err = rz_set_u64(v, 0)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_set_u64(v, 0));
     goto cleanup;
   }
 
-  if ((err = rz_copy(&p, a)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_copy(&p, a));
   p.is_neg = false;
 
   // a | b  =>  d = |a|  =>  v = 0, u = sign(a)  (the book's essential
   // condition; it also keeps the Euclidean step from stalling)
   if (rz_cmp(&p, d) == 0) {
     if (a->is_neg) {
-      if ((err = rz_set_i64(u, -1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_i64(u, -1));
     } else {
-      if ((err = rz_set_u64(u, 1)) != RABIN_SUCCESS) goto cleanup;
+      TRY(rz_set_u64(u, 1));
     }
-    if ((err = rz_set_u64(v, 0)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_set_u64(v, 0));
     goto cleanup;
   }
 
   // centered half-period: v = v0 - t*(a/d) with |a/d| >= 2 and
   // v in (-|a/d|/2, |a/d|/2]; recompute u = (d - v*b)/a (exact)
-  if ((err = rz_div_exact(&p, a, d)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_copy(&pmag, &p)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_div_exact(&p, a, d));
+  TRY(rz_copy(&pmag, &p));
   pmag.is_neg = false;
-  if ((err = rz_set_u64(&two, 2)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_div(&half, &pmag, &two)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_set_u64(&two, 2));
+  TRY(rz_div(&half, &pmag, &two));
 
   // r = v0 mod |p| in [0, |p|)
-  if ((err = rz_divmod(&quot, &r, v, &pmag)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_divmod(&quot, &r, v, &pmag));
   if (r.is_neg) {
-    if ((err = rz_add(&r, &r, &pmag)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_add(&r, &r, &pmag));
   }
   if (rz_cmp(&r, &half) > 0) {
-    if ((err = rz_sub(v, &r, &pmag)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_sub(v, &r, &pmag));
   } else {
-    if ((err = rz_copy(v, &r)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rz_copy(v, &r));
   }
 
-  if ((err = rz_mul(&t, v, b)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_sub(&t, d, &t)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_div_exact(u, &t, a)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_mul(&t, v, b));
+  TRY(rz_sub(&t, d, &t));
+  TRY(rz_div_exact(u, &t, a));
 
 cleanup:
   rz_clear_multi(&p, &pmag, &half, &quot, &r, &t, &two, NULL);
@@ -1221,41 +1205,36 @@ rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D)
     return rmat_hermite_gcd(W, A);
   }
 
-  rmat_t A_work = {0};
-  rabin_err_t err = rmat_init(&A_work, m, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto cleanup;
-
+  rabin_err_t err = RABIN_SUCCESS;
+  rmat_t A_work = {0}, W_local = {0};
   rz_t R, u, v, d, q, t1, t2, t3, half;
   rz_init_multi(&R, &u, &v, &d, &q, &t1, &t2, &t3, &half, NULL);
-  if ((err = rz_copy(&R, D)) != RABIN_SUCCESS) goto cleanup;
+  rz_t* B = NULL;
+
+  TRY(rmat_init(&A_work, m, n));
+  TRY(rmat_copy(&A_work, A));
+  TRY(rz_copy(&R, D));
   R.is_neg = false;
-  if ((err = rz_rshift(&half, &R, 1)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_rshift(&half, &R, 1));
 
   // reduce the input entries into (-R/2, R/2]; all column operations are
   // taken modulo R, so only the classes modulo R matter
   for (u64 x = 0; x < m * n; x++) {
-    if ((err = rmat_hnf_centered_mod(&A_work.data[x], &A_work.data[x], &R,
-                                     &half)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(rmat_hnf_centered_mod(&A_work.data[x], &A_work.data[x], &R, &half));
   }
 
-  rz_t* B;
-  if (m == 0) {
-    B = NULL;
-  } else {
+  if (m > 0) {
     B = malloc(m * sizeof(rz_t));
     if (B == NULL) {
       err = RABIN_ERR_OUT_OF_MEMORY;
       goto cleanup;
     }
-  }
-  for (u64 x = 0; x < m; x++) {
-    rz_init(&B[x]);
+    for (u64 x = 0; x < m; x++) {
+      rz_init(&B[x]);
+    }
   }
 
-  rmat_t W_local = {0};
-  if ((err = rmat_init(&W_local, m, m)) != RABIN_SUCCESS) goto cleanup_B;
+  TRY(rmat_init(&W_local, m, m));
 
   for (i64 i = (i64)m - 1; i >= 0; i--) {
     i64 k = (i64)n - (i64)m + i;
@@ -1266,73 +1245,48 @@ rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D)
         continue;
       }
 
-      if ((err = rz_gcd_extended_lehmer(&u, &v, &d, RMAT_GET(&A_work, i, k),
-                                        RMAT_GET(&A_work, i, j))) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
-      if ((err = hnf_bezout_minimal(&u, &v, &d, RMAT_GET(&A_work, i, k),
-                                    RMAT_GET(&A_work, i, j))) != RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_gcd_extended_lehmer(&u, &v, &d, RMAT_GET(&A_work, i, k),
+                                 RMAT_GET(&A_work, i, j)));
+      TRY(hnf_bezout_minimal(&u, &v, &d, RMAT_GET(&A_work, i, k),
+                             RMAT_GET(&A_work, i, j)));
 
       // B = u*A_k + v*A_j, reduced into (-R/2, R/2]
       for (u64 x = 0; x < m; x++) {
-        if ((err = rz_mul(&B[x], &u, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_mul(&t2, &v, RMAT_GET(&A_work, x, j))) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_add(&B[x], &B[x], &t2)) != RABIN_SUCCESS) goto cleanup_B;
-        if ((err = rmat_hnf_centered_mod(&B[x], &B[x], &R, &half)) !=
-            RABIN_SUCCESS)
-          goto cleanup_B;
+        TRY(rz_mul(&B[x], &u, RMAT_GET(&A_work, x, k)));
+        TRY(rz_mul(&t2, &v, RMAT_GET(&A_work, x, j)));
+        TRY(rz_add(&B[x], &B[x], &t2));
+        TRY(rmat_hnf_centered_mod(&B[x], &B[x], &R, &half));
       }
 
       // A_j = (a_{i,k}/d)*A_j - (a_{i,j}/d)*A_k, reduced into (-R/2, R/2]
-      if ((err = rz_div_exact(&t2, RMAT_GET(&A_work, i, k), &d)) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
-      if ((err = rz_div_exact(&q, RMAT_GET(&A_work, i, j), &d)) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_div_exact(&t2, RMAT_GET(&A_work, i, k), &d));
+      TRY(rz_div_exact(&q, RMAT_GET(&A_work, i, j), &d));
       for (u64 x = 0; x < m; x++) {
-        if ((err = rz_mul(&t3, &t2, RMAT_GET(&A_work, x, j))) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_mul(&t1, &q, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_sub(&t1, &t3, &t1)) != RABIN_SUCCESS) goto cleanup_B;
-        if ((err = rmat_hnf_centered_mod(RMAT_GET(&A_work, x, j), &t1, &R,
-                                         &half)) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_copy(RMAT_GET(&A_work, x, k), &B[x])) != RABIN_SUCCESS)
-          goto cleanup_B;
+        TRY(rz_mul(&t3, &t2, RMAT_GET(&A_work, x, j)));
+        TRY(rz_mul(&t1, &q, RMAT_GET(&A_work, x, k)));
+        TRY(rz_sub(&t1, &t3, &t1));
+        TRY(rmat_hnf_centered_mod(RMAT_GET(&A_work, x, j), &t1, &R, &half));
+        TRY(rz_copy(RMAT_GET(&A_work, x, k), &B[x]));
       }
 
       // a_{i,k} = u*a_{i,k} + v*a_{i,j} = d exactly
-      if ((err = rz_copy(RMAT_GET(&A_work, i, k), &d)) != RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_copy(RMAT_GET(&A_work, i, k), &d));
     }
 
     // 4. [Next row]
     // u*a_{i,k} + v*R = d = gcd(a_{i,k}, R)
-    if ((err = rz_gcd_extended_lehmer(&u, &v, &d, RMAT_GET(&A_work, i, k),
-                                      &R)) != RABIN_SUCCESS)
-      goto cleanup_B;
-    if ((err = hnf_bezout_minimal(&u, &v, &d, RMAT_GET(&A_work, i, k), &R)) !=
-        RABIN_SUCCESS)
-      goto cleanup_B;
+    TRY(rz_gcd_extended_lehmer(&u, &v, &d, RMAT_GET(&A_work, i, k), &R));
+    TRY(hnf_bezout_minimal(&u, &v, &d, RMAT_GET(&A_work, i, k), &R));
 
     // W_i = u*A_k mod R, taken in [0, R)
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_mul(&t1, &u, RMAT_GET(&A_work, x, k))) != RABIN_SUCCESS)
-        goto cleanup_B;
-      if ((err = rz_mod_pos(RMAT_GET(&W_local, x, i), &t1, &R)) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_mul(&t1, &u, RMAT_GET(&A_work, x, k)));
+      TRY(rz_mod_pos(RMAT_GET(&W_local, x, i), &t1, &R));
     }
 
     // if d = R (i.e. R | a_{i,k}) the diagonal entry would be 0; set it to d
     if (rz_cmp(&d, &R) == 0) {
-      if ((err = rz_copy(RMAT_GET(&W_local, i, i), &d)) != RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_copy(RMAT_GET(&W_local, i, i), &d));
     }
 
     // final reductions: W_j -= floor(W_{i,j}/W_{i,i}) * W_i for j > i
@@ -1340,45 +1294,40 @@ rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D)
       if (rz_is_zero(RMAT_GET(&W_local, i, j))) {
         continue;
       }
-      if ((err = rz_div_euclid(&q, RMAT_GET(&W_local, i, j),
-                               RMAT_GET(&W_local, i, i))) != RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_div_euclid(&q, RMAT_GET(&W_local, i, j),
+                        RMAT_GET(&W_local, i, i)));
       for (u64 x = 0; x <= (u64)i; x++) {
-        if ((err = rz_mul(&t1, &q, RMAT_GET(&W_local, x, i))) != RABIN_SUCCESS)
-          goto cleanup_B;
-        if ((err = rz_sub(RMAT_GET(&W_local, x, j), RMAT_GET(&W_local, x, j),
-                          &t1)) != RABIN_SUCCESS)
-          goto cleanup_B;
+        TRY(rz_mul(&t1, &q, RMAT_GET(&W_local, x, i)));
+        TRY(rz_sub(RMAT_GET(&W_local, x, j), RMAT_GET(&W_local, x, j), &t1));
       }
     }
 
     R.is_neg = false;
-    if ((err = rz_div_exact(&R, &R, &d)) != RABIN_SUCCESS) goto cleanup_B;
-    if ((err = rz_rshift(&half, &R, 1)) != RABIN_SUCCESS) goto cleanup_B;
+    TRY(rz_div_exact(&R, &R, &d));
+    TRY(rz_rshift(&half, &R, 1));
 
     if (i > 0) {
       // working modulo R, a_{i-1,k-1} may have reduced to zero; replace it
       // by any nonzero multiple of R
       if (rz_is_zero(RMAT_GET(&A_work, i - 1, k - 1))) {
-        if ((err = rz_copy(RMAT_GET(&A_work, i - 1, k - 1), &R)) !=
-            RABIN_SUCCESS)
-          goto cleanup_B;
+        TRY(rz_copy(RMAT_GET(&A_work, i - 1, k - 1), &R));
       }
     }
   }
 
-  if ((err = rmat_swap(W, &W_local)) != RABIN_SUCCESS) goto cleanup_B;
+  TRY(rmat_swap(W, &W_local));
   rmat_clear(&W_local);
-  err = RABIN_SUCCESS;
 
-cleanup_B:
-  for (u64 x = 0; x < m; x++) {
-    if (B != NULL) rz_clear(&B[x]);
-  }
-  free(B);
 cleanup:
+  if (B != NULL) {
+    for (u64 x = 0; x < m; x++) {
+      rz_clear(&B[x]);
+    }
+    free(B);
+  }
   rz_clear_multi(&R, &u, &v, &d, &q, &t1, &t2, &t3, &half, NULL);
   rmat_clear(&A_work);
+  rmat_clear(&W_local);
   return err;
 }
 
@@ -1399,12 +1348,13 @@ rabin_err_t rmat_hermite_gcd(rmat_t* W, const rmat_t* A)
     l = m - n;
   }
 
+  rabin_err_t err = RABIN_SUCCESS;
   rmat_t A_work = {0};
-  rabin_err_t err = rmat_init(&A_work, m, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto cleanup;
+  rz_t* B = NULL;
 
-  rz_t* B;
+  TRY(rmat_init(&A_work, m, n));
+  TRY(rmat_copy(&A_work, A));
+
   B = malloc(m * sizeof(rz_t));
   if (B == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
@@ -1416,7 +1366,7 @@ rabin_err_t rmat_hermite_gcd(rmat_t* W, const rmat_t* A)
 
   rz_t u, v, d, temp, temp2, temp3, one, b, q_k, q_j;
   rz_init_multi(&u, &v, &d, &temp, &temp2, &temp3, &one, &b, &q_k, &q_j, NULL);
-  if ((err = rz_set_u64(&one, 1)) != RABIN_SUCCESS) goto cleanup_B;
+  TRY(rz_set_u64(&one, 1));
 
 // 2. [Check zero]
 step2:
@@ -1429,22 +1379,18 @@ step2:
   }
 
   // 3. [Euclidean step]
-  if ((err = hnf_euclid_step(&A_work, NULL, B, NULL, i, j, k, &u, &v, &d, &q_k,
-                             &q_j, &temp, &temp2)) != RABIN_SUCCESS)
-    goto cleanup_B;
+  TRY(hnf_euclid_step(&A_work, NULL, B, NULL, i, j, k, &u, &v, &d, &q_k, &q_j,
+                      &temp, &temp2));
   goto step2;
 
   // 4. [Final reduction]
 step4:
-  if ((err = rz_copy(&b, RMAT_GET(&A_work, i, k))) != RABIN_SUCCESS)
-    goto cleanup_B;
+  TRY(rz_copy(&b, RMAT_GET(&A_work, i, k)));
   if (b.is_neg) {  // zero is never negative, no extra rz_is_zero test needed
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_neg(RMAT_GET(&A_work, x, k), RMAT_GET(&A_work, x, k))) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_neg(RMAT_GET(&A_work, x, k), RMAT_GET(&A_work, x, k)));
     }
-    if ((err = rz_neg(&b, &b)) != RABIN_SUCCESS) goto cleanup_B;
+    TRY(rz_neg(&b, &b));
   }
 
   if (rz_is_zero(&b)) {
@@ -1453,32 +1399,23 @@ step4:
   }
 
   for (u64 j_0 = k + 1; j_0 < n; j_0++) {
-    if ((err = rz_div_euclid(&temp2, RMAT_GET(&A_work, i, j_0), &b)) !=
-        RABIN_SUCCESS)
-      goto cleanup_B;
+    TRY(rz_div_euclid(&temp2, RMAT_GET(&A_work, i, j_0), &b));
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_mul(&temp, &temp2, RMAT_GET(&A_work, x, k))) !=
-          RABIN_SUCCESS)
-        goto cleanup_B;
-      if ((err = rz_sub(RMAT_GET(&A_work, x, j_0), RMAT_GET(&A_work, x, j_0),
-                        &temp)) != RABIN_SUCCESS)
-        goto cleanup_B;
+      TRY(rz_mul(&temp, &temp2, RMAT_GET(&A_work, x, k)));
+      TRY(rz_sub(RMAT_GET(&A_work, x, j_0), RMAT_GET(&A_work, x, j_0), &temp));
     }
   }
 
 step5:
   // 5. [Finished]
   if (i == l) {
-    if ((err = rmat_init(W, m, n - k)) != RABIN_SUCCESS) goto cleanup_B;
+    TRY(rmat_init(W, m, n - k));
     for (u64 x = 0; x < n - k; x++) {
       for (u64 y = 0; y < m; y++) {
-        if ((err = rz_copy(RMAT_GET(W, y, x), RMAT_GET(&A_work, y, x + k))) !=
-            RABIN_SUCCESS)
-          goto cleanup_B;
+        TRY(rz_copy(RMAT_GET(W, y, x), RMAT_GET(&A_work, y, x + k)));
       }
     }
-    err = RABIN_SUCCESS;
-    goto cleanup_B;
+    goto cleanup;
   }
 
   i--;
@@ -1486,12 +1423,13 @@ step5:
   j = k;
   goto step2;
 
-cleanup_B:
-  for (u64 x = 0; x < m; x++) {
-    rz_clear(&B[x]);
-  }
-  free(B);
 cleanup:
+  if (B != NULL) {
+    for (u64 x = 0; x < m; x++) {
+      rz_clear(&B[x]);
+    }
+    free(B);
+  }
   rmat_clear(&A_work);
   rz_clear_multi(&u, &v, &d, &temp, &temp2, &temp3, &one, &b, &q_k, &q_j, NULL);
   return err;
@@ -1506,31 +1444,28 @@ rabin_err_t rmat_smith(rmat_t* S, const rmat_t* A)
   // 1. [Initialize i]
   i64 n = A->rows;
   i64 i = n;
-  rz_t R;
-  rz_init(&R);
-  rabin_err_t err = rmat_det(&R, A);
-  if (err != RABIN_SUCCESS) return err;
+  rabin_err_t err = RABIN_SUCCESS;
+  rz_t R, u, v, d, q_i, q_j, t1, t2, b;
+  rz_t a_abs, a_ii_abs, a_abs_col, a_ii_abs_col, zero;
+  rz_init_multi(&R, &u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
+  rz_init_multi(&a_abs, &a_ii_abs, &a_abs_col, &a_ii_abs_col, &zero, NULL);
+  TRY(rmat_det(&R, A));
   R.is_neg = false;
 
   if (n == 1) {
-    if ((err = rmat_set(S, &R, 0, 0)) != RABIN_SUCCESS) goto fail_R1;
-    err = RABIN_SUCCESS;
-  fail_R1:
-    rz_clear(&R);
-    return err;
+    err = rmat_set(S, &R, 0, 0);
+    goto cleanup;
   }
 
-  rz_t u, v, d, q_i, q_j, t1, t2, b;
-  rz_init_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
-
   rmat_t A_work = {0};
-  if ((err = rmat_init(&A_work, n, n)) != RABIN_SUCCESS) goto fail_R;
-  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto fail_AW;
+  rz_t* B = NULL;
+  TRY(rmat_init(&A_work, n, n));
+  TRY(rmat_copy(&A_work, A));
 
-  rz_t* B = malloc(n * sizeof(rz_t));
+  B = malloc(n * sizeof(rz_t));
   if (B == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto fail_AW;
+    goto cleanup;
   }
   for (u64 x = 0; x < (u64)n; x++) {
     rz_init(&B[x]);
@@ -1560,73 +1495,51 @@ step3:
   a_i_j = RMAT_GET(&A_work, i - 1, j - 1);
 
   if ((err = rz_gcd_extended_lehmer(&u, &v, &d, a_i_i, a_i_j)) != RABIN_SUCCESS)
-    goto fail_B;
+    goto cleanup;
 
   // use Remark to find u,v minimal
-  rz_t a_abs;
-  rz_init(&a_abs);
-  bool a_ii_live = false;
-  rz_t a_ii_abs;
-  rz_init(&a_ii_abs);
-  if ((err = rz_copy(&a_abs, RMAT_GET(&A_work, i - 1, j - 1))) != RABIN_SUCCESS)
-    goto fail_temps;
+  TRY(rz_copy(&a_abs, RMAT_GET(&A_work, i - 1, j - 1)));
   a_abs.is_neg = false;
-  if ((err = rz_copy(&a_ii_abs, RMAT_GET(&A_work, i - 1, i - 1))) !=
-      RABIN_SUCCESS)
-    goto fail_temps;
-  a_ii_live = true;
+  TRY(rz_copy(&a_ii_abs, RMAT_GET(&A_work, i - 1, i - 1)));
   a_ii_abs.is_neg = false;
 
   // if d == |a_{i,i}|, force u = sign(a_{i,i}), v = 0
   if (rz_cmp(&d, &a_ii_abs) == 0) {
-    if ((err = rz_set_u64(&u, 1)) != RABIN_SUCCESS) goto fail_temps;
-    if ((err = rz_set_u64(&v, 0)) != RABIN_SUCCESS) goto fail_temps;
-    if (RMAT_GET(&A_work, i - 1, i - 1)->is_neg)
-      if ((err = rz_set_i64(&u, -1)) != RABIN_SUCCESS) goto fail_temps;
+    TRY(rz_set_u64(&u, 1));
+    TRY(rz_set_u64(&v, 0));
+    if (RMAT_GET(&A_work, i - 1, i - 1)->is_neg) TRY(rz_set_i64(&u, -1));
   }
   // if d == |a_{i,j}|, force u = 0, v = sign(a_{i,j})
   else if (rz_cmp(&d, &a_abs) == 0) {
-    if ((err = rz_set_u64(&u, 0)) != RABIN_SUCCESS) goto fail_temps;
-    if ((err = rz_set_u64(&v, 1)) != RABIN_SUCCESS) goto fail_temps;
-    if (RMAT_GET(&A_work, i - 1, j - 1)->is_neg)
-      if ((err = rz_set_i64(&v, -1)) != RABIN_SUCCESS) goto fail_temps;
+    TRY(rz_set_u64(&u, 0));
+    TRY(rz_set_u64(&v, 1));
+    if (RMAT_GET(&A_work, i - 1, j - 1)->is_neg) TRY(rz_set_i64(&v, -1));
   }
 
   rz_clear(&a_abs);
   rz_clear(&a_ii_abs);
-  a_ii_live = false;
 
   // B = uA_i + vA_j
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mul(&B[x], &u, RMAT_GET(&A_work, x, i - 1))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_mul(&t1, &v, RMAT_GET(&A_work, x, j - 1))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_add(&B[x], &B[x], &t1)) != RABIN_SUCCESS) goto fail_B;
+    TRY(rz_mul(&B[x], &u, RMAT_GET(&A_work, x, i - 1)));
+    TRY(rz_mul(&t1, &v, RMAT_GET(&A_work, x, j - 1)));
+    TRY(rz_add(&B[x], &B[x], &t1));
   }
 
   // A_j = ((a_ii / d)A_j - (a_ij / d)A_i) mod R
-  if ((err = rz_div(&q_i, RMAT_GET(&A_work, i - 1, i - 1), &d)) !=
-      RABIN_SUCCESS)
-    goto fail_B;
-  if ((err = rz_div(&q_j, RMAT_GET(&A_work, i - 1, j - 1), &d)) !=
-      RABIN_SUCCESS)
-    goto fail_B;
+  TRY(rz_div(&q_i, RMAT_GET(&A_work, i - 1, i - 1), &d));
+  TRY(rz_div(&q_j, RMAT_GET(&A_work, i - 1, j - 1), &d));
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mul(&t1, &q_i, RMAT_GET(&A_work, x, j - 1))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_mul(&t2, &q_j, RMAT_GET(&A_work, x, i - 1))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_sub(&t1, &t1, &t2)) != RABIN_SUCCESS) goto fail_B;
-    if ((err = rz_mod(&t1, &t1, &R)) != RABIN_SUCCESS) goto fail_B;
-    if ((err = rz_copy(RMAT_GET(&A_work, x, j - 1), &t1)) != RABIN_SUCCESS)
-      goto fail_B;
+    TRY(rz_mul(&t1, &q_i, RMAT_GET(&A_work, x, j - 1)));
+    TRY(rz_mul(&t2, &q_j, RMAT_GET(&A_work, x, i - 1)));
+    TRY(rz_sub(&t1, &t1, &t2));
+    TRY(rz_mod(&t1, &t1, &R));
+    TRY(rz_copy(RMAT_GET(&A_work, x, j - 1), &t1));
   }
 
   // A_i = B mod R
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mod(RMAT_GET(&A_work, x, i - 1), &B[x], &R)) != RABIN_SUCCESS)
-      goto fail_B;
+    TRY(rz_mod(RMAT_GET(&A_work, x, i - 1), &B[x], &R));
   }
 
   goto step3;
@@ -1650,74 +1563,51 @@ step6:
   a_i_j = RMAT_GET(&A_work, j - 1, i - 1);
 
   if ((err = rz_gcd_extended_lehmer(&u, &v, &d, a_i_i, a_i_j)) != RABIN_SUCCESS)
-    goto fail_B;
+    goto cleanup;
 
   // use Remark to find u,v minimal safely
-  rz_t a_abs_col;
-  rz_init(&a_abs_col);
-  bool a_ii_col_live = false;
-  rz_t a_ii_abs_col;
-  rz_init(&a_ii_abs_col);
-  if ((err = rz_copy(&a_abs_col, RMAT_GET(&A_work, j - 1, i - 1))) !=
-      RABIN_SUCCESS)
-    goto fail_temps_col;
+  TRY(rz_copy(&a_abs_col, RMAT_GET(&A_work, j - 1, i - 1)));
   a_abs_col.is_neg = false;
-  if ((err = rz_copy(&a_ii_abs_col, RMAT_GET(&A_work, i - 1, i - 1))) !=
-      RABIN_SUCCESS)
-    goto fail_temps_col;
-  a_ii_col_live = true;
+  TRY(rz_copy(&a_ii_abs_col, RMAT_GET(&A_work, i - 1, i - 1)));
   a_ii_abs_col.is_neg = false;
 
   // if d == |a_{i,i}|, force u = sign(a_{i,i}), v = 0
   if (rz_cmp(&d, &a_ii_abs_col) == 0) {
-    if ((err = rz_set_u64(&u, 1)) != RABIN_SUCCESS) goto fail_temps_col;
-    if ((err = rz_set_u64(&v, 0)) != RABIN_SUCCESS) goto fail_temps_col;
-    if (RMAT_GET(&A_work, i - 1, i - 1)->is_neg)
-      if ((err = rz_set_i64(&u, -1)) != RABIN_SUCCESS) goto fail_temps_col;
+    TRY(rz_set_u64(&u, 1));
+    TRY(rz_set_u64(&v, 0));
+    if (RMAT_GET(&A_work, i - 1, i - 1)->is_neg) TRY(rz_set_i64(&u, -1));
   }
   // if d == |a_{j,i}|, force u = 0, v = sign(a_{j,i})
   else if (rz_cmp(&d, &a_abs_col) == 0) {
-    if ((err = rz_set_u64(&u, 0)) != RABIN_SUCCESS) goto fail_temps_col;
-    if ((err = rz_set_u64(&v, 1)) != RABIN_SUCCESS) goto fail_temps_col;
-    if (RMAT_GET(&A_work, j - 1, i - 1)->is_neg)
-      if ((err = rz_set_i64(&v, -1)) != RABIN_SUCCESS) goto fail_temps_col;
+    TRY(rz_set_u64(&u, 0));
+    TRY(rz_set_u64(&v, 1));
+    if (RMAT_GET(&A_work, j - 1, i - 1)->is_neg) TRY(rz_set_i64(&v, -1));
   }
 
   rz_clear(&a_abs_col);
   rz_clear(&a_ii_abs_col);
-  a_ii_col_live = false;
 
   // B = uA'_i + vA'_j
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mul(&B[x], &u, RMAT_GET(&A_work, i - 1, x))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_mul(&t1, &v, RMAT_GET(&A_work, j - 1, x))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_add(&B[x], &B[x], &t1)) != RABIN_SUCCESS) goto fail_B;
+    TRY(rz_mul(&B[x], &u, RMAT_GET(&A_work, i - 1, x)));
+    TRY(rz_mul(&t1, &v, RMAT_GET(&A_work, j - 1, x)));
+    TRY(rz_add(&B[x], &B[x], &t1));
   }
 
   // A'_j = ((a_ii / d)A'_j - (a_ij / d)A'_i) mod R
-  if ((err = rz_div(&q_i, RMAT_GET(&A_work, i - 1, i - 1), &d)) !=
-      RABIN_SUCCESS)
-    goto fail_B;
-  if ((err = rz_div(&q_j, RMAT_GET(&A_work, j - 1, i - 1), &d)) !=
-      RABIN_SUCCESS)
-    goto fail_B;
+  TRY(rz_div(&q_i, RMAT_GET(&A_work, i - 1, i - 1), &d));
+  TRY(rz_div(&q_j, RMAT_GET(&A_work, j - 1, i - 1), &d));
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mul(&t1, &q_i, RMAT_GET(&A_work, j - 1, x))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_mul(&t2, &q_j, RMAT_GET(&A_work, i - 1, x))) != RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rz_sub(&t1, &t1, &t2)) != RABIN_SUCCESS) goto fail_B;
-    if ((err = rz_mod(&t1, &t1, &R)) != RABIN_SUCCESS) goto fail_B;
-    if ((err = rz_copy(RMAT_GET(&A_work, j - 1, x), &t1)) != RABIN_SUCCESS)
-      goto fail_B;
+    TRY(rz_mul(&t1, &q_i, RMAT_GET(&A_work, j - 1, x)));
+    TRY(rz_mul(&t2, &q_j, RMAT_GET(&A_work, i - 1, x)));
+    TRY(rz_sub(&t1, &t1, &t2));
+    TRY(rz_mod(&t1, &t1, &R));
+    TRY(rz_copy(RMAT_GET(&A_work, j - 1, x), &t1));
   }
 
   // A'_i = B mod R
   for (u64 x = 0; x < (u64)n; x++) {
-    if ((err = rz_mod(RMAT_GET(&A_work, i - 1, x), &B[x], &R)) != RABIN_SUCCESS)
-      goto fail_B;
+    TRY(rz_mod(RMAT_GET(&A_work, i - 1, x), &B[x], &R));
   }
 
   c++;
@@ -1730,8 +1620,7 @@ step8:
   }
 
   // 9. [Check the rest of the matrix]
-  if ((err = rz_copy(&b, RMAT_GET(&A_work, i - 1, i - 1))) != RABIN_SUCCESS)
-    goto fail_B;
+  TRY(rz_copy(&b, RMAT_GET(&A_work, i - 1, i - 1)));
   for (i64 k_0 = 0; k_0 < i - 1; k_0++) {
     for (i64 l_0 = 0; l_0 < i - 1; l_0++) {
       bool not_divisible = false;
@@ -1740,9 +1629,7 @@ step8:
           not_divisible = true;
         }
       } else {
-        if ((err = rz_mod(&t1, RMAT_GET(&A_work, k_0, l_0), &b)) !=
-            RABIN_SUCCESS)
-          goto fail_B;
+        TRY(rz_mod(&t1, RMAT_GET(&A_work, k_0, l_0), &b));
         if (!rz_is_zero(&t1)) {
           not_divisible = true;
         }
@@ -1750,10 +1637,8 @@ step8:
 
       if (not_divisible) {
         for (i64 x = 0; x < n; x++) {
-          if ((err = rz_add(RMAT_GET(&A_work, i - 1, x),
-                            RMAT_GET(&A_work, i - 1, x),
-                            RMAT_GET(&A_work, k_0, x))) != RABIN_SUCCESS)
-            goto fail_B;
+          TRY(rz_add(RMAT_GET(&A_work, i - 1, x), RMAT_GET(&A_work, i - 1, x),
+                     RMAT_GET(&A_work, k_0, x)));
         }
         goto step2;
       }
@@ -1761,56 +1646,44 @@ step8:
   }
 
   // 10. [Next stage]
-  if ((err = rz_gcd_lehmer(&t1, RMAT_GET(&A_work, i - 1, i - 1), &R)) !=
-      RABIN_SUCCESS)
-    goto fail_B;
-  if ((err = rmat_set(&A_work, &t1, i - 1, i - 1)) != RABIN_SUCCESS)
-    goto fail_B;
-  if ((err = rz_div(&R, &R, &t1)) != RABIN_SUCCESS) goto fail_B;
+  TRY(rz_gcd_lehmer(&t1, RMAT_GET(&A_work, i - 1, i - 1), &R));
+  TRY(rmat_set(&A_work, &t1, i - 1, i - 1));
+  TRY(rz_div(&R, &R, &t1));
 
   if (i == 2) {
-    if ((err = rz_gcd_lehmer(&t2, RMAT_GET(&A_work, 0, 0), &R)) !=
-        RABIN_SUCCESS)
-      goto fail_B;
-    if ((err = rmat_set(&A_work, &t2, 0, 0)) != RABIN_SUCCESS) goto fail_B;
+    TRY(rz_gcd_lehmer(&t2, RMAT_GET(&A_work, 0, 0), &R));
+    TRY(rmat_set(&A_work, &t2, 0, 0));
 
     // order diagonal entries in proper order
-    rz_t zero;
-    rz_init(&zero);
     for (i64 r = 0; r < n; r++) {
       for (i64 c = 0; c < n; c++) {
         if (r == c) {
-          if ((err = rmat_set(S, RMAT_GET(&A_work, n - 1 - r, n - 1 - r), r,
-                              r)) != RABIN_SUCCESS)
-            goto fail_zero;
+          TRY(rmat_set(S, RMAT_GET(&A_work, n - 1 - r, n - 1 - r), r, r));
         } else {
-          if ((err = rmat_set(S, &zero, r, c)) != RABIN_SUCCESS) goto fail_zero;
+          TRY(rmat_set(S, &zero, r, c));
         }
       }
     }
     rz_clear(&zero);
-    err = RABIN_SUCCESS;
-    goto fail_B;
+    goto cleanup;
   }
 
   i--;
   goto step2;
 
-fail_zero:
-fail_temps_col:
-  rz_clear(&a_abs_col);
-  if (a_ii_col_live) rz_clear(&a_ii_abs_col);
-fail_temps:
-  rz_clear(&a_abs);
-  if (a_ii_live) rz_clear(&a_ii_abs);
-fail_B:
-  for (i64 x = 0; x < n; x++) {
-    rz_clear(&B[x]);
+cleanup:
+  if (B != NULL) {
+    for (i64 x = 0; x < n; x++) {
+      rz_clear(&B[x]);
+    }
+    free(B);
   }
-  free(B);
-fail_AW:
+  rz_clear(&a_abs_col);
+  rz_clear(&a_ii_abs_col);
+  rz_clear(&a_abs);
+  rz_clear(&a_ii_abs);
+  rz_clear(&zero);
   rmat_clear(&A_work);
-fail_R:
   rz_clear(&R);
   rz_clear_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);
   return err;
@@ -2268,7 +2141,7 @@ static rabin_err_t rmat_lll_run(rmat_t* V, rmat_t* H, rmat_t* lam, rz_t* dv,
     if (err != RABIN_SUCCESS) goto cleanup;
   }
 
-  if ((err = rz_set_u64(&dv[0], 1)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_set_u64(&dv[0], 1));
 
   u64 k = 1;
   u64 kmax = 0;
@@ -2278,24 +2151,20 @@ step2:
   if (k > kmax) {
     kmax = k;
     for (u64 j = 1; j <= k; j++) {
-      if ((err = lll_dot(&s.u, V, k - 1, j - 1, &s.v)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(lll_dot(&s.u, V, k - 1, j - 1, &s.v));
       // U <- (d[i]*U - lambda[k][i]*lambda[j][i]) / d[i-1]   (1-based i < j,
       // d[1] = 1, d[i] stored in dv[i-1] (0-based))
       for (u64 i = 1; i < j; i++) {
-        if ((err = rz_mul(&s.w, &dv[i], &s.u)) != RABIN_SUCCESS) goto cleanup;
-        if ((err = rz_mul(&s.v, RMAT_GET(lam, k - 1, i - 1),
-                          RMAT_GET(lam, j - 1, i - 1))) != RABIN_SUCCESS)
-          goto cleanup;
-        if ((err = rz_sub(&s.w, &s.w, &s.v)) != RABIN_SUCCESS) goto cleanup;
-        if ((err = rz_div_exact(&s.u, &s.w, &dv[i - 1])) != RABIN_SUCCESS)
-          goto cleanup;
+        TRY(rz_mul(&s.w, &dv[i], &s.u));
+        TRY(rz_mul(&s.v, RMAT_GET(lam, k - 1, i - 1),
+                   RMAT_GET(lam, j - 1, i - 1)));
+        TRY(rz_sub(&s.w, &s.w, &s.v));
+        TRY(rz_div_exact(&s.u, &s.w, &dv[i - 1]));
       }
       if (j < k) {
-        if ((err = rz_copy(RMAT_GET(lam, k - 1, j - 1), &s.u)) != RABIN_SUCCESS)
-          goto cleanup;
+        TRY(rz_copy(RMAT_GET(lam, k - 1, j - 1), &s.u));
       } else {
-        if ((err = rz_copy(&dv[k], &s.u)) != RABIN_SUCCESS) goto cleanup;
+        TRY(rz_copy(&dv[k], &s.u));
         if (rz_is_zero(&dv[k])) {
           err = RABIN_ERR_INVALID_ARG;
           goto cleanup;
@@ -2306,8 +2175,7 @@ step2:
 
   // [LLL test: size-reduce k against k-1, check the Lovasz condition]
   if (k > 1) {
-    if ((err = lll_red1(V, H, lam, dv, k - 1, k - 2, &s)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(lll_red1(V, H, lam, dv, k - 1, k - 2, &s));
 
     // Lovasz condition (1-based k, lambda = lambda[k][k-1], d[i] in dv[i-1]),
     // evaluated exactly for every double delta (see lll_lovasz):
@@ -2315,13 +2183,10 @@ step2:
     // (i.e. ||b*_k||^2 < (delta - mu^2) * ||b*_{k-1}||^2 with mu =
     // lambda/d[k]).
     bool swap = false;
-    if ((err = lll_lovasz(lam, dv, k, &dl, &dden, &swap, &s)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(lll_lovasz(lam, dv, k, &dl, &dden, &swap, &s));
 
     if (swap) {
-      if ((err = lll_swap1(V, H, lam, dv, k - 1, kmax - 1, &s)) !=
-          RABIN_SUCCESS)
-        goto cleanup;
+      TRY(lll_swap1(V, H, lam, dv, k - 1, kmax - 1, &s));
       k--;
       // the swapped-in vector now sits at k and must be re-examined
       // (size-reduce + Lovasz) before advancing: restart at step2.
@@ -2331,8 +2196,7 @@ step2:
 
   // descending: RED1(k,l) updates lambda[k][i] for i < l, so l must decrease
   for (u64 l = k - 1; l >= 1; l--) {
-    if ((err = lll_red1(V, H, lam, dv, k - 1, l - 1, &s)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(lll_red1(V, H, lam, dv, k - 1, l - 1, &s));
   }
   k++;
   if (k <= n) goto step2;
@@ -2430,40 +2294,37 @@ static rabin_err_t hnf_with_transform(rmat_t* W, rmat_t* U, const rmat_t* A)
 
   bool u_live = false;
   rmat_t A_work = {0};
-  rabin_err_t err = rmat_init(&A_work, m, n);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rmat_copy(&A_work, A)) != RABIN_SUCCESS) goto cleanup;
+  rz_t u, v, d, temp, temp2, b, q_k, q_j;
+  rz_t* B = NULL;
+  rz_t* C = NULL;
+  rabin_err_t err = RABIN_SUCCESS;
 
-  if ((err = rmat_init(U, n, n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&A_work, m, n));
+  TRY(rmat_copy(&A_work, A));
+
+  TRY(rmat_init(U, n, n));
   u_live = true;
-  if ((err = rmat_id(U, n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_id(U, n));
 
-  rz_t* B = malloc(m * sizeof(rz_t));
+  rz_init_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL);
+
+  B = malloc(m * sizeof(rz_t));
   if (B == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
     goto cleanup;
   }
-  u64 b_done = 0;
   for (u64 x = 0; x < m; x++) {
-    if ((err = rz_init(&B[x])) != RABIN_SUCCESS) goto cleanup_B;
-    b_done++;
+    rz_init(&B[x]);
   }
 
-  rz_t* C = malloc(n * sizeof(rz_t));
+  C = malloc(n * sizeof(rz_t));
   if (C == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto cleanup_B;
+    goto cleanup;
   }
-  u64 c_done = 0;
   for (u64 x = 0; x < n; x++) {
-    if ((err = rz_init(&C[x])) != RABIN_SUCCESS) goto cleanup_C;
-    c_done++;
+    rz_init(&C[x]);
   }
-
-  rz_t u, v, d, temp, temp2, b, q_k, q_j;
-  if ((err = rz_init_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL)) !=
-      RABIN_SUCCESS)
-    goto cleanup_C;
 
 // 2. [Check zero]
 step2:
@@ -2476,26 +2337,21 @@ step2:
   }
 
   // 3. [Euclidean step] (column ops applied to A_work and U)
-  if ((err = hnf_euclid_step(&A_work, U, B, C, i, j, k, &u, &v, &d, &q_k, &q_j,
-                             &temp, &temp2)) != RABIN_SUCCESS)
-    goto cleanup_temps;
+  TRY(hnf_euclid_step(&A_work, U, B, C, i, j, k, &u, &v, &d, &q_k, &q_j, &temp,
+                      &temp2));
   goto step2;
 
   // 4. [Final reduction]
 step4:
-  if ((err = rz_copy(&b, RMAT_GET(&A_work, i, k))) != RABIN_SUCCESS)
-    goto cleanup_temps;
+  TRY(rz_copy(&b, RMAT_GET(&A_work, i, k)));
   if (b.is_neg) {  // zero is never negative, no extra rz_is_zero test needed
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_neg(RMAT_GET(&A_work, x, k), RMAT_GET(&A_work, x, k))) !=
-          RABIN_SUCCESS)
-        goto cleanup_temps;
+      TRY(rz_neg(RMAT_GET(&A_work, x, k), RMAT_GET(&A_work, x, k)));
     }
     for (u64 x = 0; x < n; x++) {
-      if ((err = rz_neg(RMAT_GET(U, x, k), RMAT_GET(U, x, k))) != RABIN_SUCCESS)
-        goto cleanup_temps;
+      TRY(rz_neg(RMAT_GET(U, x, k), RMAT_GET(U, x, k)));
     }
-    if ((err = rz_neg(&b, &b)) != RABIN_SUCCESS) goto cleanup_temps;
+    TRY(rz_neg(&b, &b));
   }
 
   if (rz_is_zero(&b)) {
@@ -2504,40 +2360,28 @@ step4:
   }
 
   for (u64 j_0 = k + 1; j_0 < n; j_0++) {
-    if ((err = rz_div_euclid(&temp2, RMAT_GET(&A_work, i, j_0), &b)) !=
-        RABIN_SUCCESS)
-      goto cleanup_temps;
+    TRY(rz_div_euclid(&temp2, RMAT_GET(&A_work, i, j_0), &b));
     for (u64 x = 0; x < m; x++) {
-      if ((err = rz_mul(&temp, &temp2, RMAT_GET(&A_work, x, k))) !=
-          RABIN_SUCCESS)
-        goto cleanup_temps;
-      if ((err = rz_sub(RMAT_GET(&A_work, x, j_0), RMAT_GET(&A_work, x, j_0),
-                        &temp)) != RABIN_SUCCESS)
-        goto cleanup_temps;
+      TRY(rz_mul(&temp, &temp2, RMAT_GET(&A_work, x, k)));
+      TRY(rz_sub(RMAT_GET(&A_work, x, j_0), RMAT_GET(&A_work, x, j_0), &temp));
     }
     for (u64 x = 0; x < n; x++) {
-      if ((err = rz_mul(&temp, &temp2, RMAT_GET(U, x, k))) != RABIN_SUCCESS)
-        goto cleanup_temps;
-      if ((err = rz_sub(RMAT_GET(U, x, j_0), RMAT_GET(U, x, j_0), &temp)) !=
-          RABIN_SUCCESS)
-        goto cleanup_temps;
+      TRY(rz_mul(&temp, &temp2, RMAT_GET(U, x, k)));
+      TRY(rz_sub(RMAT_GET(U, x, j_0), RMAT_GET(U, x, j_0), &temp));
     }
   }
 
 step5:
   // 5. [Finished]
   if (i == l) {
-    if ((err = rmat_init(W, m, n - k)) != RABIN_SUCCESS) goto cleanup_temps;
+    TRY(rmat_init(W, m, n - k));
     for (u64 x = 0; x < n - k; x++) {
       for (u64 y = 0; y < m; y++) {
-        if ((err = rz_copy(RMAT_GET(W, y, x), RMAT_GET(&A_work, y, x + k))) !=
-            RABIN_SUCCESS)
-          goto cleanup_temps;
+        TRY(rz_copy(RMAT_GET(W, y, x), RMAT_GET(&A_work, y, x + k)));
       }
     }
-    err = RABIN_SUCCESS;
     u_live = false;  // keep U for the caller
-    goto cleanup_temps;
+    goto cleanup;
   }
 
   i--;
@@ -2545,15 +2389,20 @@ step5:
   j = k;
   goto step2;
 
-cleanup_temps:
-  rz_clear_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL);
-cleanup_C:
-  for (u64 x = 0; x < c_done; x++) rz_clear(&C[x]);
-  free(C);
-cleanup_B:
-  for (u64 x = 0; x < b_done; x++) rz_clear(&B[x]);
-  free(B);
 cleanup:
+  rz_clear_multi(&u, &v, &d, &temp, &temp2, &b, &q_k, &q_j, NULL);
+  if (C != NULL) {
+    for (u64 x = 0; x < n; x++) {
+      rz_clear(&C[x]);
+    }
+    free(C);
+  }
+  if (B != NULL) {
+    for (u64 x = 0; x < m; x++) {
+      rz_clear(&B[x]);
+    }
+    free(B);
+  }
   if (u_live) rmat_clear(U);
   rmat_clear(&A_work);
   return err;
@@ -2601,7 +2450,7 @@ rabin_err_t rmat_mlll(rmat_t* B, u64 n, double delta, rmat_t* H, u64* rank)
 
   // 2. [LLL-reduce the lattice basis]
   if (p > 0) {
-    if ((err = rmat_lll(&W, p, delta, &Q)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rmat_lll(&W, p, delta, &Q));
   }
 
   // 3. [Assemble B = [ 0 | W ] and H = [ U_rel | U_lift * Q ]]
@@ -2611,43 +2460,36 @@ rabin_err_t rmat_mlll(rmat_t* B, u64 n, double delta, rmat_t* H, u64* rank)
   if (err != RABIN_SUCCESS) goto cleanup;
   for (u64 x = 0; x < n - p; x++) {
     for (u64 y = 0; y < n; y++) {
-      if ((err = rmat_set(H, RMAT_GET(&U, y, x), y, x)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rmat_set(H, RMAT_GET(&U, y, x), y, x));
     }
   }
   if (p > 0) {
-    if ((err = rmat_init(&H_lift, n, p)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rmat_init(&H_lift, n, p));
     for (u64 x = 0; x < p; x++) {
       for (u64 y = 0; y < n; y++) {
-        if ((err = rmat_set(&H_lift, RMAT_GET(&U, y, n - p + x), y, x)) !=
-            RABIN_SUCCESS)
-          goto cleanup;
+        TRY(rmat_set(&H_lift, RMAT_GET(&U, y, n - p + x), y, x));
       }
     }
-    if ((err = rmat_init(&H_tail, n, p)) != RABIN_SUCCESS) goto cleanup;
-    if ((err = rmat_mul(&H_tail, &H_lift, &Q)) != RABIN_SUCCESS) goto cleanup;
+    TRY(rmat_init(&H_tail, n, p));
+    TRY(rmat_mul(&H_tail, &H_lift, &Q));
     for (u64 x = 0; x < p; x++) {
       for (u64 y = 0; y < n; y++) {
-        if ((err = rmat_set(H, RMAT_GET(&H_tail, y, x), y, n - p + x)) !=
-            RABIN_SUCCESS)
-          goto cleanup;
+        TRY(rmat_set(H, RMAT_GET(&H_tail, y, x), y, n - p + x));
       }
     }
   }
   // B_new = [ 0_{m x (n-p)} | W ] (the caller's B stays untouched until
   // the final commit, so a failure never corrupts it)
-  if ((err = rmat_init(&B_new, B->rows, n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&B_new, B->rows, n));
   for (u64 x = 0; x < p; x++) {
     for (u64 y = 0; y < B->rows; y++) {
-      if ((err = rmat_set(&B_new, RMAT_GET(&W, y, x), y, n - p + x)) !=
-          RABIN_SUCCESS)
-        goto cleanup;
+      TRY(rmat_set(&B_new, RMAT_GET(&W, y, x), y, n - p + x));
     }
   }
 
   // 4. [Verify B_new == A_orig * H before committing]
-  if ((err = rmat_init(&A_work, B->rows, n)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rmat_mul(&A_work, &A, H)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&A_work, B->rows, n));
+  TRY(rmat_mul(&A_work, &A, H));
   if (!rmat_equal(&A_work, &B_new)) {
     err = RABIN_ERR_INVALID_ARG;
     goto cleanup;
@@ -2801,20 +2643,16 @@ step2:
   // [Initialize Gram-Schmidt data for vector k]
   if (k > kmax) {
     kmax = k;
-    if ((err = lll_gsrow(V, lam, dv, iota, k, &s)) != RABIN_SUCCESS)
-      goto cleanup;
+    TRY(lll_gsrow(V, lam, dv, iota, k, &s));
   }
 
 step3:
   // [Test]
   if (k >= 2) {
     if (iota[k - 2]) {
-      if ((err = lll_red1(V, H, lam, dv, k - 1, k - 2, &s)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(lll_red1(V, H, lam, dv, k - 1, k - 2, &s));
       if (!iota[k - 1]) {
-        if ((err = lll_swapk(V, H, lam, dv, iota, k, kmax, &s)) !=
-            RABIN_SUCCESS)
-          goto cleanup;
+        TRY(lll_swapk(V, H, lam, dv, iota, k, kmax, &s));
         if (k > 2) k--;  // k <- max(2, k-1)
         goto step3;
       }
@@ -2822,8 +2660,7 @@ step3:
     // descending: RED(k,l) updates lambda[k][i] for i < l
     for (u64 l = k - 2; l >= 1; l--) {
       if (!iota[l - 1]) continue;
-      if ((err = lll_red1(V, H, lam, dv, k - 1, l - 1, &s)) != RABIN_SUCCESS)
-        goto cleanup;
+      TRY(lll_red1(V, H, lam, dv, k - 1, l - 1, &s));
     }
   }
   k++;
@@ -2865,19 +2702,17 @@ static rabin_err_t rq_mat_inverse(rq_t** Dout, const rmat_t* G, u64 r)
   if (G->rows != r || G->cols != r) return RABIN_ERR_INVALID_ARG;
   if (r == 0) return RABIN_SUCCESS;
 
+  rabin_err_t err = RABIN_SUCCESS;
   rq_t* A = calloc(r * 2 * r, sizeof(rq_t));
   if (A == NULL) return RABIN_ERR_OUT_OF_MEMORY;
-  u64 a_done = 0;
   for (u64 x = 0; x < r * 2 * r; x++) {
-    if (rq_init(&A[x]) != RABIN_SUCCESS) goto fail;
-    a_done++;
+    rq_init(&A[x]);
   }
 
-  rabin_err_t err = RABIN_SUCCESS;
   rq_t pv, f, t;
-  bool temps = false;
-  if ((err = rq_init_multi(&pv, &f, &t, NULL)) != RABIN_SUCCESS) goto fail;
-  temps = true;
+  rq_init_multi(&pv, &f, &t, NULL);
+
+  rq_t* D = NULL;
 
   for (u64 x = 0; x < r && err == RABIN_SUCCESS; x++) {
     for (u64 y = 0; y < 2 * r; y++) {
@@ -2928,38 +2763,36 @@ static rabin_err_t rq_mat_inverse(rq_t** Dout, const rmat_t* G, u64 r)
       }
     }
   }
-  if (err != RABIN_SUCCESS) goto fail;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
-  rq_t* D = malloc(r * r * sizeof(rq_t));
+  D = malloc(r * r * sizeof(rq_t));
   if (D == NULL) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto fail;
+    goto cleanup;
   }
-  u64 d_done = 0;
   for (u64 x = 0; x < r * r; x++) {
-    if (rq_init(&D[x]) != RABIN_SUCCESS) goto fail_D;
-    d_done++;
+    rq_init(&D[x]);
+  }
+  for (u64 x = 0; x < r * r; x++) {
     if (rq_copy(&D[x], &A[(x / r) * 2 * r + r + (x % r)]) != RABIN_SUCCESS) {
-      // roll back below via d_done bookkeeping
-      for (u64 y = 0; y < d_done; y++) rq_clear(&D[y]);
-      free(D);
       err = RABIN_ERR_OUT_OF_MEMORY;
-      goto fail;
+      goto cleanup;
     }
   }
   *Dout = D;
-  if (temps) rq_clear_multi(&pv, &f, &t, NULL);
-  for (u64 x = 0; x < a_done; x++) rq_clear(&A[x]);
-  free(A);
-  return RABIN_SUCCESS;
+  D = NULL;  // ownership transferred to the caller
 
-fail_D:
-  for (u64 x = 0; x < d_done; x++) rq_clear(&D[x]);
-  free(D);
-fail:
-  if (err == RABIN_SUCCESS) err = RABIN_ERR_OUT_OF_MEMORY;
-  if (temps) rq_clear_multi(&pv, &f, &t, NULL);
-  for (u64 x = 0; x < a_done; x++) rq_clear(&A[x]);
+cleanup:
+  if (D != NULL) {
+    for (u64 x = 0; x < r * r; x++) {
+      rq_clear(&D[x]);
+    }
+    free(D);
+  }
+  rq_clear_multi(&pv, &f, &t, NULL);
+  for (u64 x = 0; x < r * 2 * r; x++) {
+    rq_clear(&A[x]);
+  }
   free(A);
   return err;
 }
@@ -2997,8 +2830,8 @@ static rabin_err_t rmat_reduce_against_kernel(rmat_t* H, u64 n, u64 r)
   for (u64 j = 0; j < r; j++) {
     if (rq_init(&vq[j]) != RABIN_SUCCESS) goto cleanup;
   }
-  if ((err = rq_init_multi(&acc, &tmpq, NULL)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rz_init_multi(&t1, &t2, NULL)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rq_init_multi(&acc, &tmpq, NULL));
+  TRY(rz_init_multi(&t1, &t2, NULL));
   temps = true;
 
   // e = Gram matrix of the kernel basis columns
@@ -3125,9 +2958,9 @@ rabin_err_t rmat_kernel_lll(const rmat_t* A, rmat_t* K)
   if (err != RABIN_SUCCESS) return err;
   err = rmat_copy(&V, A);
   if (err != RABIN_SUCCESS) goto cleanup;
-  if ((err = rmat_init(&H, n, n)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rmat_id(&H, n)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rmat_init(&lam, n, n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&H, n, n));
+  TRY(rmat_id(&H, n));
+  TRY(rmat_init(&lam, n, n));
 
   u64 dv_done = 0;
   dv = malloc((n + 1) * sizeof(rz_t));
@@ -3221,7 +3054,7 @@ rabin_err_t rmat_kernel_image(const rmat_t* A, rmat_t* H, u64* p)
   }
 
   // assemble H = [ K | U_tail * Q ] and commit only when every check passed
-  if ((err = rmat_init(&Htmp, n, n)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rmat_init(&Htmp, n, n));
   for (u64 y = 0; y < n && err == RABIN_SUCCESS; y++) {
     for (u64 x = 0; x < r; x++) {
       err = rz_copy(RMAT_GET(&Htmp, y, x), RMAT_GET(&Kraw, y, x));
@@ -3234,18 +3067,17 @@ rabin_err_t rmat_kernel_image(const rmat_t* A, rmat_t* H, u64* p)
   if (err != RABIN_SUCCESS) goto cleanup;
 
   // H must be unimodular
-  if ((err = rz_init_multi(&det, &one, NULL)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_init_multi(&det, &one, NULL));
   det_live = true;
-  if ((err = rz_set_u64(&one, 1)) != RABIN_SUCCESS) goto cleanup;
-  if ((err = rmat_det(&det, &Htmp)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_set_u64(&one, 1));
+  TRY(rmat_det(&det, &Htmp));
   if (rz_cmp_abs(&det, &one) != 0) {
     err = RABIN_ERR_INVALID_ARG;
     goto cleanup;
   }
 
   // steps 3-5: keep the image columns small against the kernel basis
-  if ((err = rmat_reduce_against_kernel(&Htmp, n, r)) != RABIN_SUCCESS)
-    goto cleanup;
+  TRY(rmat_reduce_against_kernel(&Htmp, n, r));
 
   rmat_swap(H, &Htmp);
   *p = rank;
@@ -3395,6 +3227,11 @@ rabin_err_t rmat_algebraic_relation(double re, double im, u64 degree,
   return e;
 }
 
+#if 0
+/* WIP: depends on an element-wise rmatq API (rmatq_get/set, set_zero,
+ * div_element, mul_element_scaled, sub_mul_elements, sqrt_element,
+ * rmatq_free) that does not exist yet. Kept for reference, excluded
+ * from the build. */
 rabin_err_t rmatq_cholesky(rmatq_t* C, rmatq_t* A)
 {
   rabin_err_t err = RABIN_SUCCESS;
@@ -3457,3 +3294,4 @@ cleanup:
   }
   return err;
 }
+#endif

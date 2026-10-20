@@ -47,25 +47,23 @@ rabin_err_t rz_find_gen(rz_t* g, const rz_t* p, const rvec_t* factors)
   rz_t a, b, exp, n_min_1;
   rz_init_multi(&a, &b, &exp, &n_min_1, NULL);
   rabin_err_t err = rz_sub(&n_min_1, p, &RZ_ONE);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
 start:
-  if ((err = rz_gen_random_range(&a, &RZ_TWO, &n_min_1)) != RABIN_SUCCESS)
-    goto out;
+  TRY(rz_gen_random_range(&a, &RZ_TWO, &n_min_1));
 
   for (u64 i = 0; i < factors->size; i++) {
-    if ((err = rz_div(&exp, &n_min_1, &factors->data[i])) != RABIN_SUCCESS)
-      goto out;
-    if ((err = rz_mod_exp(&b, &a, &exp, p)) != RABIN_SUCCESS) goto out;
+    TRY(rz_div(&exp, &n_min_1, &factors->data[i]));
+    TRY(rz_mod_exp(&b, &a, &exp, p));
     if (rz_is_eq_i64(&b, 1)) {
       goto start;
     }
   }
 
-  if ((err = rz_copy(g, &a)) != RABIN_SUCCESS) goto out;
+  TRY(rz_copy(g, &a));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&a, &b, &exp, &n_min_1, NULL);
   return err;
 }
@@ -80,14 +78,14 @@ rabin_err_t rz_find_gen_fp(rz_t* g, const rz_t* p)
 
   rz_t n_min_1;
   rz_init_multi(&n_min_1, NULL);
-  if ((err = rz_sub(&n_min_1, p, &RZ_ONE)) != RABIN_SUCCESS) goto out;
+  TRY(rz_sub(&n_min_1, p, &RZ_ONE));
 
-  if ((err = rz_factorize(&factors, &n_min_1)) != RABIN_SUCCESS) goto out;
+  TRY(rz_factorize(&factors, &n_min_1));
 
-  if ((err = rz_find_gen(g, p, &factors)) != RABIN_SUCCESS) goto out;
+  TRY(rz_find_gen(g, p, &factors));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rvec_clear(&factors);
   rz_clear_multi(&n_min_1, NULL);
   return err;
@@ -102,16 +100,16 @@ rabin_err_t rz_find_gen_proth(rz_t* g, const rz_t* p, rz_t* c)
   if (err != RABIN_SUCCESS) return err;
 
   // 2 is always a prime factor
-  if ((err = rvec_append(&factors, &RZ_TWO)) != RABIN_SUCCESS) goto out;
+  TRY(rvec_append(&factors, &RZ_TWO));
 
   // factorize c
-  if ((err = rz_factorize(&factors, c)) != RABIN_SUCCESS) goto out;
+  TRY(rz_factorize(&factors, c));
 
   // find a generator
-  if ((err = rz_find_gen(g, p, &factors)) != RABIN_SUCCESS) goto out;
+  TRY(rz_find_gen(g, p, &factors));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rvec_clear(&factors);
   return err;
 }
@@ -125,20 +123,21 @@ rabin_err_t rz_gen_proth_ntt(rz_t* g, rz_t* p, rz_t* omega, rz_t* psi, u64 k,
 
   rz_t p_bn, c_bn, two_k;
   rz_init_multi(&p_bn, &c_bn, &two_k, NULL);
+  rvec_t factors = {0};
 
   rabin_err_t err = rz_lshift(&two_k, &RZ_ONE, k);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
   // make c odd
   u64 curr_c = (c & 1) ? c : c + 1;
 
   while (1) {
     // p = curr_c * 2^k
-    if ((err = rz_set_u64(&c_bn, curr_c)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_mul(&p_bn, &two_k, &c_bn)) != RABIN_SUCCESS) goto out;
+    TRY(rz_set_u64(&c_bn, curr_c));
+    TRY(rz_mul(&p_bn, &two_k, &c_bn));
 
     // p = p + 1
-    if ((err = rz_add(&p_bn, &p_bn, &RZ_ONE)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add(&p_bn, &p_bn, &RZ_ONE));
 
     if (rz_bpsw(&p_bn)) {
       break;
@@ -148,32 +147,29 @@ rabin_err_t rz_gen_proth_ntt(rz_t* g, rz_t* p, rz_t* omega, rz_t* psi, u64 k,
   }
 
   // copy prime
-  if ((err = rz_copy(p, &p_bn)) != RABIN_SUCCESS) goto out;
+  TRY(rz_copy(p, &p_bn));
 
   // factorize p - 1 = c * 2^k
-  rvec_t factors = {0};
-  if ((err = rvec_init_dynamic(&factors)) != RABIN_SUCCESS) goto out;
+  TRY(rvec_init_dynamic(&factors));
 
   // 2 always divides p - 1
-  if ((err = rvec_append(&factors, &RZ_TWO)) != RABIN_SUCCESS) goto out_f;
+  TRY(rvec_append(&factors, &RZ_TWO));
 
   // factorize c
-  if ((err = rz_factorize(&factors, &c_bn)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_factorize(&factors, &c_bn));
 
   // now find a generator
-  if ((err = rz_find_gen(g, &p_bn, &factors)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_find_gen(g, &p_bn, &factors));
 
   // psi = g^c mod p
-  if ((err = rz_mod_exp(psi, g, &c_bn, p)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_mod_exp(psi, g, &c_bn, p));
 
   // omega = psi^2 mod p
-  if ((err = rz_mul(&two_k, psi, psi)) != RABIN_SUCCESS) goto out_f;
-  if ((err = rz_mod(omega, &two_k, p)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_mul(&two_k, psi, psi));
+  TRY(rz_mod(omega, &two_k, p));
 
-  err = RABIN_SUCCESS;
-out_f:
+cleanup:
   rvec_clear(&factors);
-out:
   rz_clear_multi(&p_bn, &c_bn, &two_k, NULL);
   return err;
 }
@@ -186,13 +182,12 @@ rabin_err_t rntt_ctx_init_simple(rntt_ctx_t* ctx, u64 k, u64 c)
   rz_init_multi(&p, &g, &omega, &psi, &tmp, NULL);
 
   rabin_err_t err = rz_gen_proth_ntt(&g, &p, &omega, &psi, k + 1, c);
-  if (err != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
 
-  if ((err = rntt_ctx_init(ctx, &p, &g, &omega, &psi, k, c)) != RABIN_SUCCESS)
-    goto out;
+  TRY(rntt_ctx_init(ctx, &p, &g, &omega, &psi, k, c));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&p, &g, &omega, &psi, &tmp, NULL);
   return err;
 }
@@ -207,34 +202,31 @@ rabin_err_t rntt_ctx_init_golden(rntt_ctx_t* ctx, u64 k)
 
   // p = 5* 2^55 + 1
   rabin_err_t err = rz_set_u64(&p, 180143985094819841);
-  if (err != RABIN_SUCCESS) goto out;
-  if ((err = rz_set_u64(&c_bn, 5)) != RABIN_SUCCESS) goto out;
+  if (err != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_set_u64(&c_bn, 5));
 
   // factorize p - 1 = 5 * 2^55
   rvec_t factors = {0};
-  if ((err = rvec_init_dynamic(&factors)) != RABIN_SUCCESS) goto out;
+  TRY(rvec_init_dynamic(&factors));
 
   // 2,5 always divide p - 1
-  if ((err = rvec_append(&factors, &RZ_TWO)) != RABIN_SUCCESS) goto out_f;
-  if ((err = rvec_append(&factors, &c_bn)) != RABIN_SUCCESS) goto out_f;
+  TRY(rvec_append(&factors, &RZ_TWO));
+  TRY(rvec_append(&factors, &c_bn));
 
-  if ((err = rz_set_u64(&g, 3)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_set_u64(&g, 3));
   // psi = g^(p - 1 / 2^k+1) = c * 2^(55 - (k+1)) mod p
-  if ((err = rz_set_u64(&tmp, 5)) != RABIN_SUCCESS) goto out_f;
-  if ((err = rz_lshift(&tmp, &tmp, 55 - (k + 1))) != RABIN_SUCCESS) goto out_f;
-  if ((err = rz_mod_exp(&psi, &g, &tmp, &p)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_set_u64(&tmp, 5));
+  TRY(rz_lshift(&tmp, &tmp, 55 - (k + 1)));
+  TRY(rz_mod_exp(&psi, &g, &tmp, &p));
 
   // omega = psi^2 mod p
-  if ((err = rz_mul(&tmp, &psi, &psi)) != RABIN_SUCCESS) goto out_f;
-  if ((err = rz_mod(&omega, &tmp, &p)) != RABIN_SUCCESS) goto out_f;
+  TRY(rz_mul(&tmp, &psi, &psi));
+  TRY(rz_mod(&omega, &tmp, &p));
 
-  if ((err = rntt_ctx_init(ctx, &p, &g, &omega, &psi, k, 5)) != RABIN_SUCCESS)
-    goto out_f;
+  TRY(rntt_ctx_init(ctx, &p, &g, &omega, &psi, k, 5));
 
-  err = RABIN_SUCCESS;
-out_f:
+cleanup:
   rvec_clear(&factors);
-out:
   rz_clear_multi(&p, &g, &omega, &psi, &tmp, &c_bn, NULL);
   return err;
 }
@@ -280,18 +272,21 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   ctx->k = k;
   ctx->n = n;
 
+  rz_t omega_inv, psi_inv, rz_n;
+  rz_init_multi(&omega_inv, &psi_inv, &rz_n, NULL);
+  rabin_err_t err = RABIN_SUCCESS;
+
   rz_init(&ctx->q);
-  rabin_err_t err = rz_copy(&ctx->q, p);
-  if (err != RABIN_SUCCESS) goto fail;
+  TRY(rz_copy(&ctx->q, p));
 
   // init montgomery context
-  if ((err = rz_mont_ctx_init(&ctx->mctx, p)) != RABIN_SUCCESS) goto fail;
+  TRY(rz_mont_ctx_init(&ctx->mctx, p));
 
   rz_init(&ctx->n_inv);
 
   if (n > SIZE_MAX / sizeof(rz_t) || n > SIZE_MAX / sizeof(u64)) {
     err = RABIN_ERR_OVERFLOW;
-    goto fail;
+    goto cleanup;
   }
   ctx->omega_powers = malloc(sizeof(rz_t) * n);
   ctx->omega_inv_powers = malloc(sizeof(rz_t) * n);
@@ -299,7 +294,7 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
 
   if (!ctx->omega_powers || !ctx->omega_inv_powers || !ctx->bit_rev_indices) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto fail;
+    goto cleanup;
   }
 
   for (u64 i = 0; i < n; i++) {
@@ -308,33 +303,20 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   }
 
   // precompute w^i mod q
-  if ((err = rz_set_u64(&ctx->omega_powers[0], 1)) != RABIN_SUCCESS) goto fail;
+  TRY(rz_set_u64(&ctx->omega_powers[0], 1));
 
   for (u64 i = 1; i < n; i++) {
-    if ((err = rz_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1],
-                      omega)) != RABIN_SUCCESS)
-      goto fail;
-    if ((err = rz_mod(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->q)) !=
-        RABIN_SUCCESS)
-      goto fail;
+    TRY(rz_mul(&ctx->omega_powers[i], &ctx->omega_powers[i - 1], omega));
+    TRY(rz_mod(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->q));
   }
 
-  rz_t omega_inv;
-  rz_init(&omega_inv);
-  if ((err = rz_mod_inverse(&omega_inv, omega, &ctx->q)) != RABIN_SUCCESS) {
-    rz_clear(&omega_inv);
-    goto fail;
-  }
+  TRY(rz_mod_inverse(&omega_inv, omega, &ctx->q));
 
-  if ((err = rz_set_u64(&ctx->omega_inv_powers[0], 1)) != RABIN_SUCCESS)
-    goto fail_inv;
+  TRY(rz_set_u64(&ctx->omega_inv_powers[0], 1));
   for (u64 i = 1; i < n; i++) {
-    if ((err = rz_mul(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i - 1],
-                      &omega_inv)) != RABIN_SUCCESS)
-      goto fail_inv;
-    if ((err = rz_mod(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i],
-                      &ctx->q)) != RABIN_SUCCESS)
-      goto fail_inv;
+    TRY(rz_mul(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i - 1],
+               &omega_inv));
+    TRY(rz_mod(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i], &ctx->q));
   }
 
   rz_clear(&omega_inv);
@@ -343,7 +325,7 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   ctx->psi_inv_powers = malloc(sizeof(rz_t) * n);
   if (!ctx->psi_powers || !ctx->psi_inv_powers) {
     err = RABIN_ERR_OUT_OF_MEMORY;
-    goto fail;
+    goto cleanup;
   }
 
   for (u64 i = 0; i < n; i++) {
@@ -352,65 +334,36 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   }
 
   // compute psi^i mod q
-  if ((err = rz_set_u64(&ctx->psi_powers[0], 1)) != RABIN_SUCCESS) goto fail;
+  TRY(rz_set_u64(&ctx->psi_powers[0], 1));
   for (u64 i = 1; i < n; i++) {
-    if ((err = rz_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], psi)) !=
-        RABIN_SUCCESS)
-      goto fail;
-    if ((err = rz_mod(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->q)) !=
-        RABIN_SUCCESS)
-      goto fail;
+    TRY(rz_mul(&ctx->psi_powers[i], &ctx->psi_powers[i - 1], psi));
+    TRY(rz_mod(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->q));
   }
 
-  rz_t psi_inv;
-  rz_init(&psi_inv);
-  if ((err = rz_mod_inverse(&psi_inv, psi, &ctx->q)) != RABIN_SUCCESS) {
-    rz_clear(&psi_inv);
-    goto fail;
-  }
+  TRY(rz_mod_inverse(&psi_inv, psi, &ctx->q));
 
-  if ((err = rz_set_u64(&ctx->psi_inv_powers[0], 1)) != RABIN_SUCCESS)
-    goto fail_psi_inv;
+  TRY(rz_set_u64(&ctx->psi_inv_powers[0], 1));
   for (u64 i = 1; i < n; i++) {
-    if ((err = rz_mul(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i - 1],
-                      &psi_inv)) != RABIN_SUCCESS)
-      goto fail_psi_inv;
-    if ((err = rz_mod(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i],
-                      &ctx->q)) != RABIN_SUCCESS)
-      goto fail_psi_inv;
+    TRY(rz_mul(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i - 1], &psi_inv));
+    TRY(rz_mod(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i], &ctx->q));
   }
 
   rz_clear(&psi_inv);
 
   // 6. Compute n_inv = n^-1 mod q
-  rz_t rz_n;
-  rz_init(&rz_n);
-  if ((err = rz_set_u64(&rz_n, n)) != RABIN_SUCCESS) {
-    rz_clear(&rz_n);
-    goto fail;
-  }
-  if ((err = rz_mod_inverse(&ctx->n_inv, &rz_n, &ctx->q)) != RABIN_SUCCESS) {
-    rz_clear(&rz_n);
-    goto fail;
-  }
+  TRY(rz_set_u64(&rz_n, n));
+  TRY(rz_mod_inverse(&ctx->n_inv, &rz_n, &ctx->q));
   rz_clear(&rz_n);
 
   for (u64 i = 0; i < n; i++) {
-    if ((err = rz_mont_in(&ctx->omega_powers[i], &ctx->omega_powers[i],
-                          &ctx->mctx)) != RABIN_SUCCESS)
-      goto fail;
-    if ((err = rz_mont_in(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i],
-                          &ctx->mctx)) != RABIN_SUCCESS)
-      goto fail;
-    if ((err = rz_mont_in(&ctx->psi_powers[i], &ctx->psi_powers[i],
-                          &ctx->mctx)) != RABIN_SUCCESS)
-      goto fail;
-    if ((err = rz_mont_in(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i],
-                          &ctx->mctx)) != RABIN_SUCCESS)
-      goto fail;
+    TRY(rz_mont_in(&ctx->omega_powers[i], &ctx->omega_powers[i], &ctx->mctx));
+    TRY(rz_mont_in(&ctx->omega_inv_powers[i], &ctx->omega_inv_powers[i],
+                   &ctx->mctx));
+    TRY(rz_mont_in(&ctx->psi_powers[i], &ctx->psi_powers[i], &ctx->mctx));
+    TRY(rz_mont_in(&ctx->psi_inv_powers[i], &ctx->psi_inv_powers[i],
+                   &ctx->mctx));
   }
-  if ((err = rz_mont_in(&ctx->n_inv, &ctx->n_inv, &ctx->mctx)) != RABIN_SUCCESS)
-    goto fail;
+  TRY(rz_mont_in(&ctx->n_inv, &ctx->n_inv, &ctx->mctx));
 
   // 7. Precompute Bit-Reversal Permutation Indices
   u64 bits = 0;
@@ -428,16 +381,9 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
     ctx->bit_rev_indices[i] = rev;
   }
 
-  err = RABIN_SUCCESS;
-  return err;
-
-fail_inv:
-  rz_clear(&omega_inv);
-  goto fail;
-fail_psi_inv:
-  rz_clear(&psi_inv);
-fail:
-  rntt_ctx_clear(ctx);
+cleanup:
+  rz_clear_multi(&omega_inv, &psi_inv, &rz_n, NULL);
+  if (err != RABIN_SUCCESS) rntt_ctx_clear(ctx);
   return err;
 }
 
@@ -483,9 +429,14 @@ rabin_err_t rntt_cyclic_forward(rpol_t* a_hat, const rpol_t* a, rntt_ctx_t* ctx)
 
   u64 n = ctx->n;
   rpol_t res = {0};
+  rz_t t, u;
+  rz_init_multi(&t, &u, NULL);
   rabin_err_t err = rpol_init(&res);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rpol_alloc(&res, n)) != RABIN_SUCCESS) goto out_res;
+  if (err != RABIN_SUCCESS) {
+    rpol_clear(&res);
+    return err;
+  }
+  TRY(rpol_alloc(&res, n));
 
   // copy and reverse bits and into montgomery form
   for (u64 i = 0; i < n; i++) {
@@ -493,16 +444,13 @@ rabin_err_t rntt_cyclic_forward(rpol_t* a_hat, const rpol_t* a, rntt_ctx_t* ctx)
     if (i <= a->deg) {
       if ((err = rz_mont_in(&res.coeff[rev], &a->coeff[i], &ctx->mctx)) !=
           RABIN_SUCCESS)
-        goto out_res;
+        goto cleanup;
     } else {
-      if ((err = rz_set_u64(&res.coeff[rev], 0)) != RABIN_SUCCESS) goto out_res;
+      if ((err = rz_set_u64(&res.coeff[rev], 0)) != RABIN_SUCCESS) goto cleanup;
     }
   }
 
   // cooley tukey butterfly
-
-  rz_t t, u;
-  rz_init_multi(&t, &u, NULL);
 
   for (u64 len = 2; len <= n; len <<= 1) {
     u64 half = len >> 1;
@@ -517,56 +465,41 @@ rabin_err_t rntt_cyclic_forward(rpol_t* a_hat, const rpol_t* a, rntt_ctx_t* ctx)
         u64 odd = i + j + half;
 
         // t = res[odd] * w mod q
-        if ((err = rz_mont_mul(&t, &res.coeff[odd], w, &ctx->mctx)) !=
-            RABIN_SUCCESS)
-          goto out;
+        TRY(rz_mont_mul(&t, &res.coeff[odd], w, &ctx->mctx));
 
         // u = res.data[even]
-        if ((err = rz_copy(&u, &res.coeff[even])) != RABIN_SUCCESS) goto out;
+        TRY(rz_copy(&u, &res.coeff[even]));
 
         // res[even] = (u + t) mod q
-        if ((err = rz_add(&res.coeff[even], &u, &t)) != RABIN_SUCCESS) goto out;
+        TRY(rz_add(&res.coeff[even], &u, &t));
         // rz_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         if (rz_cmp(&res.coeff[even], &ctx->q) >= 0) {
-          if ((err = rz_sub(&res.coeff[even], &res.coeff[even], &ctx->q)) !=
-              RABIN_SUCCESS)
-            goto out;
+          TRY(rz_sub(&res.coeff[even], &res.coeff[even], &ctx->q));
         }
 
         // res[odd] = (u - t) mod q
-        if ((err = rz_sub(&res.coeff[odd], &u, &t)) != RABIN_SUCCESS) goto out;
-        if ((err = rz_add(&res.coeff[odd], &res.coeff[odd], &ctx->q)) !=
-            RABIN_SUCCESS)
-          goto out;
+        TRY(rz_sub(&res.coeff[odd], &u, &t));
+        TRY(rz_add(&res.coeff[odd], &res.coeff[odd], &ctx->q));
         // rz_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         if (rz_cmp(&res.coeff[odd], &ctx->q) >= 0) {
-          if ((err = rz_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q)) !=
-              RABIN_SUCCESS)
-            goto out;
+          TRY(rz_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q));
         }
       }
     }
   }
 
-out:
+cleanup:
   rz_clear_multi(&t, &u, NULL);
-  rpol_clear(a_hat);
-  if (err != RABIN_SUCCESS) goto out_res;
-  if ((err = rpol_init(a_hat)) != RABIN_SUCCESS) goto out_res;
-  if ((err = rpol_alloc(a_hat, n)) != RABIN_SUCCESS) goto out_res;
-
-  // rpol_copy(a_hat, &res);
-
-  for (u64 i = 0; i < n; i++) {
-    if ((err = rz_copy(&a_hat->coeff[i], &res.coeff[i])) != RABIN_SUCCESS)
-      goto out_res;
+  if (err == RABIN_SUCCESS) {
+    rpol_clear(a_hat);
+    rabin_err_t terr = rpol_init(a_hat);
+    if (terr == RABIN_SUCCESS) terr = rpol_alloc(a_hat, n);
+    for (u64 i = 0; terr == RABIN_SUCCESS && i < n; i++)
+      terr = rz_copy(&a_hat->coeff[i], &res.coeff[i]);
+    if (terr == RABIN_SUCCESS) a_hat->deg = n - 1;
+    err = terr;
   }
-
-  a_hat->deg = n - 1;
-
-  err = RABIN_SUCCESS;
-out_res:
   rpol_clear(&res);
   return err;
 }
@@ -583,24 +516,26 @@ rabin_err_t rntt_cyclic_inverse_mont_in(rpol_t* a_hat, const rpol_t* a,
 
   u64 n = ctx->n;
   rpol_t res = {0};
+  rz_t t, u;
+  rz_init_multi(&t, &u, NULL);
   rabin_err_t err = rpol_init(&res);
-  if (err != RABIN_SUCCESS) return err;
-  if ((err = rpol_alloc(&res, n)) != RABIN_SUCCESS) goto out_res;
+  if (err != RABIN_SUCCESS) {
+    rpol_clear(&res);
+    return err;
+  }
+  TRY(rpol_alloc(&res, n));
 
   // copy and reverse bits
   for (u64 i = 0; i < n; i++) {
     u64 rev = ctx->bit_rev_indices[i];
     if (i <= a->deg) {
       if ((err = rz_copy(&res.coeff[rev], &a->coeff[i])) != RABIN_SUCCESS)
-        goto out_res;
+        goto cleanup;
     } else {
-      if ((err = rz_set_u64(&res.coeff[rev], 0)) != RABIN_SUCCESS) goto out_res;
+      if ((err = rz_set_u64(&res.coeff[rev], 0)) != RABIN_SUCCESS) goto cleanup;
     }
   }
   // cooley tukey butterfly
-
-  rz_t t, u;
-  rz_init_multi(&t, &u, NULL);
 
   for (u64 len = 2; len <= n; len <<= 1) {
     u64 half = len >> 1;
@@ -616,33 +551,25 @@ rabin_err_t rntt_cyclic_inverse_mont_in(rpol_t* a_hat, const rpol_t* a,
         u64 odd = i + j + half;
 
         // t = res[odd] * w mod q
-        if ((err = rz_mont_mul(&t, &res.coeff[odd], w, &ctx->mctx)) !=
-            RABIN_SUCCESS)
-          goto out;
+        TRY(rz_mont_mul(&t, &res.coeff[odd], w, &ctx->mctx));
 
         // u = res.data[even]
-        if ((err = rz_copy(&u, &res.coeff[even])) != RABIN_SUCCESS) goto out;
+        TRY(rz_copy(&u, &res.coeff[even]));
 
         // res[even] = (u + t) mod q
-        if ((err = rz_add(&res.coeff[even], &u, &t)) != RABIN_SUCCESS) goto out;
+        TRY(rz_add(&res.coeff[even], &u, &t));
         // rz_mod(&res.coeff[even], &res.coeff[even], &ctx->q);
 
         if (rz_cmp(&res.coeff[even], &ctx->q) >= 0) {
-          if ((err = rz_sub(&res.coeff[even], &res.coeff[even], &ctx->q)) !=
-              RABIN_SUCCESS)
-            goto out;
+          TRY(rz_sub(&res.coeff[even], &res.coeff[even], &ctx->q));
         }
 
         // res[odd] = (u - t) mod q
-        if ((err = rz_sub(&res.coeff[odd], &u, &t)) != RABIN_SUCCESS) goto out;
-        if ((err = rz_add(&res.coeff[odd], &res.coeff[odd], &ctx->q)) !=
-            RABIN_SUCCESS)
-          goto out;
+        TRY(rz_sub(&res.coeff[odd], &u, &t));
+        TRY(rz_add(&res.coeff[odd], &res.coeff[odd], &ctx->q));
         // rz_mod(&res.coeff[odd], &res.coeff[odd], &ctx->q);
         if (rz_cmp(&res.coeff[odd], &ctx->q) >= 0) {
-          if ((err = rz_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q)) !=
-              RABIN_SUCCESS)
-            goto out;
+          TRY(rz_sub(&res.coeff[odd], &res.coeff[odd], &ctx->q));
         }
       }
     }
@@ -650,33 +577,23 @@ rabin_err_t rntt_cyclic_inverse_mont_in(rpol_t* a_hat, const rpol_t* a,
 
   // scale by n^-1 mod q
   for (u64 i = 0; i < n; i++) {
-    if ((err = rz_mont_mul(&res.coeff[i], &res.coeff[i], &ctx->n_inv,
-                           &ctx->mctx)) != RABIN_SUCCESS)
-      goto out;
+    TRY(rz_mont_mul(&res.coeff[i], &res.coeff[i], &ctx->n_inv, &ctx->mctx));
     // rz_mod(&res.coeff[i], &res.coeff[i], &ctx->q);
 
-    if ((err = rz_mont_out(&res.coeff[i], &res.coeff[i], &ctx->mctx)) !=
-        RABIN_SUCCESS)
-      goto out;
+    TRY(rz_mont_out(&res.coeff[i], &res.coeff[i], &ctx->mctx));
   }
 
-out:
+cleanup:
   rz_clear_multi(&t, &u, NULL);
-  rpol_clear(a_hat);
-  if (err != RABIN_SUCCESS) goto out_res;
-  if ((err = rpol_init(a_hat)) != RABIN_SUCCESS) goto out_res;
-  if ((err = rpol_alloc(a_hat, n)) != RABIN_SUCCESS) goto out_res;
-
-  for (u64 i = 0; i < n; i++) {
-    if ((err = rz_copy(&a_hat->coeff[i], &res.coeff[i])) != RABIN_SUCCESS)
-      goto out_res;
+  if (err == RABIN_SUCCESS) {
+    rpol_clear(a_hat);
+    rabin_err_t terr = rpol_init(a_hat);
+    if (terr == RABIN_SUCCESS) terr = rpol_alloc(a_hat, n);
+    for (u64 i = 0; terr == RABIN_SUCCESS && i < n; i++)
+      terr = rz_copy(&a_hat->coeff[i], &res.coeff[i]);
+    if (terr == RABIN_SUCCESS) a_hat->deg = n - 1;
+    err = terr;
   }
-  // rpol_copy(a_hat, &res);
-
-  a_hat->deg = n - 1;
-
-  err = RABIN_SUCCESS;
-out_res:
   rpol_clear(&res);
   return err;
 }

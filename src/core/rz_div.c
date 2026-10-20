@@ -106,13 +106,13 @@ rabin_err_t rz_newton_div(rz_t* q, const rz_t* a, const rz_t* d)
   u64 P = (u64)rz_bit_length(a) + 32;
 
   /* seed the iteration with one real division: x = 2^P / d */
-  if ((err = rz_set_u64(&x, 1)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_lshift(&x, &x, P)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_div(&x, &x, d)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&x, 1));
+  TRY(rz_lshift(&x, &x, P));
+  TRY(rz_div(&x, &x, d));
 
   /* two_p = 2^{P} */
-  if ((err = rz_set_u64(&two_p, 1)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_lshift(&two_p, &two_p, P)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&two_p, 1));
+  TRY(rz_lshift(&two_p, &two_p, P));
 
   /*
    * Newton iteration for f(x) = 1/x - d, i.e.
@@ -122,30 +122,29 @@ rabin_err_t rz_newton_div(rz_t* q, const rz_t* a, const rz_t* d)
    * Each step roughly doubles the number of correct bits of x.
    */
   for (u64 i = 0; i < estimate_iterations((u64)rz_bit_length(d)); i++) {
-    if ((err = rz_mul(&tmp, d, &x)) != RABIN_SUCCESS)
-      goto out; /* tmp = d * x */
-    if ((err = rz_sub(&error, &two_p, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_mul(&tmp, d, &x)); /* tmp = d * x */
+    TRY(rz_sub(&error, &two_p, &tmp));
     if (rz_is_zero(&error)) break; /* reciprocal is exact */
 
-    if ((err = rz_mul(&tmp, &x, &error)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_rshift(&tmp, &tmp, P)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_add(&x, &x, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_mul(&tmp, &x, &error));
+    TRY(rz_rshift(&tmp, &tmp, P));
+    TRY(rz_add(&x, &x, &tmp));
   }
 
   /* q = (a * x) >> P, then fix up the (rare) off-by-one */
-  if ((err = rz_mul(q, a, &x)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_rshift(q, q, P)) != RABIN_SUCCESS) goto out;
+  TRY(rz_mul(q, a, &x));
+  TRY(rz_rshift(q, q, P));
 
-  if ((err = rz_mul(&tmp, q, d)) != RABIN_SUCCESS) goto out;
-  if ((err = rz_sub(&r, a, &tmp)) != RABIN_SUCCESS) goto out;
+  TRY(rz_mul(&tmp, q, d));
+  TRY(rz_sub(&r, a, &tmp));
 
   while (rz_cmp(&r, d) >= 0) {
-    if ((err = rz_add_u64(q, q, 1)) != RABIN_SUCCESS) goto out;
-    if ((err = rz_sub(&r, &r, d)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add_u64(q, q, 1));
+    TRY(rz_sub(&r, &r, d));
   }
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&x, &tmp, &two_p, &r, &error, NULL);
   return err;
 }
@@ -529,8 +528,8 @@ rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b)
   }
 
   rabin_err_t err = RABIN_SUCCESS;
-  if (Q && (err = rz_alloc(Q, qn)) != RABIN_SUCCESS) goto out;
-  if (R && (err = rz_alloc(R, vn)) != RABIN_SUCCESS) goto out;
+  if (Q && (err = rz_alloc(Q, qn)) != RABIN_SUCCESS) goto cleanup;
+  if (R && (err = rz_alloc(R, vn)) != RABIN_SUCCESS) goto cleanup;
 
   if (vn == 1) {
     u64 rem = limbs_divrem_1(Q ? Q->limbs : NULL, a->limbs, an, b->limbs[0]);
@@ -550,7 +549,7 @@ rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b)
       scratch = rz_scratch_get(need);
       if (scratch == NULL) {
         err = RABIN_ERR_OUT_OF_MEMORY;
-        goto out;
+        goto cleanup;
       }
       from_arena = true;
     }
@@ -574,13 +573,13 @@ rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b)
   }
 
   if (alq) {
-    if ((err = rz_copy(q, &tq)) != RABIN_SUCCESS) goto out;
+    TRY(rz_copy(q, &tq));
   }
   if (alr) {
-    if ((err = rz_copy(r, &tr)) != RABIN_SUCCESS) goto out;
+    TRY(rz_copy(r, &tr));
   }
 
-out:
+cleanup:
   if (alq) rz_clear(&tq);
   if (alr) rz_clear(&tr);
   return err;
@@ -613,7 +612,7 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b)
    *
    * with |r| < |b|.
    */
-  if ((err = rz_divmod(q, &r, a, b)) != RABIN_SUCCESS) goto cleanup;
+  TRY(rz_divmod(q, &r, a, b));
 
   /*
    * Convert to Euclidean division:

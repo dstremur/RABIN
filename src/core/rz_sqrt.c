@@ -41,26 +41,26 @@ rabin_err_t rz_isqrt_heron(rz_t* r, const rz_t* a)
 
   // set x0 = 2^{log_2(a) / 2 + 1}
   u64 k = rz_bit_length(a);
-  if ((err = rz_set_u64(&xn, 1)) != RABIN_SUCCESS) goto out;
+  TRY(rz_set_u64(&xn, 1));
 
-  if ((err = rz_lshift(&xn, &xn, (k + 1) / 2 + 1)) != RABIN_SUCCESS) goto out;
+  TRY(rz_lshift(&xn, &xn, (k + 1) / 2 + 1));
 
   while (true) {
-    if ((err = rz_div(&tmp, a, &xn)) != RABIN_SUCCESS) goto out;
+    TRY(rz_div(&tmp, a, &xn));
 
-    if ((err = rz_add(&xnext, &xn, &tmp)) != RABIN_SUCCESS) goto out;
+    TRY(rz_add(&xnext, &xn, &tmp));
 
-    if ((err = rz_rshift1(&xnext)) != RABIN_SUCCESS) goto out;
+    TRY(rz_rshift1(&xnext));
     if (rz_cmp(&xnext, &xn) >= 0) {
       break;
     }
 
-    if ((err = rz_swap(&xn, &xnext)) != RABIN_SUCCESS) goto out;
+    TRY(rz_swap(&xn, &xnext));
   }
-  if ((err = rz_copy(r, &xn)) != RABIN_SUCCESS) goto out;
+  TRY(rz_copy(r, &xn));
 
   err = RABIN_SUCCESS;
-out:
+cleanup:
   rz_clear_multi(&xn, &xnext, &tmp, NULL);
   return err;
 }
