@@ -19,4 +19,10 @@ typedef enum {
   RABIN_ERR_MATRIX_DIM = -6      ///< Matrix dimensions do not match.
 } rabin_err_t;
 
+#define TRY(expr)                           \
+  do {                                      \
+    err = (expr);                           \
+    if (err != RABIN_SUCCESS) goto cleanup; \
+  } while (0)
+
 #endif

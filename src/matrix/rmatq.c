@@ -79,6 +79,26 @@ out_TA:
   return err;
 }
 
+rabin_err_t rmatq_get(rq_t* a, rmatq_t* A, u64 r, u64 c)
+{
+  if (!A || !a) return RABIN_ERR_INVALID_ARG;
+
+  rz_copy(&a->den, &A->den);
+
+  rz_copy(&a->num, RMAT_GET(&A->M, r, c));
+
+  rq_normalize(a);
+}
+
+rabin_err_t rmatq_set(rmatq_t* A, rq_t* a, u64 r, u64 c)
+{
+  if (!A || !a) return RABIN_ERR_INVALID_ARG;
+
+  rz_copy(&a->num, RMAT_GET(&A->M, r, c));
+
+  rq_normalize(a);
+}
+
 rabin_err_t rmatq_print(const rmatq_t* A)
 {
   if (A == NULL) return RABIN_ERR_NULL_PTR;

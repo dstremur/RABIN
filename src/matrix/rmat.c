@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../include/rmatq.h"
 #include "../../include/rns.h"
 #include "../../include/rns_primes.h"
 #include "../../include/rpol.h"
@@ -3392,4 +3393,67 @@ rabin_err_t rmat_algebraic_relation(double re, double im, u64 degree,
   free(zre);
   free(zim);
   return e;
+}
+
+rabin_err_t rmatq_cholesky(rmatq_t* C, rmatq_t* A)
+{
+  rabin_err_t err = RABIN_SUCCESS;
+  rmatq_t Q = {0};  // Scratch working matrix for in-side modifications
+
+  if (!C || !A || A->rows != A->cols) {
+    return RABIN_ERR_INVALID_ARG;
+  }
+
+  u64 n = A->rows;
+
+  // 1. Initialize scratch matrix Q and copy A into it
+  TRY(rmatq_init(&Q, n, n));
+  TRY(rmatq_copy(&Q, A));
+
+  // Initialize output matrix C
+  TRY(rmatq_init(C, n, n));
+
+  // 2. & 3. Main reduction loops[cite: 1]
+  for (i64 i = 0; i < n; i++) {
+    for (i64 j = i + 1; j < n; j++) {
+      // q_{j,i} <- q_{i,j} and q_{i,j} <- q_{i,j} / q_{i,i}[cite: 1]
+      TRY(rmatq_set(&Q, rmatq_get(&Q, i, j), j, i));  // Symmetry
+      TRY(rmatq_div_element(&Q, i, j, rmatq_get(&Q, i, i)));
+    }
+
+    for (i64 k = i + 1; k < n; k++) {
+      for (i64 l = k; l < n; l++) {
+        // q_{k,l} <- q_{k,l} - q_{k,i} * q_{i,l}[cite: 1]
+        // (Assuming helper functions for rational arithmetic operations)
+        TRY(rmatq_sub_mul_elements(&Q, k, l, &Q, k, i, &Q, i, l));
+      }
+    }
+  }
+
+  // 4. Find matrix R such that A = R^t R[cite: 1]
+  for (i64 i = 0; i < n; i++) {
+    for (i64 j = 0; j < n; j++) {
+      if (j < i) {
+        // r_{i,j} = 0 for 1 <= j < i <= n[cite: 1]
+        TRY(rmatq_set_zero(C, i, j));
+      } else if (j == i) {
+        // r_{i,i} <- sqrt(q_{i,i})[cite: 1]
+        TRY(rmatq_sqrt_element(C, &Q, i, i));
+      } else {
+        // r_{i,j} = r_{i,i} * q_{i,j} for 1 <= i < j <= n[cite: 1]
+        TRY(rmatq_mul_element_scaled(C, i, j, C, i, i, &Q, i, j));
+      }
+    }
+  }
+
+  goto cleanup;
+
+cleanup:
+  rmatq_free(&Q);
+  // Note: If an error occurred prior to completion, ensure C is cleaned up or
+  // handled by caller.
+  if (err != RABIN_SUCCESS) {
+    rmatq_free(C);
+  }
+  return err;
 }

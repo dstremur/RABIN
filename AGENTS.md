@@ -21,6 +21,7 @@ It is also a learning project that aims to implement as many algorithms as possi
 - **Formatting:** Use the formatter. Braces on new lines for functions (Allman style), same-line for control statements.
 - **Structure:** `include/` for public API headers, `src/` for internal implementation files, `tests/` for unit tests. Do not expose internal helper functions in public headers.
 - `src` has `arch` for asm routines, `core` for core functions, etc. 
+- All functions return arguments come first then the inputs, just like Intel assembly syntax
 
 # C Coding & Safety Guidelines
 - **Memory Allocation:** Always check memory allocation results. Never leak memory on early returns or error states.
