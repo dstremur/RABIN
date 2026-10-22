@@ -255,6 +255,95 @@ rabin_err_t rmatq_set_zero(rmatq_t* A, u64 r, u64 c);
  */
 rabin_err_t rmatq_cholesky(rmatq_t* C, const rmatq_t* A);
 
+/**
+ * @brief Product of two rational matrices: \f$R = A \cdot B\f$.
+ *
+ * \f$R.den = A.den \cdot B.den\f$ before normalization; entries are exact
+ * integer combinations \f$\sum_k A.M[i][k] \cdot B.M[k][j]\f$. \f$R\f$ must
+ * already be initialized as \f$m \times p\f$ where \f$A\f$ is
+ * \f$m \times n\f$ and \f$B\f$ is \f$n \times p\f$; \f$R\f$ may not alias
+ * \f$A\f$ or \f$B\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot p \cdot d^2)\f$ where \f$d =\f$ the entry
+ * size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(m \cdot p)\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Left factor.
+ * @param[in]  B Right factor.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_normalize()
+ */
+rabin_err_t rmatq_mul(rmatq_t* R, const rmatq_t* A, const rmatq_t* B);
+
+/**
+ * @brief Exact inverse of a rational matrix: \f$B = A^{-1}\f$.
+ *
+ * Gauss-Jordan elimination with partial pivoting over \f$\mathbb{Q}\f$;
+ * every value stays exact. \f$A\f$ must be square and invertible,
+ * otherwise the call fails and \f$B\f$ is left untouched. \f$B\f$ must
+ * already be initialized as \f$n \times n\f$; \f$B\f$ may not alias
+ * \f$A\f$. The result is verified against the identity before being
+ * stored.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2)\f$ where \f$n \times n\f$ is the dimension
+ * of \f$A\f$ and \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(n^2)\f$ rationals (augmented system)
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] B Result inverse matrix.
+ * @param[in]  A Square invertible rational matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, RABIN_ERR_OUT_OF_MEMORY, or
+ * RABIN_ERR_DIV_BY_ZERO (singular matrix).
+ * @see rmatq_mul()
+ */
+rabin_err_t rmatq_inv(rmatq_t* B, const rmatq_t* A);
+
+/**
+ * @brief Shortest non-zero vector of the lattice \f$(\mathbb{Z}^n, Q)\f$.
+ *
+ * \f$Q(x) = x^t A x\f$ is the positive definite quadratic form defined by
+ * the symmetric rational matrix \f$A\f$; the function returns (one of) the
+ * non-zero \f$x \in \mathbb{Z}^n\f$ minimizing \f$Q(x)\f$ and the exact
+ * value \f$Q(x)\f$. It runs the full Fincke-Pohst pipeline of Cohen
+ * 2.7.7: LLL reduction (rmat_lll()) of the dual lattice of
+ * \f$(\mathbb{Z}^n, Q)\f$, whose rows are obtained from \f$A^{-1}\f$ via
+ * rmat_inv() (they coincide with the rows of Cholesky's \f$R^{-1}\f$ but
+ * never need square roots), the unimodular \f$U = (H^t)^{-1}\f$,
+ * reordering of the columns \f$s_i = Ru_i\f$ of \f$S = RU\f$ by
+ * increasing \f$\Vert s_i \Vert^2 = Q(u_i)\f$, the Cholesky coefficients
+ * (steps 1-3 of Cohen 2.7.6) of \f$U^t A U\f$, and exact enumeration of
+ * all \f$y\f$ with \f$Q'(y) \le \min_i \Vert s_i \Vert^2\f$. Since those
+ * are genuine lattice vectors the minimum is attained inside the search
+ * box, and all bounds use integer square roots (rz_isqrt()), so the
+ * result is exact with no floating point.
+ *
+ * The number of enumerated nodes is exponential in \f$n\f$; keep
+ * \f$n\f$ small.
+ *
+ * @param[out] x    Shortest vector; must already be initialized with
+ *                  rvec_init() to \f$n = A \to M.rows\f$ elements.
+ * @param[out] norm Exact norm \f$Q(x)\f$.
+ * @param[in]  A    Symmetric positive definite rational Gram matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, RABIN_ERR_OUT_OF_MEMORY,
+ * RABIN_ERR_INVALID_ARG (\f$n = 0\f$, or a Cholesky pivot is not strictly
+ * positive), or RABIN_ERR_DIV_BY_ZERO (zero pivot).
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, Algorithms 2.7.5 (short vectors),
+ * 2.7.6 (Cholesky) and 2.7.7 (Fincke-Pohst); P. Fincke, M. Pohst,
+ * "A new procedure for computing local height bounds," Mathematics of
+ * Computation, vol. 35, 1980.
+ * @see rmatq_cholesky(), rmat_lll()
+ */
+rabin_err_t rmatq_fincke_pohst(rvec_t* x, rq_t* norm, const rmatq_t* A);
+
 /*
  function rmatq_rref(R, A):
     // Phase 0: Copy input and set up tracking

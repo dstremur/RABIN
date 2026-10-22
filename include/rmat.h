@@ -603,6 +603,51 @@ rabin_err_t rmat_det_bareiss(rz_t* det, const rmat_t* A);
 rabin_err_t rmat_id(rmat_t* I, const u64 n);
 
 /**
+ * @brief Transpose of a matrix: \f$T = A^t\f$.
+ *
+ * \f$T\f$ must already be initialized as \f$c \times r\f$ where
+ * \f$r \times c\f$ are the dimensions of \f$A\f$; \f$T\f$ may not alias
+ * \f$A\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot d)\f$ where \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(r \cdot c)\f$ bignums
+ *
+ * @param[out] T Result matrix (\f$c \times r\f$).
+ * @param[in]  A Source matrix (\f$r \times c\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_copy()
+ */
+rabin_err_t rmat_transpose(rmat_t* T, const rmat_t* A);
+
+/**
+ * @brief Exact inverse of a unimodular integer matrix: \f$B = A^{-1}\f$.
+ *
+ * Verifies \f$\det(A) = \pm 1\f$ with rmat_det(), then runs fraction-free
+ * Gauss-Jordan elimination on the augmented system \f$[A | I]\f$ (every
+ * intermediate value stays integral) and normalizes each row by its pivot,
+ * checking the product against the identity before storing it. \f$B\f$ must
+ * already be initialized with the same dimensions as \f$A\f$ and is left
+ * untouched when the inverse does not exist or is not integral.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2)\f$ where \f$n \times n\f$ is the dimension
+ * of \f$A\f$ and \f$d =\f$ the entry size in limbs
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums (augmented system)
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] B Result inverse matrix.
+ * @param[in]  A Square integer matrix with \f$\det(A) = \pm 1\f$.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, RABIN_ERR_OUT_OF_MEMORY, or
+ * RABIN_ERR_INVALID_ARG (not unimodular or verification failed).
+ * @see rmat_det(), rmat_mul()
+ */
+rabin_err_t rmat_inv_unimodular(rmat_t* B, const rmat_t* A);
+
+/**
  * @brief Greatest common divisor of all entries of a matrix.
  *
  * Let \f$d =\f$ A->rows \f$\cdot\f$ A->cols.

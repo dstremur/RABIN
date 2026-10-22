@@ -98,7 +98,8 @@ test_%: $(BUILD_DIR)/test_%
 tests: $(TEST_BINS)
 
 TESTS = test_add test_add_u64 test_bpsw test_cmp test_div test_div_gcd \
-        test_divmod test_divmod_u64 test_cholesky test_field test_gcd \
+        test_divmod test_divmod_u64 test_cholesky test_field \
+        test_fincke_pohst test_gcd \
         test_gcd_extended test_gmp test_isqrt test_log_2 \
         test_lshift test_mod test_mod_inverse test_mod_u64
 
@@ -113,7 +114,7 @@ VALGRIND_FLAGS = --error-exitcode=99 --leak-check=full \
                  --show-leak-kinds=definite,possible
 VALGRIND_TESTS = test_add test_add_u64 test_cholesky test_cmp test_div \
                  test_divmod \
-                 test_divmod_u64 test_field test_gcd test_gcd_extended \
+                 test_divmod_u64 test_field test_fincke_pohst test_gcd test_gcd_extended \
                  test_isqrt test_log_2 test_lshift test_mod \
                  test_mod_inverse test_mod_u64
 

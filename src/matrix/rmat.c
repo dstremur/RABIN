@@ -347,6 +347,7 @@ rabin_err_t rmat_mv(rvec_t* r, const rmat_t* A, rvec_t* v)
 
   for (u64 i = 0; i < A->rows; i++) {
     TRY(rmat_get_row(&tmp, A, i));
+    TRY(rz_set_u64(&dot, 0));
     TRY(rvec_dot(&dot, v, &tmp));
     TRY(rvec_set(r, &dot, i));
   }
@@ -371,6 +372,7 @@ rabin_err_t rmat_vm(rvec_t* r, const rmat_t* A, rvec_t* v)
 
   for (u64 i = 0; i < A->cols; i++) {
     TRY(rmat_get_col(&tmp, A, i));
+    TRY(rz_set_u64(&dot, 0));
     TRY(rvec_dot(&dot, v, &tmp));
     TRY(rvec_set(r, &dot, i));
   }
@@ -867,6 +869,130 @@ rabin_err_t rmat_id(rmat_t* I, const u64 n)
 
 cleanup:
   rz_clear_multi(&a, &b, NULL);
+  return err;
+}
+
+rabin_err_t rmat_transpose(rmat_t* T, const rmat_t* A)
+{
+  if (T == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
+  if (T->rows != A->cols || T->cols != A->rows) return RABIN_ERR_MATRIX_DIM;
+  if (A->rows > SIZE_MAX / (A->cols + 1)) return RABIN_ERR_OVERFLOW;
+
+  rabin_err_t err = RABIN_SUCCESS;
+
+#pragma omp for collapse(2)
+  for (u64 i = 0; i < A->rows; i++) {
+    for (u64 j = 0; j < A->cols; j++) {
+      err = rz_copy(RMAT_GET(T, j, i), RMAT_GET(A, i, j));
+    }
+  }
+
+  return err;
+}
+
+rabin_err_t rmat_inv_unimodular(rmat_t* B, const rmat_t* A)
+{
+  if (B == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
+  if (!rmat_is_square(A)) return RABIN_ERR_MATRIX_DIM;
+  if (B->rows != A->rows || B->cols != A->cols) return RABIN_ERR_MATRIX_DIM;
+
+  const u64 n = A->rows;
+  if (n != 0 && n > SIZE_MAX / 2 / n) return RABIN_ERR_OVERFLOW;
+  if (n == 0) return RABIN_SUCCESS;
+
+  rz_t det;
+  rz_init(&det);
+  rmat_t W = {0};
+  rmat_t P = {0};
+  rabin_err_t err = RABIN_SUCCESS;
+
+  TRY(rmat_det(&det, A));
+  if (!rz_is_eq_i64(&det, 1) && !rz_is_eq_i64(&det, -1)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  // Augmented system [A | I]; fraction-free Gauss-Jordan keeps every
+  // intermediate value integral. Row i of the right block ends equal to
+  // W[i][i] * (A^-1)[i][:], so each row is divided by its pivot at the end.
+  TRY(rmat_init(&W, n, 2 * n));
+  for (u64 i = 0; i < n; i++) {
+    for (u64 j = 0; j < n; j++) {
+      TRY(rz_copy(RMAT_GET(&W, i, j), RMAT_GET(A, i, j)));
+      TRY(rz_set_u64(RMAT_GET(&W, i, n + j), i == j ? 1 : 0));
+    }
+  }
+
+  rz_t prev, piv, fac;
+  rz_init_multi(&prev, &piv, &fac, NULL);
+  TRY(rz_set_u64(&prev, 1));
+
+  bool fail = false;
+  for (u64 k = 0; k < n && !fail; k++) {
+    u64 p = k;
+    while (p < n && rz_is_zero(RMAT_GET(&W, p, k))) p++;
+    if (p == n) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup2;
+    }
+    if (p != k) {
+      for (u64 j = 0; j < 2 * n; j++) {
+        TRY(rz_swap(RMAT_GET(&W, k, j), RMAT_GET(&W, p, j)));
+      }
+    }
+
+    TRY(rz_copy(&piv, RMAT_GET(&W, k, k)));
+    for (u64 i = 0; i < n; i++) {
+      if (i == k) continue;
+      TRY(rz_copy(&fac, RMAT_GET(&W, i, k)));
+
+      rz_t t1, t2;
+      rz_init_multi(&t1, &t2, NULL);
+      for (u64 j = 0; j < 2 * n; j++) {
+        TRY(rz_mul(&t1, &piv, RMAT_GET(&W, i, j)));
+        TRY(rz_mul(&t2, &fac, RMAT_GET(&W, k, j)));
+        TRY(rz_sub(RMAT_GET(&W, i, j), &t1, &t2));
+        TRY(rz_div_exact(RMAT_GET(&W, i, j), RMAT_GET(&W, i, j), &prev));
+      }
+      rz_clear_multi(&t1, &t2, NULL);
+      TRY(rz_set_u64(RMAT_GET(&W, i, k), 0));
+    }
+    TRY(rz_copy(&prev, &piv));
+  }
+
+  // Normalize each row by its pivot; a unimodular A ends with pivots ±1.
+  TRY(rmat_init(&P, n, n));
+  for (u64 i = 0; i < n; i++) {
+    if (!rz_is_eq_i64(RMAT_GET(&W, i, i), 1) &&
+        !rz_is_eq_i64(RMAT_GET(&W, i, i), -1)) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup2;
+    }
+    const bool flip = rz_is_eq_i64(RMAT_GET(&W, i, i), -1);
+    for (u64 j = 0; j < n; j++) {
+      TRY(rz_copy(RMAT_GET(&P, i, j), RMAT_GET(&W, i, n + j)));
+      if (flip) TRY(rz_neg(RMAT_GET(&P, i, j), RMAT_GET(&P, i, j)));
+    }
+  }
+
+  // Guarantee correctness even against elimination bugs: A * P = I.
+  rmat_t V = {0};
+  TRY(rmat_init(&V, n, n));
+  TRY(rmat_mul(&V, A, &P));
+  if (!rmat_is_identity(&V)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup2;
+  }
+
+  TRY(rmat_copy(B, &P));
+
+cleanup2:
+  rz_clear_multi(&prev, &piv, &fac, NULL);
+  rmat_clear(&P);
+  rmat_clear(&V);
+  rmat_clear(&W);
+cleanup:
+  rz_clear(&det);
   return err;
 }
 
