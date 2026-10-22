@@ -554,6 +554,29 @@ cleanup:
   return err;
 }
 
+// knuths pseudo division
+rabin_err_t rpol_div(rpol_t* r, rpol_t* a, rpol_t* b)
+{
+  i64 m = a->deg;
+  i64 n = b->deg;
+  rz_t l = b->coeff[b->size - 1];
+
+  if (m < n) return RABIN_ERR_INVALID_ARG;
+
+  rpol_t Q = {0}, R = {0};
+  // 1. [Initialize]
+  rpol_copy(r, a);
+  rpol_init(&Q);
+  rpol_init(&R);
+  i64 e = m - n + 1;
+
+  // 2. [Finished?]
+  if (r->deg < b->deg) {
+    rz_t q;
+    rz_init(&q);
+  }
+}
+
 rabin_err_t rpol_test()
 {
   printf("--- BigPoly Test --- \n");
