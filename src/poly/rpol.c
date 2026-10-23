@@ -554,28 +554,62 @@ cleanup:
   return err;
 }
 
-// knuths pseudo division
-rabin_err_t rpol_div(rpol_t* r, rpol_t* a, rpol_t* b)
-{
-  i64 m = a->deg;
-  i64 n = b->deg;
-  rz_t l = b->coeff[b->size - 1];
+// Knuth's Pseudo-Division: l^(m - n + 1) * a = q * b + r
+// rabin_err_t rpol_div(rpol_t* q_out, rpol_t* r_out, rpol_t* a, rpol_t* b)
+// {
+//   if (!a || !b || !q_out || !r_out) return RABIN_ERR_INVALID_ARG;
 
-  if (m < n) return RABIN_ERR_INVALID_ARG;
+//   i64 m = a->deg;
+//   i64 n = b->deg;
 
-  rpol_t Q = {0}, R = {0};
-  // 1. [Initialize]
-  rpol_copy(r, a);
-  rpol_init(&Q);
-  rpol_init(&R);
-  i64 e = m - n + 1;
+//   if (n < 0 || b->coeff[n] == 0)
+//     return RABIN_ERR_INVALID_ARG;  // Division by zero
+//   if (m < n) {
+//     rpol_zero(q_out);
+//     rpol_copy(r_out, a);
+//     return RABIN_SUCCESS;
+//   }
 
-  // 2. [Finished?]
-  if (r->deg < b->deg) {
-    rz_t q;
-    rz_init(&q);
-  }
-}
+//   rz_t l = b->coeff[n];  // Leading coefficient of b
+
+//   rpol_t Q, R;
+//   rpol_init(&Q);
+//   rpol_copy(&R, a);  // R starts as a copy of the dividend 'a'
+
+//   // 1. [Initialize] k = m - n
+//   i64 k = m - n;
+
+//   // 2. [Loop] Repeat while k >= 0
+//   while (k >= 0) {
+//     // 3. [Multiply by lc(v)] Q = l * Q, R = l * R
+//     rpol_scale(&Q, l);
+//     rpol_scale(&R, l);
+
+//     // 4. [Division step] If deg(R) == n + k, eliminate leading term
+//     if (R.deg == n + k) {
+//       rz_t c = R.coeff[R.deg];  // Leading coefficient of current remainder
+
+//       // Add term c * x^k to Q
+//       rpol_add_term(&Q, c, k);
+
+//       // Subtract (c * x^k) * b from R
+//       // This cancels out the leading coefficient cleanly without fractions
+//       rpol_sub_scaled_poly(&R, b, c, k);
+//     }
+
+//     // 5. [Decrease k]
+//     k--;
+//   }
+
+//   // Copy results back to user-provided pointers
+//   rpol_copy(q_out, &Q);
+//   rpol_copy(r_out, &R);
+
+//   // Clean up local polynomials if needed
+//   rpol_clear(&Q);
+
+//   return RABIN_SUCCESS;
+// }
 
 rabin_err_t rpol_test()
 {
