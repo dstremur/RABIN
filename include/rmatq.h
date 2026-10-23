@@ -64,7 +64,7 @@ rabin_err_t rmatq_clear(rmatq_t* A);
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
  * RABIN_ERR_OUT_OF_MEMORY.
  */
-rabin_err_t rmatq_copy(rmatq_t* R, rmatq_t* A);
+rabin_err_t rmatq_copy(rmatq_t* R, const rmatq_t* A);
 
 /**
  * @brief Deep-copy an integer matrix, setting the denominator to 1.
@@ -227,6 +227,314 @@ rabin_err_t rmatq_set(rmatq_t* A, const rq_t* a, u64 r, u64 c);
 rabin_err_t rmatq_set_zero(rmatq_t* A, u64 r, u64 c);
 
 /**
+ * @brief Set all entries of a rational matrix to zero, in place.
+ *
+ * The common denominator is reset to \f$1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix to clear in place.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR.
+ * @see rmatq_ones(), rmatq_id()
+ */
+rabin_err_t rmatq_zero(rmatq_t* A);
+
+/**
+ * @brief Set all entries of a rational matrix to one, in place.
+ *
+ * The common denominator is reset to \f$1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix to set in place.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_zero()
+ */
+rabin_err_t rmatq_ones(rmatq_t* A);
+
+/**
+ * @brief Build the \f$n \times n\f$ rational identity matrix, in place.
+ *
+ * \f$I\f$ must already be initialized as \f$n \times n\f$ and every
+ * entry is overwritten; the common denominator is reset to \f$1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[out] I Identity matrix (\f$n \times n\f$, pre-initialized).
+ * @param[in]  n Dimension.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_id(), rmatq_diag()
+ */
+rabin_err_t rmatq_id(rmatq_t* I, u64 n);
+
+/**
+ * @brief Build the diagonal matrix \f$D = \mathrm{diag}(v)\f$ over
+ * \f$\mathbb{Q}\f$.
+ *
+ * \f$D\f$ must already be initialized as \f$|v| \times |v|\f$; the
+ * integer entries of \f$v\f$ are stored on common denominator
+ * \f$1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 \cdot d)\f$ where \f$n = |v|\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] D Diagonal result (\f$|v| \times |v|\f$, pre-initialized).
+ * @param[in]  v Vector of integer diagonal entries.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_diag()
+ */
+rabin_err_t rmatq_diag(rmatq_t* D, const rvec_t* v);
+
+/**
+ * @brief Swap rows \f$i\f$ and \f$j\f$, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(c)\f$ pointer swaps
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     i First row index.
+ * @param[in]     j Second row index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_INVALID_ARG (index out of range).
+ * @see rmatq_swap_cols()
+ */
+rabin_err_t rmatq_swap_rows(rmatq_t* A, u64 i, u64 j);
+
+/**
+ * @brief Swap columns \f$i\f$ and \f$j\f$, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(r)\f$ pointer swaps
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     i First column index.
+ * @param[in]     j Second column index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_INVALID_ARG (index out of range).
+ * @see rmatq_swap_rows()
+ */
+rabin_err_t rmatq_swap_cols(rmatq_t* A, u64 i, u64 j);
+
+/**
+ * @brief Transpose: \f$T = A^t\f$.
+ *
+ * \f$T\f$ must already be initialized with the transposed dimensions;
+ * \f$T\f$ may alias \f$A\f$. The common denominator is copied.
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot d)\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ only when \f$T = A\f$
+ *   - Output memory: \f$O(m \cdot n)\f$ bignums
+ *
+ * @param[out] T Result matrix.
+ * @param[in]  A Source matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_transpose()
+ */
+rabin_err_t rmatq_transpose(rmatq_t* T, const rmatq_t* A);
+
+/**
+ * @brief Horizontal concatenation: \f$R = [A \,|\, B]\f$.
+ *
+ * \f$A\f$ and \f$B\f$ must have the same number of rows; \f$R\f$ must
+ * already be initialized as \f$m \times (c_1 + c_2)\f$. The result
+ * denominator is a common multiple of the input denominators.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot (c_1 + c_2) \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ rationals
+ *   - Output memory: \f$O(r \cdot (c_1 + c_2))\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Left block.
+ * @param[in]  B Right block.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_vstack()
+ */
+rabin_err_t rmatq_hstack(rmatq_t* R, const rmatq_t* A, const rmatq_t* B);
+
+/**
+ * @brief Vertical concatenation: \f$R = \begin{bmatrix} A \\ B
+ * \end{bmatrix}\f$.
+ *
+ * \f$A\f$ and \f$B\f$ must have the same number of columns; \f$R\f$
+ * must already be initialized as \f$(r_1 + r_2) \times c\f$. The result
+ * denominator is a common multiple of the input denominators.
+ *
+ * Complexity:
+ *   - Time: \f$O((r_1 + r_2) \cdot c \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ rationals
+ *   - Output memory: \f$O((r_1 + r_2) \cdot c)\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Top block.
+ * @param[in]  B Bottom block.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_hstack()
+ */
+rabin_err_t rmatq_vstack(rmatq_t* R, const rmatq_t* A, const rmatq_t* B);
+
+/**
+ * @brief Scalar multiplication: \f$R = a \cdot A\f$.
+ *
+ * \f$R\f$ must already be initialized like \f$A\f$ and may alias it.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ rationals
+ *   - Output memory: \f$O(r \cdot c)\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Source matrix.
+ * @param[in]  a Scalar factor.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_mul()
+ */
+rabin_err_t rmatq_scalar(rmatq_t* R, const rmatq_t* A, const rq_t* a);
+
+/**
+ * @brief Rational matrix power: \f$R = A^e\f$ by binary exponentiation.
+ *
+ * \f$A\f$ must be square and \f$R\f$ initialized with the same
+ * dimensions; \f$e = 0\f$ produces the identity. \f$R\f$ may alias
+ * \f$A\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2 \cdot \log e)\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ rationals
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] R Result matrix (\f$A^0 = I\f$).
+ * @param[in]  A Square base matrix.
+ * @param[in]  e Exponent.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_mul(), rmatq_id()
+ */
+rabin_err_t rmatq_pow(rmatq_t* R, const rmatq_t* A, u64 e);
+
+/**
+ * @brief Equality test, normalize-safe.
+ *
+ * Compares entries by cross-multiplication
+ * \f$A.M[i][j] \cdot B.den = B.M[i][j] \cdot A.den\f$; neither matrix
+ * is modified.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ bignums
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A First matrix.
+ * @param[in] B Second matrix.
+ * @return true if both matrices have equal dimensions and values.
+ * @see rmatq_normalize()
+ */
+bool rmatq_equal(const rmatq_t* A, const rmatq_t* B);
+
+/**
+ * @brief Check whether the matrix is square.
+ *
+ * @param[in] A Matrix to test.
+ * @return true if \f$A\f$ is square, false if not or on NULL input.
+ * @see rmat_is_square()
+ */
+bool rmatq_is_square(const rmatq_t* A);
+
+/**
+ * @brief Check whether all entries are zero.
+ *
+ * @param[in] A Matrix to test.
+ * @return true if \f$A\f$ is the zero matrix, false if not or on NULL
+ * input.
+ * @see rmatq_zero()
+ */
+bool rmatq_is_zero(const rmatq_t* A);
+
+/**
+ * @brief Check whether the matrix is the identity.
+ *
+ * Entries are compared against \f$1\f$ / \f$0\f$ through the common
+ * denominator without modifying the matrix.
+ *
+ * @param[in] A Matrix to test.
+ * @return true if \f$A = I\f$, false if not or on NULL / non-square
+ * input.
+ * @see rmatq_id()
+ */
+bool rmatq_is_identity(const rmatq_t* A);
+
+/**
+ * @brief Check whether \f$A = A^t\f$.
+ *
+ * @param[in] A Matrix to test.
+ * @return true if \f$A\f$ is square and symmetric, false if not or on
+ * NULL input.
+ * @see rmatq_transpose()
+ */
+bool rmatq_is_symmetric(const rmatq_t* A);
+
+/**
+ * @brief Trace: \f$t = \sum_i A[i][i]\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ rationals
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[out] t Result trace (caller-allocated).
+ * @param[in]  A Square rational matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmatq_det()
+ */
+rabin_err_t rmatq_trace(rq_t* t, const rmatq_t* A);
+
+/**
+ * @brief Determinant: \f$d = \det(A)\f$.
+ *
+ * Uses \f$\det(A) = \det(M) / den^n\f$: the numerator determinant is
+ * computed with Bareiss elimination over the integers and rescaled by
+ * the \f$n\f$-th power of the common denominator.
+ *
+ * Complexity:
+ *   - Time: as rmat_det_bareiss() on the numerator matrix
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[out] d Result determinant (caller-allocated).
+ * @param[in]  A Square rational matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @par Algorithm Reference:
+ * E. G. Bareiss, "Recursive determinants", Numer. Math. 13 (1968).
+ * @see rmat_det_bareiss()
+ */
+rabin_err_t rmatq_det(rq_t* d, const rmatq_t* A);
+
+/**
  * @brief Cholesky decomposition \f$A = C^t C\f$ of a rational matrix.
  *
  * \f$C\f$ is upper triangular and every entry of \f$A\f$ must be
@@ -303,6 +611,108 @@ rabin_err_t rmatq_mul(rmatq_t* R, const rmatq_t* A, const rmatq_t* B);
  * @see rmatq_mul()
  */
 rabin_err_t rmatq_inv(rmatq_t* B, const rmatq_t* A);
+
+/**
+ * @brief Rank of a rational matrix over \f$\mathbb{Q}\f$.
+ *
+ * The numerator matrix has the same rank as \f$A = M / den\f$, so the
+ * rank is computed on the integer numerators.
+ *
+ * Complexity:
+ *   - Time: as rmat_rank() on the numerator matrix
+ *   - Auxiliary memory: \f$O(m \cdot n)\f$ bignums (working copy)
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[out] rank Result rank.
+ * @param[in]  A Rational matrix (\f$m \times n\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_rank(), rmatq_rref()
+ */
+rabin_err_t rmatq_rank(u64* rank, const rmatq_t* A);
+
+/**
+ * @brief Reduced row echelon form over \f$\mathbb{Q}\f$, in place.
+ *
+ * Exact Gauss-Jordan elimination: each pivot is scaled to \f$1\f$ and
+ * its column is cleared in all other rows; \f$R\f$ is overwritten and
+ * must already be initialized with the desired dimensions. The rank
+ * out-param is optional (\f$NULL\f$ allowed).
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot \min(m,n) \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(1)\f$ rationals
+ *   - Output memory: in place
+ *
+ * @param[in,out] R Matrix to reduce; on output it is in RREF.
+ * @param[out]    rank Result rank (may be NULL).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory",
+ * Alg. 2.7 (Gauss-Jordan elimination, exact).
+ * @see rmat_rref(), rmatq_solve()
+ */
+rabin_err_t rmatq_rref(rmatq_t* R, u64* rank);
+
+/**
+ * @brief LU decomposition with row pivoting over \f$\mathbb{Q}\f$.
+ *
+ * Produces a permutation array \f$P\f$ (\f$P[i]\f$ is the original row
+ * index at final position \f$i\f$), a unit lower triangular \f$L\f$
+ * and an upper triangular \f$U\f$ with
+ *
+ * \f$(P A) = L \cdot U\f$ exactly.
+ *
+ * A zero pivot leaves \f$U[i][i] = 0\f$ and the corresponding column
+ * of \f$L\f$ zero; the factors still multiply to the permuted input,
+ * so a zero diagonal entry of \f$U\f$ flags a singular \f$A\f$ and the
+ * return code is RABIN_SUCCESS. \f$L\f$, \f$U\f$ must already be
+ * initialized as \f$n \times n\f$ and may not alias \f$A\f$
+ * simultaneously with each other.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ rationals
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] L Unit lower triangular factor.
+ * @param[out] U Upper triangular factor.
+ * @param[out] P Permutation array of \f$n\f$ u64 slots allocated by
+ * the caller.
+ * @param[in]  A Square rational matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_lu(), rmatq_mul()
+ */
+rabin_err_t rmatq_lu(rmatq_t* L, rmatq_t* U, u64* P, const rmatq_t* A);
+
+/**
+ * @brief Solve \f$A X = B\f$ over \f$\mathbb{Q}\f$.
+ *
+ * \f$A\f$ is \f$n \times n\f$, \f$B\f$ is \f$n \times k\f$, and \f$X\f$
+ * must already be initialized as \f$n \times k\f$. The system is
+ * solved from the RREF of the augmented matrix \f$[A | B]\f$; the
+ * solution is unique when \f$\mathrm{rank}(A) = n\f$.
+ *
+ * Error semantics: RABIN_ERR_INCONSISTENT when the augmented rank
+ * exceeds the rank of \f$A\f$, RABIN_ERR_SINGULAR when \f$A\f$ has a
+ * free column but the system is consistent.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 (n + k) \cdot M(d))\f$
+ *   - Auxiliary memory: \f$O(n (n + k))\f$ rationals
+ *   - Output memory: \f$O(n k)\f$ bignums
+ *
+ * @param[out] X Solution matrix.
+ * @param[in]  A Square coefficient matrix.
+ * @param[in]  B Right-hand side (\f$B\text{.rows} = A\text{.rows}\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OUT_OF_MEMORY, RABIN_ERR_SINGULAR,
+ * or RABIN_ERR_INCONSISTENT.
+ * @see rmatq_rref(), rmat_solve()
+ */
+rabin_err_t rmatq_solve(rmatq_t* X, const rmatq_t* A, const rmatq_t* B);
 
 /**
  * @brief Shortest non-zero vector of the lattice \f$(\mathbb{Z}^n, Q)\f$.

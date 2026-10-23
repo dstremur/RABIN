@@ -45,7 +45,7 @@ rabin_err_t rmatq_clear(rmatq_t* A)
   return RABIN_SUCCESS;
 }
 
-rabin_err_t rmatq_copy(rmatq_t* R, rmatq_t* A)
+rabin_err_t rmatq_copy(rmatq_t* R, const rmatq_t* A)
 {
   if (R == NULL || A == NULL) return RABIN_ERR_NULL_PTR;
 
