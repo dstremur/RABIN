@@ -12,7 +12,7 @@
  * integer matrices; rmatq_normalize() removes any common divisor shared by
  * \f$den\f$ and all entries.
  */
-typedef struct {
+typedef struct rmatq_t {
   rmat_t M;
   rz_t den;
 } rmatq_t;

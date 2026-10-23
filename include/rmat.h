@@ -20,6 +20,9 @@ typedef struct rmat_t {
 
 #define RMAT_GET(M, r, c) (&(M)->data[(r) * (M)->cols + (c)])
 
+/// Rational matrix with a common denominator; defined in rmatq.h.
+typedef struct rmatq_t rmatq_t;
+
 /**
  * @brief Initialize a matrix with \f$r\f$ rows and \f$c\f$ columns of zero
  * bignums.
@@ -603,6 +606,152 @@ rabin_err_t rmat_det_bareiss(rz_t* det, const rmat_t* A);
 rabin_err_t rmat_id(rmat_t* I, const u64 n);
 
 /**
+ * @brief Set all entries of a matrix to zero, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix to clear in place.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR.
+ * @see rmat_ones(), rmat_id()
+ */
+rabin_err_t rmat_zero(rmat_t* A);
+
+/**
+ * @brief Set all entries of a matrix to one, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot c)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix to set in place.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_zero()
+ */
+rabin_err_t rmat_ones(rmat_t* A);
+
+/**
+ * @brief Build the diagonal matrix \f$D = \mathrm{diag}(v)\f$.
+ *
+ * \f$D\f$ must already be initialized as \f$|v| \times |v|\f$; every
+ * entry of \f$D\f$ is overwritten.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 \cdot d)\f$ where \f$n = |v|\f$ and \f$d =\f$ the
+ * entry size in limbs
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] D Diagonal result (\f$|v| \times |v|\f$).
+ * @param[in]  v Vector of diagonal entries.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_id()
+ */
+rabin_err_t rmat_diag(rmat_t* D, const rvec_t* v);
+
+/**
+ * @brief Swap rows \f$i\f$ and \f$j\f$ of a matrix, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(c)\f$ pointer swaps
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     i First row index.
+ * @param[in]     j Second row index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_INVALID_ARG (index out of range).
+ * @see rmat_swap_cols()
+ */
+rabin_err_t rmat_swap_rows(rmat_t* A, u64 i, u64 j);
+
+/**
+ * @brief Swap columns \f$i\f$ and \f$j\f$ of a matrix, in place.
+ *
+ * Complexity:
+ *   - Time: \f$O(r)\f$ pointer swaps
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in,out] A Matrix.
+ * @param[in]     i First column index.
+ * @param[in]     j Second column index.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_INVALID_ARG (index out of range).
+ * @see rmat_swap_rows()
+ */
+rabin_err_t rmat_swap_cols(rmat_t* A, u64 i, u64 j);
+
+/**
+ * @brief Horizontal concatenation: \f$R = [A \,|\, B]\f$.
+ *
+ * The matrices must have the same number of rows; \f$R\f$ must already
+ * be initialized as \f$A\text{.rows} \times (A\text{.cols} + B\text{.cols})\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(r \cdot (c_1 + c_2) \cdot d)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(r \cdot (c_1 + c_2))\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Left block.
+ * @param[in]  B Right block.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_vstack()
+ */
+rabin_err_t rmat_hstack(rmat_t* R, const rmat_t* A, const rmat_t* B);
+
+/**
+ * @brief Vertical concatenation: \f$R = \begin{bmatrix} A \\ B
+ * \end{bmatrix}\f$.
+ *
+ * The matrices must have the same number of columns; \f$R\f$ must
+ * already be initialized as \f$(A\text{.rows} + B\text{.rows}) \times
+ * A\text{.cols}\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O((r_1 + r_2) \cdot c \cdot d)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O((r_1 + r_2) \cdot c)\f$ bignums
+ *
+ * @param[out] R Result matrix.
+ * @param[in]  A Top block.
+ * @param[in]  B Bottom block.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_hstack()
+ */
+rabin_err_t rmat_vstack(rmat_t* R, const rmat_t* A, const rmat_t* B);
+
+/**
+ * @brief Integer matrix power: \f$R = A^e\f$ by binary exponentiation.
+ *
+ * \f$A\f$ must be square and \f$R\f$ must be initialized with the same
+ * dimensions; \f$e = 0\f$ produces the identity. The result is computed
+ * in a temporary and copied out, so \f$R\f$ may alias \f$A\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2 \cdot \log e)\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] R Result matrix (\f$A^0 = I\f$).
+ * @param[in]  A Square base matrix.
+ * @param[in]  e Exponent.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_mul(), rmat_id()
+ */
+rabin_err_t rmat_pow(rmat_t* R, const rmat_t* A, u64 e);
+
+/**
  * @brief Transpose of a matrix: \f$T = A^t\f$.
  *
  * \f$T\f$ must already be initialized as \f$c \times r\f$ where
@@ -646,6 +795,180 @@ rabin_err_t rmat_transpose(rmat_t* T, const rmat_t* A);
  * @see rmat_det(), rmat_mul()
  */
 rabin_err_t rmat_inv_unimodular(rmat_t* B, const rmat_t* A);
+
+/**
+ * @brief Rank of an integer matrix over \f$\mathbb{Q}\f$.
+ *
+ * Runs exact division-free elimination (Euclid descent pivoting) on a
+ * working copy of \f$A\f$; the rank is the number of nonzero pivots.
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot \min(m,n) \cdot d^2)\f$
+ *   - Auxiliary memory: \f$O(m \cdot n)\f$ bignums (working copy)
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[out] rank Result rank.
+ * @param[in]  A Matrix (\f$m \times n\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * or RABIN_ERR_OUT_OF_MEMORY.
+ * @par Algorithm Reference:
+ * E. G. Bareiss, "Recursive determinants", Numer. Math. 13 (1968);
+ * H. Cohen, "A Course in Computational Algebraic Number Theory",
+ * Alg. 2.3.1 (exact elimination).
+ * @see rmat_rref(), rmat_det_bareiss()
+ */
+rabin_err_t rmat_rank(u64* rank, const rmat_t* A);
+
+/**
+ * @brief Reduced row echelon form over \f$\mathbb{Q}\f$: exact RREF of
+ * the integer matrix \f$A\f$ stored in \f$R\f$.
+ *
+ * Gauss-Jordan elimination on an exact rational copy of \f$A\f$ with
+ * partial pivoting on nonzero entries; every pivot is scaled to
+ * \f$1\f$ and its column cleared in all other rows. \f$R\f$ must
+ * already be initialized with the dimensions of \f$A\f$ and is
+ * normalized to a minimal common denominator on output. The rank
+ * out-param is optional (\f$NULL\f$ allowed).
+ *
+ * Complexity:
+ *   - Time: \f$O(m \cdot n \cdot \min(m,n) \cdot M(d))\f$ with \f$M(d)\f$
+ * the rational multiply cost
+ *   - Auxiliary memory: \f$O(m \cdot n)\f$ rationals
+ *   - Output memory: \f$O(m \cdot n)\f$ bignums
+ *
+ * @param[out] R Result matrix in RREF (rational).
+ * @param[out] rank Optional result rank (may be NULL).
+ * @param[in]  A Integer matrix (\f$m \times n\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory",
+ * Alg. 2.7 (Gauss-Jordan elimination, exact).
+ * @see rmat_rank(), rmat_solve()
+ */
+rabin_err_t rmat_rref(rmatq_t* R, u64* rank, const rmat_t* A);
+
+/**
+ * @brief Exact integer LU decomposition with row pivoting.
+ *
+ * Division-free elimination (Euclid descent pivoting) on \f$A\f$
+ * produces a permutation \f$P\f$ (returned through the array
+ * \f$P[0..n-1]\f$, where \f$P[i]\f$ is the original row index sitting
+ * at position \f$i\f$ after the swaps of step \f$i\f$), a unit lower
+ * triangular integer matrix \f$L\f$ and an upper triangular integer
+ * matrix \f$U\f$ with
+ *
+ * \f$(P A) = L \cdot U\f$ exactly.
+ *
+ * A zero pivot on the diagonal of \f$U\f$ signals that \f$A\f$ is
+ * singular; the factors are still produced and satisfy \f$P A = L U\f$
+ * exactly, and the function returns RABIN_SUCCESS for singular inputs
+ * as well.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^3 \cdot d^2)\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums (augmented system)
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] L Unit lower triangular factor (caller-allocated \f$n
+ * \times n\f$).
+ * @param[out] U Upper triangular factor (caller-allocated \f$n \times
+ * n\f$); a zero diagonal entry flags singularity.
+ * @param[out] P Permutation array of \f$n\f$ u64 slots allocated by the
+ * caller.
+ * @param[in]  A Square integer matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, or RABIN_ERR_OUT_OF_MEMORY.
+ * @par Algorithm Reference:
+ * E. G. Bareiss, "Recursive determinants", Numer. Math. 13 (1968);
+ * exact-preserving variant of Gauss elimination with row exchanges.
+ * @see rmat_det(), rmat_mul(), rmat_solve()
+ */
+rabin_err_t rmat_lu(rmat_t* L, rmat_t* U, u64* P, const rmat_t* A);
+
+/**
+ * @brief Solve \f$A X = B\f$ over \f$\mathbb{Q}\f$.
+ *
+ * \f$A\f$ is \f$n \times n\f$, \f$B\f$ is \f$n \times k\f$, and \f$X\f$
+ * must already be initialized as \f$n \times k\f$. The system is
+ * solved from the RREF of the augmented matrix \f$[A | B]\f$: the
+ * solution is unique when the rank of \f$A\f$ is \f$n\f$.
+ *
+ * Error semantics: RABIN_ERR_INCONSISTENT when the augmented rank
+ * exceeds the rank of \f$A\f$ (a zero row of the left block with a
+ * nonzero right-hand side), RABIN_ERR_SINGULAR when \f$A\f$ has a free
+ * column (rank below \f$n\f$) but the system is consistent.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2 (n + k))\f$ rational operations
+ *   - Auxiliary memory: \f$O(n (n + k))\f$ rationals
+ *   - Output memory: \f$O(n k)\f$ bignums
+ *
+ * @param[out] X Solution matrix (rational, \f$n \times k\f$).
+ * @param[in]  A Square coefficient matrix.
+ * @param[in]  B Right-hand side (\f$B\text{.rows} = A\text{.rows}\f$).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_OVERFLOW, RABIN_ERR_OUT_OF_MEMORY,
+ * RABIN_ERR_SINGULAR, or RABIN_ERR_INCONSISTENT.
+ * @see rmat_rref()
+ */
+rabin_err_t rmat_solve(rmatq_t* X, const rmat_t* A, const rmat_t* B);
+
+/**
+ * @brief Cofactor matrix: \f$C[i][j] = (-1)^{i+j} M_{ij}\f$.
+ *
+ * Each entry is the determinant of the \f$(n-1) \times (n-1)\f$ minor
+ * obtained by deleting row \f$i\f$ and column \f$j\f$, computed with
+ * rmat_det_bareiss(). For \f$n = 1\f$ the cofactor is \f$1\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$ determinants of size \f$n-1\f$
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums (minor)
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] C Cofactor matrix (caller-allocated like \f$A\f$).
+ * @param[in]  A Square integer matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_adj(), rmat_det_bareiss()
+ */
+rabin_err_t rmat_cofactor(rmat_t* C, const rmat_t* A);
+
+/**
+ * @brief Adjugate matrix: \f$\mathrm{adj}(A) = C^t\f$, the transpose of
+ * the cofactor matrix.
+ *
+ * Satisfies \f$A \cdot \mathrm{adj}(A) = \det(A) \cdot I\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$ determinants of size \f$n-1\f$ plus one
+ * transpose
+ *   - Auxiliary memory: \f$O(n^2)\f$ bignums
+ *   - Output memory: \f$O(n^2)\f$ bignums
+ *
+ * @param[out] ADJ Adjugate matrix (caller-allocated \f$n \times n\f$).
+ * @param[in]  A Square integer matrix.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see rmat_cofactor(), rmat_det()
+ */
+rabin_err_t rmat_adj(rmat_t* ADJ, const rmat_t* A);
+
+/**
+ * @brief Singularity test: \f$\det(A) = 0\f$.
+ *
+ * Returns true for non-square matrices and false for NULL input.
+ *
+ * Complexity:
+ *   - Time: as rmat_det()
+ *   - Auxiliary memory: as rmat_det()
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] A Matrix to test.
+ * @return true if \f$A\f$ is square and singular, false otherwise.
+ * @see rmat_det()
+ */
+bool rmat_is_singular(const rmat_t* A);
 
 /**
  * @brief Greatest common divisor of all entries of a matrix.

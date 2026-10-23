@@ -16,7 +16,9 @@ typedef enum {
   RABIN_ERR_DIV_BY_ZERO = -3,    ///< Division or inversion by zero.
   RABIN_ERR_OVERFLOW = -4,       ///< An integer or dimension overflow.
   RABIN_ERR_INVALID_ARG = -5,    ///< An argument is out of domain.
-  RABIN_ERR_MATRIX_DIM = -6      ///< Matrix dimensions do not match.
+  RABIN_ERR_MATRIX_DIM = -6,     ///< Matrix dimensions do not match.
+  RABIN_ERR_SINGULAR = -7,       ///< Matrix is singular / no unique solution.
+  RABIN_ERR_INCONSISTENT = -8    ///< Linear system has no solution.
 } rabin_err_t;
 
 /**
