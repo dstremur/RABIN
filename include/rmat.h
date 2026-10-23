@@ -957,7 +957,7 @@ rabin_err_t rmat_adj(rmat_t* ADJ, const rmat_t* A);
 /**
  * @brief Singularity test: \f$\det(A) = 0\f$.
  *
- * Returns true for non-square matrices and false for NULL input.
+ * Returns false for NULL and for non-square inputs.
  *
  * Complexity:
  *   - Time: as rmat_det()

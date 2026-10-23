@@ -793,6 +793,7 @@ static bool test_in_col_Z(const rmat_t* W, const rmat_t* b, u64 p)
   rmat_t WT = {0}, G = {0}, N = {0}, Adj = {0}, Anum = {0};
   rpol_t cp = {0};
   rz_t detG, q, r;
+  assert(rz_init_multi(&detG, &q, &r, NULL) == RABIN_SUCCESS);
 
   assert(rmat_init(&WT, p, m) == RABIN_SUCCESS);
   for (u64 i = 0; i < p; i++) {

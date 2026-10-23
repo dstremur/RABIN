@@ -224,14 +224,11 @@ rabin_err_t rns_export(rz_t* a, rns_num_t* v, const rns_ctx_t* ctx)
 
   u64 t = ctx->count;
   if (t == 0) {
-    rabin_err_t err = rz_init(a);
-    if (err == RABIN_SUCCESS) err = rz_set_u64(a, 0);
-    return err;
+    return rz_set_u64(a, 0);
   }
 
   // Step 2: Initialize x with v_1 (using 0-based indexing: v_0)
-  rabin_err_t err = rz_init(a);
-  if (err == RABIN_SUCCESS) err = rz_set_u64(a, v->residues[0]);
+  rabin_err_t err = rz_set_u64(a, v->residues[0]);
   if (err != RABIN_SUCCESS) return err;
 
   rz_t prod_prev, term, rz_u, rz_p;

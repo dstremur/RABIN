@@ -384,6 +384,12 @@ int rz_cmp(const rz_t* a, const rz_t* b)
 {
   if (a == NULL || b == NULL) return 0;
 
+  bool a_zero = rz_is_zero(a);
+  bool b_zero = rz_is_zero(b);
+  if (a_zero && b_zero) return 0;
+  if (a_zero) return b->is_neg ? 1 : -1;
+  if (b_zero) return a->is_neg ? -1 : 1;
+
   if (!a->is_neg && b->is_neg) return 1;
 
   if (a->is_neg && !b->is_neg) return -1;
@@ -410,6 +416,11 @@ int rz_cmp(const rz_t* a, const rz_t* b)
 int rz_cmp_abs(const rz_t* a, const rz_t* b)
 {
   if (a == NULL || b == NULL) return 0;
+  bool a_zero = rz_is_zero(a);
+  bool b_zero = rz_is_zero(b);
+  if (a_zero && b_zero) return 0;
+  if (a_zero) return -1;
+  if (b_zero) return 1;
   if (a->size > b->size) return 1;
   if (a->size < b->size) return -1;
 

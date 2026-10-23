@@ -420,7 +420,7 @@ cleanup:
 bool rmat_is_singular(const rmat_t* A)
 {
   if (A == NULL) return false;
-  if (!rmat_is_square(A)) return true;
+  if (!rmat_is_square(A)) return false;
 
   bool singular = true;
   rz_t d;
