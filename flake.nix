@@ -20,6 +20,10 @@
           doxygen
           openssl
         ];
+
+        shellHook = ''
+          export NIX_ENFORCE_NO_NATIVE=0
+        '';
       };
     };
 }

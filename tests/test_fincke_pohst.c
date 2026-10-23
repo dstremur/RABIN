@@ -332,7 +332,7 @@ static void test_random(void)
     u64 n = 2 + (u64)(rand() % 3);  // 2..4
     i64 m[4][4], a[4 * 4];
     for (u64 i = 0; i < 4; i++) {
-      for (u64 j = 0; j < 4; j++) m[i][j] = (rand() % 5) - 2;
+      for (u64 j = 0; j < 4; j++) m[i][j] = (rand() % 10) - 2;
     }
     for (u64 i = 0; i < n; i++) {
       for (u64 j = 0; j < n; j++) {
