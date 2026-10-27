@@ -59,6 +59,7 @@ dkms.conf
 *.dwo
 
 build/
+rabin.pc
 
 PLAN.md
 plan.md

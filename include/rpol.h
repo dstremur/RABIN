@@ -404,21 +404,4 @@ rabin_err_t rpol_carry_propagation(rpol_t* r, u64 bit_width);
  */
 rabin_err_t rz_recompose(rz_t* n, const rpol_t* p, u64 bit_width);
 
-/**
- * @brief Self-test of the polynomial operations.
- *
- * Builds \f$p(x) = 2x^2 + 3x + 1\f$ and \f$q(x) = 4x + 5\f$, prints them, and
- * prints \f$p + q\f$ and \f$p \cdot q\f$ (schoolbook and u64-NTT). Intended for
- * manual verification, not part of the library API.
- *
- * Complexity:
- *   - Time: \f$O(1)\f$ (fixed-size inputs)
- *   - Auxiliary memory: \f$O(1)\f$
- *   - Output memory: \f$O(1)\f$
- *
- * @return RABIN_SUCCESS on success, or RABIN_ERR_OVERFLOW /
- * RABIN_ERR_OUT_OF_MEMORY.
- */
-rabin_err_t rpol_test();
-
 #endif

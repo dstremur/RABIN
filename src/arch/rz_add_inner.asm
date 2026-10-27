@@ -56,3 +56,5 @@ rz_add_inner:
 	ret 
 
 
+
+section .note.GNU-stack noalloc noexec nowrite progbits

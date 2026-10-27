@@ -51,3 +51,5 @@ rz_sub_inner:
 	movzx rax, bl 
 	pop rbx 
 	ret 
+
+section .note.GNU-stack noalloc noexec nowrite progbits

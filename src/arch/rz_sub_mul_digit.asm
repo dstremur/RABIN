@@ -38,3 +38,5 @@ align 16
 .done:
     mov rax, r8         ; Return the final carry/borrow to C
     ret
+
+section .note.GNU-stack noalloc noexec nowrite progbits

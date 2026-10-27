@@ -37,11 +37,14 @@
 
 - A C compiler, preferably `gcc`
 - `make`
-- `gmp` and `openssl` for running the tests
+- `nasm` for the assembly kernels
+- Optional: `gmp`, `flint` and the `openssl` CLI for cross-checking tests
+  (tests requiring them are skipped when absent)
 
 ### Building from Source
 
 ```bash
-https://github.com/dstremur/RABIN.git
+git clone https://github.com/dstremur/RABIN.git
 cd RABIN
 make
+```

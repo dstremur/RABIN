@@ -263,11 +263,18 @@ rabin_err_t rpol_sub(rpol_t* r, const rpol_t* p, const rpol_t* q)
       return err;
   }
 
-  const rpol_t* longer = (p->deg > q->deg) ? p : q;
-  for (u64 i = min + 1; i <= max; i++) {
-    if ((err = rz_copy(&r->coeff[i], &longer->coeff[i])) != RABIN_SUCCESS)
-      return err;
-    r->coeff[i].is_neg = true;
+  // coefficients beyond min(p,q) belong to the longer operand only: p - q
+  // keeps p's own sign there, and negates q's
+  if (p->deg > q->deg) {
+    for (u64 i = min + 1; i <= max; i++) {
+      if ((err = rz_copy(&r->coeff[i], &p->coeff[i])) != RABIN_SUCCESS)
+        return err;
+    }
+  } else if (q->deg > p->deg) {
+    for (u64 i = min + 1; i <= max; i++) {
+      if ((err = rz_neg(&r->coeff[i], &q->coeff[i])) != RABIN_SUCCESS)
+        return err;
+    }
   }
 
   r->deg = max;
@@ -610,51 +617,3 @@ cleanup:
 
 //   return RABIN_SUCCESS;
 // }
-
-rabin_err_t rpol_test()
-{
-  printf("--- BigPoly Test --- \n");
-
-  rpol_t p = {0}, q = {0}, r = {0};
-  rpol_init(&p);
-  rpol_init(&q);
-  rpol_init(&r);
-
-  // Let p(x) = 2x^2 + 3x + 1
-  i64 p_vals[] = {1, 3, 2};
-  if (rpol_set_i64(&p, p_vals, 2) != RABIN_SUCCESS) return RABIN_ERR_OVERFLOW;
-
-  // Let q(x) = 4x + 5
-  i64 q_vals[] = {5, 4};
-  if (rpol_set_i64(&q, q_vals, 1) != RABIN_SUCCESS) return RABIN_ERR_OVERFLOW;
-
-  printf("\nPolynomial P(x):\n");
-  rpol_print(&p);
-
-  printf("\nPolynomial Q(x):\n");
-  rpol_print(&q);
-
-  // Test Addition: r = p + q = 2x^2 + 7x + 6
-  printf("\n--- Test: Addition (P + Q) ---\n");
-  rpol_add(&r, &p, &q);
-  rpol_print(&r);
-
-  // Test Multiplication: r = p * q = 8x^3 + 22x^2 + 19x + 5
-  printf("\n--- Test: Multiplication (P * Q) ---\n");
-  rpol_mul_school(&r, &p, &q);
-  rpol_print(&r);
-
-  rpol_clear(&r);
-  rpol_init(&r);
-
-  rpol_mul_ntt_u64(&r, &p, &q);
-  rpol_print(&r);
-
-  // Cleanup
-  rpol_clear(&p);
-  rpol_clear(&q);
-  rpol_clear(&r);
-
-  printf("\nTests complete.\n");
-  return RABIN_SUCCESS;
-}

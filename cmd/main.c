@@ -247,8 +247,6 @@ int main()
   printf("Safe prime: ");
   rz_println(&c);
 
-  rpol_test();
-
   printf("factorize a: ");
   rvec_t v = {0};
   rvec_init_dynamic(&v);
@@ -338,7 +336,6 @@ int main()
 
   //
   //
-  rpol_test();
   //
   rpol_t p = {0};
   rpol_init(&p);

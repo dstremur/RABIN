@@ -3,19 +3,19 @@ CC = gcc
 AS = nasm
 AR = gcc-ar
 # Flags
-CFLAGS = -Iinclude -Wall -Wextra -g -march=native -O3 -fopenmp -flto=auto -funroll-loops -fopenmp 
-LDFLAGS = -fopenmp -lm -flto -lgmp
+CFLAGS = -Iinclude -Wall -Wextra -g -march=native -O3 -fopenmp -flto=auto -funroll-loops
+LDFLAGS = -fopenmp -lm -flto
 ASFLAGS = -f elf64
 
 
 # Build-time AVX-512 detection: enable -mavx512f only when the compiler
- #accepts the flag and the build machine's CPU exposes avx512f.
- HAVE_AVX512 := $(shell grep -qw avx512f /proc/cpuinfo 2>/dev/null && \
-     printf 'int main(void){return 0;}' | $(CC) -mavx512f -x c - -o /dev/null \
-     2>/dev/null && echo yes)
- ifeq ($(HAVE_AVX512),yes)
- CFLAGS += -mavx512f
- endif
+# accepts the flag and the build machine's CPU exposes avx512f.
+HAVE_AVX512 := $(shell grep -qw avx512f /proc/cpuinfo 2>/dev/null && \
+    printf 'int main(void){return 0;}' | $(CC) -mavx512f -x c - -o /dev/null \
+    2>/dev/null && echo yes)
+ifeq ($(HAVE_AVX512),yes)
+CFLAGS += -mavx512f
+endif
 
 # directories 
 SRC_DIR = src
@@ -43,11 +43,22 @@ ifneq ($(FLINT_OK),yes)
 TEST_SRCS := $(filter-out $(TEST_DIR)/test_flint.c, $(TEST_SRCS))
 endif
 
+# Tests that reference <gmp.h> link -lgmp; skip them when GMP is absent so the
+# library itself keeps zero external dependencies
+GMP_OK := $(shell echo '#include <gmp.h>' | $(CC) -E -x c - \
+    -o /dev/null 2>/dev/null && echo yes)
+GMP_TEST_NAMES := $(notdir $(basename $(shell grep -l '#include.*gmp' \
+    $(TEST_DIR)/*.c 2>/dev/null)))
+ifneq ($(GMP_OK),yes)
+TEST_SRCS := $(filter-out $(addprefix $(TEST_DIR)/,$(addsuffix .c,$(GMP_TEST_NAMES))), \
+    $(TEST_SRCS))
+endif
+
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 EXTRA_test_flint = -lflint
 
 #.PHONY: all clean tests $(TEST_BINS)
-.PHONY: test-valgrind $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
+.PHONY: test-valgrind install uninstall $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
 .SECONDARY: $(OBJS) $(ASM_OBJS) $(TEST_BINS)
 .PRECIOUS: $(BUILD_DIR)/tests/%.o $(BUILD_DIR)/%
 
@@ -88,7 +99,8 @@ $(BUILD_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
 
 $(BUILD_DIR)/test_%: $(BUILD_DIR)/$(TEST_DIR)/test_%.o $(LIB)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*) \
+	  $(if $(filter test_$*,$(GMP_TEST_NAMES)),-lgmp)
 
 # 5. Convenience targets to run individual tests (e.g., `make test_mul`)
 test_%: $(BUILD_DIR)/test_%
@@ -118,6 +130,11 @@ VALGRIND_TESTS = test_add test_add_u64 test_cholesky test_cmp test_div \
                  test_isqrt test_log_2 test_lshift test_mod \
                  test_mod_inverse test_mod_u64
 
+ifneq ($(GMP_OK),yes)
+TESTS := $(filter-out $(GMP_TEST_NAMES), $(TESTS))
+VALGRIND_TESTS := $(filter-out $(GMP_TEST_NAMES), $(VALGRIND_TESTS))
+endif
+
 VG_DIR = $(BUILD_DIR)/vg
 VG_CFLAGS = $(CFLAGS) -mno-avx512f
 VG_OBJS = $(patsubst $(BUILD_DIR)/%.o, $(VG_DIR)/%.o, $(OBJS))
@@ -146,7 +163,8 @@ $(VG_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
 
 $(VG_DIR)/test_%: $(VG_DIR)/$(TEST_DIR)/test_%.o $(VG_LIB)
 	@mkdir -p $(@D)
-	$(CC) $(VG_CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*)
+	$(CC) $(VG_CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*) \
+	  $(if $(filter test_$*,$(GMP_TEST_NAMES)),-lgmp)
 
 test-valgrind:
 	@target="$(or $(TEST),$(VALGRIND_TESTS))"; \
@@ -159,6 +177,25 @@ test-valgrind:
 # Clean up all build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
+
+# --- Installation ---
+PREFIX ?= /usr/local
+INSTALL ?= install
+
+rabin.pc: rabin.pc.in
+	sed 's|@PREFIX@|$(PREFIX)|' $< > $@
+
+install: $(LIB) rabin.pc
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/lib/pkgconfig \
+	    $(DESTDIR)$(PREFIX)/include/rabin
+	$(INSTALL) -m 644 $(LIB) $(DESTDIR)$(PREFIX)/lib/librabin.a
+	$(INSTALL) -m 644 include/*.h $(DESTDIR)$(PREFIX)/include/rabin/
+	$(INSTALL) -m 644 rabin.pc $(DESTDIR)$(PREFIX)/lib/pkgconfig/
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/lib/librabin.a \
+	    $(DESTDIR)$(PREFIX)/lib/pkgconfig/rabin.pc
+	rm -rf $(DESTDIR)$(PREFIX)/include/rabin
 
 
 # --- Profile-Guided Optimization (PGO) ---

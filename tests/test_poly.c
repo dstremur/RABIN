@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -5,6 +6,69 @@
 #include "../include/rpol.h"
 #define ITERATIONS 5
 // #define POLY_SIZE 512
+
+static int failures = 0;
+
+#define CHECK(cond, msg)                                       \
+  do {                                                         \
+    if (!(cond)) {                                             \
+      printf("FAILED: %s (%s:%d)\n", msg, __FILE__, __LINE__); \
+      failures++;                                              \
+    }                                                          \
+  } while (0)
+
+// Self-test formerly shipped as rpol_test() in the library itself,
+// now with real pass/fail checks.
+static void test_basic_ops(void)
+{
+  rpol_t p = {0}, q = {0}, r = {0}, expect = {0};
+  rpol_init(&p);
+  rpol_init(&q);
+  rpol_init(&r);
+  rpol_init(&expect);
+
+  // p(x) = 2x^2 + 3x + 1, q(x) = 4x + 5
+  i64 p_vals[] = {1, 3, 2};
+  i64 q_vals[] = {5, 4};
+  CHECK(rpol_set_i64(&p, p_vals, 2) == RABIN_SUCCESS, "rpol_set_i64 p");
+  CHECK(rpol_set_i64(&q, q_vals, 1) == RABIN_SUCCESS, "rpol_set_i64 q");
+  CHECK(rpol_equal(&p, &p), "rpol_equal reflexive");
+
+  // p + q = 2x^2 + 7x + 6
+  i64 sum_vals[] = {6, 7, 2};
+  CHECK(rpol_set_i64(&expect, sum_vals, 2) == RABIN_SUCCESS,
+        "rpol_set_i64 sum");
+  CHECK(rpol_add(&r, &p, &q) == RABIN_SUCCESS, "rpol_add");
+  CHECK(rpol_equal(&r, &expect), "p + q == 2x^2 + 7x + 6");
+
+  // p - q = 2x^2 - x - 4
+  rpol_t minus = {0};
+  i64 exp_sub[] = {-4, -1, 2};
+  rpol_init(&minus);
+  CHECK(rpol_set_i64(&minus, exp_sub, 2) == RABIN_SUCCESS, "rpol_set_i64 p-q");
+  CHECK(rpol_sub(&r, &p, &q) == RABIN_SUCCESS, "rpol_sub");
+  CHECK(rpol_equal(&r, &minus), "p - q == 2x^2 - x - 4");
+
+  // p * q = 8x^3 + 22x^2 + 19x + 5 (schoolbook)
+  i64 prod_vals[] = {5, 19, 22, 8};
+  CHECK(rpol_mul_school(&r, &p, &q) == RABIN_SUCCESS, "rpol_mul_school");
+  CHECK(rpol_set_i64(&expect, prod_vals, 3) == RABIN_SUCCESS,
+        "rpol_set_i64 product");
+  CHECK(rpol_equal(&r, &expect), "schoolbook p*q == 8x^3 + 22x^2 + 19x + 5");
+
+  // NTT-u64 path must agree with schoolbook
+  rpol_t r_ntt = {0};
+  rpol_init(&r_ntt);
+  CHECK(rpol_mul_ntt_u64(&r_ntt, &p, &q) == RABIN_SUCCESS, "rpol_mul_ntt_u64");
+  CHECK(rpol_equal(&r_ntt, &expect), "NTT p*q matches schoolbook");
+
+  rpol_clear(&minus);
+  rpol_clear(&r_ntt);
+  rpol_clear(&p);
+  rpol_clear(&q);
+  rpol_clear(&r);
+  rpol_clear(&expect);
+}
 
 void benchmark_mul(u64 n)
 {
@@ -98,6 +162,8 @@ int main()
 {
   rz_init_constants();
 
+  test_basic_ops();
+
   u64 n = 16;
   rpol_t a = {0}, b = {0}, r = {0};
   rpol_init(&a);
@@ -151,4 +217,11 @@ int main()
     benchmark_mul(1 << 19);
    */
   rz_clear_constants();
+
+  if (failures == 0) {
+    printf("test_poly: ALL BASIC CHECKS PASSED\n");
+  } else {
+    printf("test_poly: %d CHECK(S) FAILED\n", failures);
+  }
+  return failures == 0 ? 0 : 1;
 }
