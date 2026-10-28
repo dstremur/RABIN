@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+libdir=${prefix}/lib
+includedir=${prefix}/include/rabin
+
+Name: RABIN
+Description: Rapid Arithmetic for Big Integers and Number Theory
+URL: https://github.com/dstremur/RABIN
+Version: 0.1.0
+Libs: -L${libdir} -lrabin -lm -fopenmp
+Cflags: -I${includedir}

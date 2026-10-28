@@ -54,6 +54,13 @@ TEST_SRCS := $(filter-out $(addprefix $(TEST_DIR)/,$(addsuffix .c,$(GMP_TEST_NAM
     $(TEST_SRCS))
 endif
 
+# test_openssl cross-checks against the `openssl prime` CLI (no libssl link);
+# skip it when the binary is absent
+OPENSSL_OK := $(shell command -v openssl >/dev/null 2>&1 && echo yes)
+ifneq ($(OPENSSL_OK),yes)
+TEST_SRCS := $(filter-out $(TEST_DIR)/test_openssl.c, $(TEST_SRCS))
+endif
+
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 EXTRA_test_flint = -lflint
 
