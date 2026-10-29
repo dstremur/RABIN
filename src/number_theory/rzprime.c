@@ -408,6 +408,12 @@ rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
     TRY(rz_copy(&n_min1, &n));
     TRY(rz_add_u64(&n, &n, 1));
 
+    // Pocklington-Brightwell-Selfridge requires the certified factor q of
+    // n-1 to satisfy (q + 1)^2 > n; otherwise lemma1 cannot prove primality.
+    TRY(rz_add_u64(&tmp, &q, 1));
+    TRY(rz_mul(&tmp, &tmp, &tmp));
+    if (rz_cmp(&tmp, &n) <= 0) continue;
+
     if (rz_trialdiv(&n, g)) {
       for (int j = 0; j < 200; j++) {
         TRY(rz_gen_random_range(&a, &two, &n_min1));

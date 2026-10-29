@@ -133,7 +133,7 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q);
  * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
  * Strong Probable Prime Test," Mathematics of Computation, vol. 29,
  * no. 130, 1975.
- * @see rz_stronglucas(), rzrabin()
+ * @see rz_stronglucas(), rz_rabin()
  */
 bool rz_bpsw(const rz_t* n);
 

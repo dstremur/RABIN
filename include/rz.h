@@ -954,7 +954,8 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b);
  *
  * If \f$|a| < |b|\f$ the result is \f$q = 0\f$, \f$r = a\f$. Otherwise the
  * magnitude division dispatches to the single-limb path (limbs_divrem_1()) or
- * to Knuth's Algorithm D (rz_divmod_limbs()). \f$q\f$ and \f$r\f$ may each
+ * to Knuth's Algorithm D (the internal rz_divmod_limbs kernel). \f$q\f$ and
+ * \f$r\f$ may each
  * alias \f$a\f$ or \f$b\f$ (handled via temporaries); \f$q\f$ and \f$r\f$ must
  * not alias each other.
  *

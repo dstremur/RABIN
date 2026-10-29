@@ -1,43 +1,52 @@
-#include <fcntl.h>
+/*
+ * test_proveable.c
+ *
+ * rz_gen_provable_arithmetic(): correctness gate (returned value must be a
+ * prime, certificate must be populated) plus generation timing benchmark.
+ *
+ * Copyright (C) 2026 Diego Strebel
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include <stdio.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "../include/rabin.h"
 #include "../include/rzcert.h"
+#include "test_util.h"
 
-int main()
+TEST(provable_primes_are_prime)
 {
-  rz_init_constants();
-
-  int num_to_generate = 20;
-  int bits = 2048;
+  int num_to_generate = 3;
+  int bits = 1024;
 
   rz_t p;
   rz_init(&p);
 
-  printf("Benchmarking: Generating %d primes at %d-bits...\n", num_to_generate,
-         bits);
-  printf("--------------------------------------------------\n");
-
   struct timespec start, end;
   double total_time = 0;
 
-  rzcert_t* cert = NULL;
   for (int i = 0; i < num_to_generate; i++) {
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    rzcert_t* cert = NULL;
 
-    rz_gen_provable_arithmetic(&p, bits, &cert);
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    rabin_err_t err = rz_gen_provable_arithmetic(&p, bits, &cert);
     clock_gettime(CLOCK_MONOTONIC, &end);
+
+    TEST_ASSERT(err == RABIN_SUCCESS, "rz_gen_provable_arithmetic succeeds");
+    TEST_ASSERT(cert != NULL, "certificate is emitted");
+    TEST_ASSERT(rz_bpsw(&p), "provable prime passes BPSW");
 
     double elapsed =
         (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     total_time += elapsed;
 
-    rz_println(&p);
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
-
     print_pocklington_cert(cert);
+
+    // Requires Phase 3 (rzcert_verify implementation):
+    // TEST_ASSERT(rzcert_verify(cert, 256), "certificate verifies");
+
     rzcert_clear(cert);
   }
 
@@ -47,7 +56,14 @@ int main()
          total_time / num_to_generate);
 
   rz_clear(&p);
+}
+
+int main(void)
+{
+  rz_init_constants();
+
+  RUN_TEST(provable_primes_are_prime);
 
   rz_clear_constants();
-  return 0;
+  return TEST_REPORT();
 }

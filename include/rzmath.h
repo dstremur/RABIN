@@ -139,8 +139,8 @@ rabin_err_t rz_tonelli_shanks(rz_t* r, const rz_t* n, const rz_t* p);
  * rz_t a, b, g;
  * rz_init_multi(&a, &b, &g, NULL);
  *
- * rz_set_str(&a, "1071", 10);   // 1071 = 3 * 3 * 7 * 17
- * rz_set_str(&b, "462",  10);   //  462 = 2 * 3 * 7 * 11
+ * rz_init_val(&a, "1071");      // 1071 = 3 * 3 * 7 * 17
+ * rz_init_val(&b, "462");       //  462 = 2 * 3 * 7 * 11
  * rz_gcd(&g, &a, &b);           // g == 21
  *
  * rz_gcd(&a, &a, &b);           // also fine: a == 21, b unchanged

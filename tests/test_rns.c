@@ -42,6 +42,7 @@ int main()
   rz_init_multi(&test_val, &recon_val, NULL);
   rz_init_val(&test_val, "123456789012345678901234567890");
 
+  free(r.residues);  // release the buffer malloc'd by the first rns_import
   r.residues = NULL;
   rns_import(&r, &test_val, &ctx);
   rns_export(&recon_val, &r, &ctx);

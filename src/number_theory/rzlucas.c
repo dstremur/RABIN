@@ -148,8 +148,13 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
   }
 
   // map constants into Montgomery space
+  // Q can be negative and REDC ignores signs, so canonicalize it to [0, m)
+  // before converting
+  TRY(rz_mod(&tmp, q, m));
+  if (tmp.is_neg && (err = rz_add(&tmp, &tmp, m)) != RABIN_SUCCESS)
+    goto cleanup;
   TRY(rz_mont_in(&p_bar, p, &ctx));
-  TRY(rz_mont_in(&q_bar, q, &ctx));
+  TRY(rz_mont_in(&q_bar, &tmp, &ctx));
   TRY(rz_copy(&one_bar, &ctx.one_mont));
 
   // initialize u, v, qn
@@ -169,30 +174,34 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
     if (rz_get_bit(n, i) == 0) {
       // U_2n = a
       TRY(rz_copy(&u_bar, &a));
-      // V_2n = b - 2 * Q^k
+      // V_2n = b - 2 * Q^n
       TRY(rz_sub(&v_bar, &b, &qn_bar));
       if (v_bar.is_neg &&
-          (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
+          (err = rz_add(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
         goto cleanup;
       TRY(rz_sub(&v_bar, &v_bar, &qn_bar));
       if (v_bar.is_neg &&
-          (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
+          (err = rz_add(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
         goto cleanup;
 
-      // Q^n = (Q^n/2)^2
+      // Q^2n = (Q^n)^2
       TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx));
     } else {
-      // tmp = P * U_2n + V_2n / 2
+      // tmp = (P * U_2n + V_n^2) / 2 - Q^n
       TRY(rz_mont_mul(&tmp, &p_bar, &a, &ctx));
       TRY(rz_add(&tmp, &tmp, &b));
+      TRY(rz_mod(&tmp, &tmp, &ctx.n));
 
-      // fix for modular arethmetic division by 2
+      // fix for modular arithmetic division by 2
       if (!rz_is_even(&tmp)) {
         TRY(rz_add(&tmp, &tmp, &ctx.n));
       }
       TRY(rz_rshift1(&tmp));
 
-      TRY(rz_copy(&u_bar, &tmp));
+      TRY(rz_sub(&u_bar, &tmp, &qn_bar));
+      if (u_bar.is_neg &&
+          (err = rz_add(&u_bar, &u_bar, &ctx.n)) != RABIN_SUCCESS)
+        goto cleanup;
 
       // V_2n+1 = P * U_2n+1 - 2 * Q * U_2n
       TRY(rz_mont_mul(&v_bar, &p_bar, &u_bar, &ctx));
@@ -201,9 +210,8 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
       // Subtract Q*a twice
       for (int j = 0; j < 2; j++) {
         TRY(rz_sub(&v_bar, &v_bar, &tmp));
-        // this needs to be add_abs. I have no idea why
         if (v_bar.is_neg &&
-            (err = rz_add_abs(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
+            (err = rz_add(&v_bar, &v_bar, &ctx.n)) != RABIN_SUCCESS)
           goto cleanup;
       }
 

@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  schedule:
+    - cron: '0 3 * * *'
 
 jobs:
   build:
@@ -14,14 +16,67 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install dependencies
-      run: | 
+      run: |
            sudo apt-get update
            sudo apt-get install -y nasm libgmp-dev libflint-dev
     - name: make
       run: make
+    - name: make check-api
+      run: make check-api
+    - name: make quick
+      run: make test_quick
     - name: make openssl
       run: make test_openssl
     - name: make gmp
       run: make test_gmp
+
+  nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+           sudo apt-get update
+           sudo apt-get install -y nasm libgmp-dev libflint-dev valgrind
     - name: make complete
       run: make test_complete
+    - name: make valgrind
+      run: make test-valgrind
+
+  clang:
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+           sudo apt-get update
+           sudo apt-get install -y nasm clang libomp-dev
+    - name: make
+      run: make
+    - name: make quick
+      run: make test_quick
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install clang-format
+      run: sudo apt-get update && sudo apt-get install -y clang-format
+    - name: Check formatting
+      run: |
+           ./format.sh
+           git diff --exit-code
+
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+           sudo apt-get update
+           sudo apt-get install -y nasm
+    - name: make test-san (ASan + UBSan, quick suite)
+      run: make test-san

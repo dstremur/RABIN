@@ -359,8 +359,12 @@ static void benchmark_logic(int bits, double target_sec, gmp_randstate_t state)
 
   mpz_urandomb(mpz_a, state, bits);
   mpz_urandomb(mpz_m, state, bits);
-  rz_init_val(&rz_a, mpz_get_str(NULL, 10, mpz_a));
-  rz_init_val(&rz_m, mpz_get_str(NULL, 10, mpz_m));
+  char* sa = mpz_get_str(NULL, 10, mpz_a);
+  char* sm = mpz_get_str(NULL, 10, mpz_m);
+  rz_init_val(&rz_a, sa);
+  rz_init_val(&rz_m, sm);
+  free(sa);
+  free(sm);
 
   // Width-limited mask for the rz_not GMP baseline: 2^(64*size) - 1
   mpz_set_ui(mpz_mask, 1);

@@ -98,23 +98,37 @@ u64 u64_mod_inverse_euclid(u64 a, u64 p)
 
 u64 u64_mod_inverse(u64 n, u64 p) { return u64_mod_pow(n, p - 2, p); }
 
-u64 u64_compute_mu(u64 q)
+u128 u64_compute_mu(u64 q)
 {
-  u128 dividend = ~((u128)0);
-  return (u64)(dividend / q);
+  if (q == 0) return 0;
+  return ~((u128)0) / q;
 }
 
-u64 u64_barrett(u128 c, u64 q, u64 mu)
+u64 u64_barrett(u128 c, u64 q, u128 mu)
 {
-  unsigned __int128 q_est = ((unsigned __int128)c * mu) >> 64;
+  if (q == 0) return 0;
 
-  u64 r = (u64)(c - q_est * q);
+  u64 c_hi = (u64)(c >> 64), c_lo = (u64)c;
+  u64 m_hi = (u64)(mu >> 64), m_lo = (u64)mu;
 
-  while (r >= q) {
+  // top 128 bits of the 256-bit product c * mu:
+  //   c*mu = (c_hi*m_hi)*2^128 + (c_hi*m_lo + c_lo*m_hi)*2^64 + c_lo*m_lo
+  u128 a = (u128)c_hi * m_lo;
+  u128 mid = a + (u128)c_lo * m_hi;
+  u64 mid_carry = mid < a;
+  u128 lo_carry = ((u128)c_lo * m_lo) >> 64;
+  mid += lo_carry;
+  if (mid < lo_carry) mid_carry++;
+
+  u128 q_est = (u128)c_hi * m_hi + (mid >> 64) + ((u128)mid_carry << 64);
+
+  // q_est <= floor(c/q) <= q_est + 1, so one correction subtraction suffices
+  u128 r = c - q_est * q;
+  while (r >= (u128)q) {
     r -= q;
   }
 
-  return r;
+  return (u64)r;
 }
 
 u64 u64_goldilock_red(u128 c)

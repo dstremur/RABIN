@@ -65,7 +65,8 @@ TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 EXTRA_test_flint = -lflint
 
 #.PHONY: all clean tests $(TEST_BINS)
-.PHONY: test-valgrind install uninstall $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
+.PHONY: test-valgrind test-san test_quick test_complete check-api tests \
+        install uninstall $(patsubst $(BUILD_DIR)/%, test_%, $(TEST_BINS))
 .SECONDARY: $(OBJS) $(ASM_OBJS) $(TEST_BINS)
 .PRECIOUS: $(BUILD_DIR)/tests/%.o $(BUILD_DIR)/%
 
@@ -116,14 +117,73 @@ test_%: $(BUILD_DIR)/test_%
 # 6. Build all tests without running them
 tests: $(TEST_BINS)
 
-TESTS = test_add test_add_u64 test_bpsw test_cmp test_div test_div_gcd \
-        test_divmod test_divmod_u64 test_cholesky test_field \
-        test_fincke_pohst test_gcd \
-        test_gcd_extended test_gmp test_isqrt test_log_2 \
-        test_lshift test_mod test_mod_inverse test_mod_u64
+# 7. Test sets: TESTS is every available suite (already dep-filtered by the
+#    FLINT/GMP/OpenSSL probes above); TESTS_QUICK is the fast, dependency-free
+#    correctness subset suitable for CI smoke runs.
+TESTS = $(notdir $(patsubst $(TEST_DIR)/%.c, %, $(TEST_SRCS)))
+
+TESTS_QUICK = test_add test_add_u64 test_all test_bpsw test_cmp test_div \
+              test_div_gcd test_divmod test_divmod_u64 test_field test_gcd \
+              test_gcd_extended test_isqrt test_kernel test_kron test_lll \
+              test_log_2 test_logic test_lshift test_matrix test_matrix_basic \
+              test_matrix_elim test_matrix_kernel test_matrixq test_mod \
+              test_mod_inverse test_mod_u64 test_modexp test_mul test_mul_i64 \
+              test_neg test_ntt test_poly test_rat test_rns test_rshift \
+              test_sqr test_sub test_u64 test_vector
+
+test_quick: $(TESTS_QUICK)
+	@echo "Quick test suite completed successfully!"
 
 test_complete: $(TESTS)
 	@echo "All specified tests completed successfully!"
+
+# 8. Detect API drift: every public symbol declared in include/*.h must be
+#    defined in the built library unless allowlisted in tests/api_allow.txt.
+check-api: $(LIB)
+	@sh tests/check_api.sh $(LIB) tests/api_allow.txt
+
+# 9. Address+UndefinedBehavior sanitizer build of the quick suite. Override
+#    the suite with `make test-san TEST=test_mul` or TESTS="$(TESTS)".
+SAN_DIR = $(BUILD_DIR)/san
+SAN_CFLAGS = $(CFLAGS) -g -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -mno-avx512f
+SAN_OBJS = $(patsubst $(BUILD_DIR)/%.o, $(SAN_DIR)/%.o, $(OBJS))
+SAN_ASM_OBJS = $(patsubst $(BUILD_DIR)/%.o, $(SAN_DIR)/%.o, $(ASM_OBJS))
+SAN_LIB = $(SAN_DIR)/libbignum.a
+
+$(SAN_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(SAN_CFLAGS) -c $< -o $@
+
+$(SAN_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.asm
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) $< -o $@
+
+$(SAN_DIR)/$(SRC_DIR)/%.o: $(SRC_DIR)/%.s
+	@mkdir -p $(@D)
+	$(AS) $(ASFLAGS) $< -o $@
+
+$(SAN_LIB): $(SAN_OBJS) $(SAN_ASM_OBJS)
+	@mkdir -p $(@D)
+	$(AR) rcs $@ $^
+
+$(SAN_DIR)/$(TEST_DIR)/%.o: $(TEST_DIR)/%.c
+	@mkdir -p $(@D)
+	$(CC) $(SAN_CFLAGS) -c $< -o $@
+
+$(SAN_DIR)/test_%: $(SAN_DIR)/$(TEST_DIR)/test_%.o $(SAN_LIB)
+	@mkdir -p $(@D)
+	$(CC) $(SAN_CFLAGS) $^ -o $@ $(LDFLAGS) $(EXTRA_test_$*) \
+	  $(if $(filter test_$*,$(GMP_TEST_NAMES)),-lgmp)
+
+test-san:
+	@target="$(or $(TEST),$(TESTS_QUICK))"; \
+	for t in $$target; do \
+		echo "== sanitizer $$t =="; \
+		$(MAKE) $(SAN_DIR)/$$t || exit 1; \
+		UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+		ASAN_OPTIONS=detect_leaks=1 ./$(SAN_DIR)/$$t || exit 1; \
+	done
 
 # 8. Run one test (`make test-valgrind TEST=test_mul`) or the fast core set
 #    under valgrind (definite/possible leaks + error abort). Valgrind cannot
@@ -138,7 +198,6 @@ VALGRIND_TESTS = test_add test_add_u64 test_cholesky test_cmp test_div \
                  test_mod_inverse test_mod_u64
 
 ifneq ($(GMP_OK),yes)
-TESTS := $(filter-out $(GMP_TEST_NAMES), $(TESTS))
 VALGRIND_TESTS := $(filter-out $(GMP_TEST_NAMES), $(VALGRIND_TESTS))
 endif
 

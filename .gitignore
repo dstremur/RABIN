@@ -2,7 +2,7 @@
 *.d
 
 
-
+BUGS.md
 error_plan.md
 bignum
 # Object files

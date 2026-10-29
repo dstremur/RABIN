@@ -1082,7 +1082,8 @@ rabin_err_t rmat_charpoly_adj(rpol_t* p, rmat_t* J, const rmat_t* A);
  * @param[in]     delta LLL parameter, \f$0 < \delta \le 1\f$ (typically
  *                     \f$0.75\f$).
  * @param[out]    H Transformation matrix; re-initialized to \f$n \times
- *                  n\f$ on success.
+ *                  n\f$ on success and reset to an empty (zero-initialized)
+ *                  matrix on failure.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
  * RABIN_ERR_INVALID_ARG (invalid delta, \f$n \ne B \text{-}>\text{cols}\f$,
  * or dependent columns), or RABIN_ERR_OUT_OF_MEMORY.

@@ -387,22 +387,33 @@ rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H)
   rabin_err_t err = rmat_init(H, n, n);
   if (err != RABIN_SUCCESS) return err;
   err = rmat_id(H, n);
-  if (err != RABIN_SUCCESS) return err;
+  if (err != RABIN_SUCCESS) {
+    rmat_clear(H);
+    *H = (rmat_t){0};
+    return err;
+  }
   if (n <= 1) return RABIN_SUCCESS;
 
   rmat_t V = {0}, lam = {0};
   rz_t* dv = NULL;
 
-  if (rmat_init(&V, B->rows, n) != RABIN_SUCCESS)
+  if (rmat_init(&V, B->rows, n) != RABIN_SUCCESS) {
+    rmat_clear(H);
+    *H = (rmat_t){0};
     return RABIN_ERR_OUT_OF_MEMORY;
+  }
   if (rmat_init(&lam, n, n) != RABIN_SUCCESS) {
     rmat_clear(&V);
+    rmat_clear(H);
+    *H = (rmat_t){0};
     return RABIN_ERR_OUT_OF_MEMORY;
   }
   dv = malloc((n + 1) * sizeof(rz_t));
   if (dv == NULL) {
     rmat_clear(&V);
     rmat_clear(&lam);
+    rmat_clear(H);
+    *H = (rmat_t){0};
     return RABIN_ERR_OUT_OF_MEMORY;
   }
   for (u64 i = 0; i <= n; i++) {
@@ -411,11 +422,14 @@ rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H)
       free(dv);
       rmat_clear(&V);
       rmat_clear(&lam);
+      rmat_clear(H);
+      *H = (rmat_t){0};
       return RABIN_ERR_OUT_OF_MEMORY;
     }
   }
 
   // H is already the identity (set above); on failure B is left untouched
+  // and H is reset to an empty matrix so callers own no allocations
   err = rmat_copy(&V, B);
   if (err == RABIN_SUCCESS) err = rmat_lll_run(&V, H, &lam, dv, n, delta);
   if (err == RABIN_SUCCESS) err = rmat_copy(B, &V);
@@ -424,6 +438,10 @@ rabin_err_t rmat_lll(rmat_t* B, u64 n, double delta, rmat_t* H)
   free(dv);
   rmat_clear(&V);
   rmat_clear(&lam);
+  if (err != RABIN_SUCCESS) {
+    rmat_clear(H);
+    *H = (rmat_t){0};
+  }
   return err;
 }
 

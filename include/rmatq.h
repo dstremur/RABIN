@@ -723,7 +723,8 @@ rabin_err_t rmatq_solve(rmatq_t* X, const rmatq_t* A, const rmatq_t* B);
  * value \f$Q(x)\f$. It runs the full Fincke-Pohst pipeline of Cohen
  * 2.7.7: LLL reduction (rmat_lll()) of the dual lattice of
  * \f$(\mathbb{Z}^n, Q)\f$, whose rows are obtained from \f$A^{-1}\f$ via
- * rmat_inv() (they coincide with the rows of Cholesky's \f$R^{-1}\f$ but
+ * rmat_inv_unimodular() (they coincide with the rows of Cholesky's
+ * \f$R^{-1}\f$ but
  * never need square roots), the unimodular \f$U = (H^t)^{-1}\f$,
  * reordering of the columns \f$s_i = Ru_i\f$ of \f$S = RU\f$ by
  * increasing \f$\Vert s_i \Vert^2 = Q(u_i)\f$, the Cholesky coefficients

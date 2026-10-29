@@ -157,20 +157,20 @@ u64 u64_mod_inverse(u64 n, u64 p);
  *   - Auxiliary memory: \f$O(1)\f$
  *   - Output memory: \f$O(1)\f$
  *
- * @param[in] q Modulus.
+ * @param[in] q Modulus, \f$q \ge 2\f$.
  *
  * @return The Barrett reduction constant \f$\mu\f$.
  */
-u64 u64_compute_mu(u64 q);
+u128 u64_compute_mu(u64 q);
 
 /**
  * @brief Barrett reduction: \f$c \bmod q\f$, where \f$\mu = \lfloor (2^{128} -
  * 1) / q \rfloor\f$.
  *
  * Estimates the quotient as \f$q_{est} = \lfloor c \cdot \mu / 2^{128}
- * \rfloor\f$ using the high 128 bits of the 192-bit product, computes
- * \f$r = c - q_{est} \cdot q\f$, and subtracts \f$q\f$ at most twice to correct
- * the (rare) overestimate.
+ * \rfloor\f$ using the high 128 bits of the 256-bit product, computes
+ * \f$r = c - q_{est} \cdot q\f$, and subtracts \f$q\f$ at most once to correct
+ * the (rare) underestimate.
  *
  * Complexity:
  *   - Time: \f$O(1)\f$
@@ -178,12 +178,12 @@ u64 u64_compute_mu(u64 q);
  *   - Output memory: \f$O(1)\f$
  *
  * @param[in]  c  Value to reduce (128-bit).
- * @param[in]  q  Modulus.
- * @param[in] mu Barrett reduction constant.
+ * @param[in]  q  Modulus, \f$q \ge 2\f$.
+ * @param[in] mu Barrett reduction constant from u64_compute_mu().
  *
  * @return \f$c \bmod q\f$.
  */
-u64 u64_barrett(u128 c, u64 q, u64 mu);
+u64 u64_barrett(u128 c, u64 q, u128 mu);
 
 /**
  * @brief Goldilocks field reduction: \f$c \bmod p\f$ with \f$p = 2^{64} -
