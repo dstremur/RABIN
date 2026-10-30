@@ -28,9 +28,9 @@
  * @param[in]  p  Lucas parameter P.
  * @param[in]  q  Lucas parameter Q.
  * @param[out] qn Result storing \f$Q^n\f$.
- * @param[in]  n  Index of the Lucas sequence term.
+ * @param[in]  n  Index of the Lucas sequence term (non-negative).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$n\f$) / RABIN_ERR_OUT_OF_MEMORY.
  *
  * @par Algorithm Reference:
  * E. Lucas, "Theorie des fonctions numeriques periodiques, des
@@ -65,13 +65,16 @@ rabin_err_t rz_lucas_solve(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
  *
  * @param[out] u  Result storing \f$U_n \bmod m\f$.
  * @param[out] v  Result storing \f$V_n \bmod m\f$.
- * @param[in]  p  Lucas parameter P.
- * @param[in]  q  Lucas parameter Q.
+ * @param[in]  p  Lucas parameter P (may be negative).
+ * @param[in]  q  Lucas parameter Q (may be negative).
  * @param[out] qn Result storing \f$Q^n \bmod m\f$.
- * @param[in]  n  Index of the Lucas sequence term.
+ * @param[in]  n  Index of the Lucas sequence term (non-negative).
  * @param[in]  m  Modulus.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$n\f$, or \f$m \le 1\f$ or \f$m\f$ even),
+ * or RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @pre \f$n \ge 0\f$ and \f$m\f$ is odd with \f$m > 1\f$.
  */
 rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
                                rz_t* qn, const rz_t* n, const rz_t* m);

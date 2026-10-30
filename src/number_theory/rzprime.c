@@ -65,28 +65,25 @@ rabin_err_t rz_gen_prime(rz_t* p, int bits)
     err = rz_gen_random_with_fd(p, (u64)bits, fd);
     if (err != RABIN_SUCCESS) break;
 
-    rz_set_bit(p, bits - 1);
-    rz_set_bit(p, 0);
+    if ((err = rz_set_bit(p, bits - 1)) != RABIN_SUCCESS) break;
+    if ((err = rz_set_bit(p, 0)) != RABIN_SUCCESS) break;
 
-    uint64_t multi_prime = 3ULL * 5 * 7 * 11 * 13 * 17;
-    uint64_t rem = rz_mod_u64(p, multi_prime);
-
-    if (rem % 3 == 0 || rem % 5 == 0 || rem % 7 == 0 || rem % 11 == 0 ||
-        rem % 13 == 0 || rem % 17 == 0)
-      continue;
-
-    for (int i = 0; i < 1500; i++) {
-      if (p->limbs[0] == SMALL_PRIMES[i]) {
+    // Trial division: a candidate that IS one of the small primes is
+    // accepted as a whole-number equality, everything divisible by one
+    // is composite. Candidates that survive go to the full BPSW test.
+    for (u64 i = 0; SMALL_PRIMES[i] < 10000; i++) {
+      u64 sp = SMALL_PRIMES[i];
+      if (!p->is_neg && p->size == 1 && p->limbs[0] == sp) {
+        err = RABIN_SUCCESS;
         goto done;
       }
-
-      if (rz_mod_u64(p, SMALL_PRIMES[i]) == 0) {
+      if (rz_mod_u64(p, sp) == 0) {
         composite = true;
         break;
       }
     }
 
-    // 2. BPSW deterministic :)
+    // 2. BPSW probable-prime test
     if (!composite) {
       if (rz_bpsw(p)) {
         goto done;
@@ -124,8 +121,13 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q)
 {
   if (n == NULL || P == NULL || Q == NULL) return false;
 
-  rz_t p, q, d, u, v, qn, tmp, n_plus_1;
-  rz_init_multi(&p, &q, &d, &u, &v, &qn, &tmp, &n_plus_1, NULL);
+  // Domain: odd modulus > 1 (the Lucas stage of BPSW only ever runs on
+  // such candidates; anything else fails closed).
+  if (n->is_neg || rz_is_zero(n) || rz_is_one(n) || rz_is_even(n)) return false;
+
+  rz_t d, u, v, qn, tmp, n_plus_1;
+  if (rz_init_multi(&d, &u, &v, &qn, &tmp, &n_plus_1, NULL) != RABIN_SUCCESS)
+    return false;
 
   bool prime = false;
 
@@ -142,17 +144,18 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q)
 
   if (rz_lucas_solve_mod(&u, &v, P, Q, &qn, &d, n) != RABIN_SUCCESS)
     goto cleanup;
-  // 1. condition
+  // 1. condition: U_d == 0 mod n
   if (rz_is_zero(&u)) {
     prime = true;
     goto cleanup;
   }
-  // 2. condition
+  // 2. condition: V_(d*2^r) == 0 mod n, starting with r = 0
   if (rz_is_zero(&v)) {
     prime = true;
     goto cleanup;
   }
-  // check 2. condition for all d * 2^r
+  // check 2. condition for all d * 2^r, r = 1..s-1 (V doubled each step,
+  // Q^k updated as Q^(2k) = (Q^k)^2 to match V_2k = V_k^2 - 2*Q^k)
   for (int r = 1; r < s; r++) {
     if (rz_mul(&tmp, &v, &v) != RABIN_SUCCESS) goto cleanup;
     if (rz_mod(&tmp, &tmp, n) != RABIN_SUCCESS) goto cleanup;
@@ -166,15 +169,13 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q)
     if (rz_mul(&qn, &qn, &qn) != RABIN_SUCCESS) goto cleanup;
     if (rz_mod(&qn, &qn, n) != RABIN_SUCCESS) goto cleanup;
 
-    if (rz_is_eq_i64(&v, 0)) {
+    if (rz_is_zero(&v)) {
       prime = true;
       goto cleanup;
     }
   }
 
 cleanup:
-  rz_clear(&p);
-  rz_clear(&q);
   rz_clear(&d);
   rz_clear(&u);
   rz_clear(&v);
@@ -188,9 +189,16 @@ bool rz_bpsw(const rz_t* n)
 {
   if (n == NULL) return false;
 
+  // Domain: primes are positive integers > 1.
+  if (n->is_neg || rz_is_zero(n)) return false;
+  if (rz_is_eq_i64(n, 1)) return false;
   if (rz_is_eq_i64(n, 2)) return true;
-
   if (rz_is_even(n)) return false;
+
+  // A perfect square is composite; reject it before the Selfridge search.
+  // For a square, (D|n) = +1 for every D coprime to n and 0 otherwise, so
+  // the search below would never terminate for square candidates.
+  if (rz_is_square(NULL, n)) return false;
 
   // Trial division by small primes to quickly reject composites (mirrors
   // GMP's fast path). ~88% of random odd numbers have a factor < 10000.
@@ -219,14 +227,8 @@ bool rz_bpsw(const rz_t* n)
 
   bool negative = false;
 
-  int rounds = 0;
   // finds a D using Selfridges method A*
   while (1) {
-    // check if n is perfect square after 5 rounds
-    if (rounds == 5 && rz_is_square(NULL, n)) {
-      goto reject;
-    }
-
     if (rz_copy(&D, &magnitude) != RABIN_SUCCESS) goto reject;
     D.is_neg = negative;
 
@@ -243,8 +245,6 @@ bool rz_bpsw(const rz_t* n)
 
     if (rz_add_u64(&magnitude, &magnitude, 2) != RABIN_SUCCESS) goto reject;
     negative = !negative;
-
-    rounds++;
   }
 
   // zero-initialized so the reject path can clear them even when the jump
@@ -252,17 +252,18 @@ bool rz_bpsw(const rz_t* n)
   rz_t P = {0}, Q = {0};
   rz_init_multi(&P, &Q, NULL);
   if (rz_set_u64(&P, 1) != RABIN_SUCCESS) goto reject;
-  if (rz_set_u64(&Q, 1) != RABIN_SUCCESS) goto reject;
 
+  // Q = (1 - D) / 4, exact for every Selfridge D (D is always = 1 mod 4).
   if (negative) {
+    // D = -magnitude: Q = (1 + magnitude) / 4 > 0
     if (rz_copy(&Q, &magnitude) != RABIN_SUCCESS) goto reject;
     if (rz_add_u64(&Q, &Q, 1) != RABIN_SUCCESS) goto reject;
-    rz_divmod_u64(&Q, &Q, 4);
+    if (rz_divmod_u64(&Q, &Q, 4) != 0) goto reject;
   } else {
+    // D = +magnitude: Q = (1 - magnitude) / 4 < 0
     if (rz_copy(&Q, &magnitude) != RABIN_SUCCESS) goto reject;
-    if (rz_sub(&Q, &Q, &P) != RABIN_SUCCESS) goto reject;
-    rz_divmod_u64(&Q, &Q, 4);
-    Q.is_neg = true;
+    if (rz_sub(&Q, &P, &Q) != RABIN_SUCCESS) goto reject;
+    if (rz_divmod_u64(&Q, &Q, 4) != 0) goto reject;
   }
 
   bool res = rz_stronglucas(n, &P, &Q);
@@ -343,18 +344,39 @@ rabin_err_t rz_provable_prime(rz_t* p, u64 k)
   return err;
 }
 
+// Deterministic primality test for single-limb candidates by exhaustive
+// trial division up to sqrt(n); used as the base case of the provable-
+// prime recursion so a BPSW probable-prime result is never presented as
+// a proof. Fails closed if the prime table is exhausted early.
+static bool small_prime_det(const rz_t* n)
+{
+  if (n->is_neg || rz_is_zero(n) || rz_is_one(n)) return false;
+  if (rz_is_eq_i64(n, 2)) return true;
+  if (rz_is_even(n)) return false;
+  if (n->size > 1) return false;  // deterministic only for u64-range input
+
+  u64 v = n->limbs[0];
+  for (u64 i = 1; i < 70000; i++) {
+    u64 p = SMALL_PRIMES[i];
+    if (p * p > v) return true;
+    if (v % p == 0) return false;
+  }
+  return false;  // table exhausted before sqrt(v): cannot prove primality
+}
+
 rabin_err_t rz_provable_prime_inner(rz_t* p, u64 k)
 {
   if (p == NULL) return RABIN_ERR_NULL_PTR;
 
   //  base case k <= 20
-  //  use Baillie-PSW instead of trial factoring
+  //  deterministic trial division; BPSW would only give a probable-prime
+  //  result, which must not be presented as a proof
   if (k <= 20) {
     rabin_err_t err = RABIN_SUCCESS;
     do {
       // generates a random odd k-bit integer
       if ((err = rz_gen_random(p, k)) != RABIN_SUCCESS) break;
-    } while (!rz_bpsw(p));
+    } while (!small_prime_det(p));
     return err;
   }
 

@@ -35,6 +35,8 @@
 bool rz_rabin(const rz_t* n, const rz_t* a)
 {
   if (n == NULL || a == NULL) return false;
+  if (n->is_neg || rz_is_zero(n) || rz_is_one(n)) return false;
+  if (rz_is_eq_i64(n, 2)) return true;
   if (rz_is_even(n)) return false;
 
   bool composite = true;
@@ -46,15 +48,6 @@ bool rz_rabin(const rz_t* n, const rz_t* a)
 
   if (rz_set_u64(&one, 1) != RABIN_SUCCESS) goto cleanup;
   if (rz_set_u64(&two, 2) != RABIN_SUCCESS) goto cleanup;
-
-  if (rz_cmp(n, &one) <= 0) {
-    goto cleanup;
-  }
-
-  if (rz_cmp(n, &two) == 0) {
-    composite = false;
-    goto cleanup;
-  }
 
   if (rz_sub(&n_minus_1, n, &one) != RABIN_SUCCESS) goto cleanup;
   if (rz_copy(&d, &n_minus_1) != RABIN_SUCCESS) goto cleanup;
@@ -95,12 +88,12 @@ cleanup:
 bool rz_rabin_mont(const rz_t* n, const rz_t* a)
 {
   if (n == NULL || a == NULL) return false;
+  if (n->is_neg || rz_is_zero(n) || rz_is_one(n)) return false;
+  if (rz_is_eq_i64(n, 2)) return true;
   if (rz_is_even(n)) return false;
 
   // Fast handling for small numbers
-  if (n->size == 1 && n->limbs[0] <= 3) {
-    return n->limbs[0] == 2 || n->limbs[0] == 3;
-  }
+  if (n->size == 1 && n->limbs[0] == 3) return true;
 
   bool composite = true;
 
@@ -114,11 +107,10 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a)
   rz_mont_ctx ctx = {0};
 
   // Step 3: Precompute Montgomery representations
-  rz_t a_bar, x_bar, n_minus_1_mont, tmp;
+  rz_t a_bar, x_bar, n_minus_1_mont;
   rz_init(&a_bar);
   rz_init(&x_bar);
   rz_init(&n_minus_1_mont);
-  rz_init(&tmp);
 
   if (rz_set_u64(&one, 1) != RABIN_SUCCESS) goto cleanup;
 
@@ -133,7 +125,6 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a)
 
   if (rz_mont_ctx_init(&ctx, n) != RABIN_SUCCESS) goto cleanup;
 
-  if (rz_alloc(&tmp, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&a_bar, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&x_bar, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&n_minus_1_mont, n->size) != RABIN_SUCCESS) goto cleanup;
@@ -179,7 +170,6 @@ cleanup:
   rz_clear(&a_bar);
   rz_clear(&x_bar);
   rz_clear(&n_minus_1_mont);
-  rz_clear(&tmp);
   rz_mont_ctx_clear(&ctx);
 
   return !composite;
@@ -187,12 +177,14 @@ cleanup:
 bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx)
 {
   if (n == NULL || a == NULL || ctx == NULL) return false;
+  // the context must match the modulus under test
+  if (rz_cmp(&ctx->n, n) != 0) return false;
+  if (n->is_neg || rz_is_zero(n) || rz_is_one(n)) return false;
+  if (rz_is_eq_i64(n, 2)) return true;
   if (rz_is_even(n)) return false;
 
   // Fast handling for small numbers
-  if (n->size == 1 && n->limbs[0] <= 3) {
-    return n->limbs[0] == 2 || n->limbs[0] == 3;
-  }
+  if (n->size == 1 && n->limbs[0] == 3) return true;
 
   bool composite = true;
 
@@ -203,11 +195,10 @@ bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx)
   rz_init(&one);
 
   // Step 2: Precompute Montgomery representations
-  rz_t a_bar, x_bar, n_minus_1_mont, tmp;
+  rz_t a_bar, x_bar, n_minus_1_mont;
   rz_init(&a_bar);
   rz_init(&x_bar);
   rz_init(&n_minus_1_mont);
-  rz_init(&tmp);
 
   if (rz_set_u64(&one, 1) != RABIN_SUCCESS) goto cleanup;
 
@@ -220,7 +211,6 @@ bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx)
     s++;
   }
 
-  if (rz_alloc(&tmp, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&a_bar, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&x_bar, n->size) != RABIN_SUCCESS) goto cleanup;
   if (rz_alloc(&n_minus_1_mont, n->size) != RABIN_SUCCESS) goto cleanup;
@@ -266,7 +256,6 @@ cleanup:
   rz_clear(&a_bar);
   rz_clear(&x_bar);
   rz_clear(&n_minus_1_mont);
-  rz_clear(&tmp);
 
   return !composite;
 }

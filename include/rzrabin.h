@@ -32,9 +32,10 @@
  * @param[in] n Number to test.
  * @param[in] a Base of the test.
  *
- * @return true  If \f$n\f$ passes the test (probably prime).
- * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
- * compositeness was found.
+ * @return true  If \f$n = 2\f$, \f$n = 3\f$, or \f$n\f$ passes the test
+ *               (probably prime).
+ * @return false If \f$n \le 1\f$, \f$n < 0\f$, \f$n\f$ is even, or a witness
+ *               for compositeness was found.
  *
  * @par Algorithm Reference:
  * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"
@@ -69,9 +70,10 @@ bool rz_rabin(const rz_t* n, const rz_t* a);
  * @param[in] n Number to test.
  * @param[in] a Base of the test.
  *
- * @return true  If \f$n\f$ passes the test (probably prime).
- * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
- * compositeness was found.
+ * @return true  If \f$n = 2\f$, \f$n = 3\f$, or \f$n\f$ passes the test
+ *               (probably prime).
+ * @return false If \f$n \le 1\f$, \f$n < 0\f$, \f$n\f$ is even, or a witness
+ *               for compositeness was found.
  *
  * @par Algorithm Reference:
  * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"
@@ -105,9 +107,10 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a);
  * @param[in,out] ctx Initialized Montgomery context for modulus \f$n\f$ (uses
  *                    ctx->tmp as scratch).
  *
- * @return true  If \f$n\f$ passes the test (probably prime).
- * @return false If \f$n\f$ is even, \f$n \le 1\f$, or a witness for
- * compositeness was found.
+ * @return true  If \f$n = 2\f$, \f$n = 3\f$, or \f$n\f$ passes the test
+ *               (probably prime).
+ * @return false If \f$n \le 1\f$, \f$n < 0\f$, \f$n\f$ is even, or a witness
+ *               for compositeness was found.
  *
  * @par Algorithm Reference:
  * G. L. Miller, "Uses of the Riemann Hypothesis in Primality Testing,"

@@ -83,12 +83,13 @@ rabin_err_t rz_gen_safe_prime(rz_t* p, int bits);
  *   - Auxiliary memory: \f$O(n_l)\f$ limbs for temporaries
  *   - Output memory: \f$O(1)\f$
  *
- * @param[in] n Number to test.
+ * @param[in] n Odd number to test, \f$n \ge 3\f$.
  * @param[in] P Lucas parameter P.
- * @param[in] Q Lucas parameter Q.
+ * @param[in] Q Lucas parameter Q (may be negative).
  *
  * @return true  If \f$n\f$ passes the test (probably prime).
- * @return false If \f$n\f$ fails the test.
+ * @return false If \f$n \le 2\f$, \f$n < 0\f$, \f$n\f$ is even, or \f$n\f$
+ *               fails the test.
  *
  * @par Algorithm Reference:
  * P. D. S. Pomerance and J. L. Selfridge, "The Lucas Sequence Primality
@@ -126,8 +127,9 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q);
  *
  * @param[in] n Number to test.
  *
- * @return true  If \f$n\f$ passes both tests (probably prime).
- * @return false If \f$n\f$ fails either test.
+ * @return true  If \f$n = 2\f$ or \f$n \ge 3\f$ passes both tests (probably
+ *               prime).
+ * @return false If \f$n \le 1\f$, \f$n < 0\f$, or \f$n\f$ fails either test.
  *
  * @par Algorithm Reference:
  * D. W. Baillie and P. S. W. Williams, "A Composite Number Passing the
