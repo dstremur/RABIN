@@ -109,7 +109,7 @@ TEST(pow_isqrt_and_modexp)
   TEST_ASSERT(rz_mod_exp(&r, &a, &e, &m) == RABIN_SUCCESS, "a^0 mod m");
   TEST_ASSERT(rz_cmp(&r, &one) == 0, "a^0 mod m == 1");
 
-  rz_clear_multi(&base, &e, &r, &a, &m, &one, NULL);
+  rz_clear_multi(&base, &e, &r, &a, &m, &one, &sq, NULL);
 }
 
 TEST(prime_and_provable)
