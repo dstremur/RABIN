@@ -259,6 +259,7 @@ bool rz_bpsw(const rz_t* n)
     if (rz_copy(&Q, &magnitude) != RABIN_SUCCESS) goto reject;
     if (rz_sub(&Q, &Q, &P) != RABIN_SUCCESS) goto reject;
     rz_divmod_u64(&Q, &Q, 4);
+    Q.is_neg = true;
   }
 
   bool res = rz_stronglucas(n, &P, &Q);
