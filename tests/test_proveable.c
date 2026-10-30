@@ -44,8 +44,7 @@ TEST(provable_primes_are_prime)
     printf("Prime #%d: Found in %.4f seconds\n", i + 1, elapsed);
     print_pocklington_cert(cert);
 
-    // Requires Phase 3 (rzcert_verify implementation):
-    // TEST_ASSERT(rzcert_verify(cert, 256), "certificate verifies");
+    TEST_ASSERT(rzcert_verify(cert, 256), "certificate verifies");
 
     rzcert_clear(cert);
   }

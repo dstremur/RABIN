@@ -122,8 +122,8 @@ tests: $(TEST_BINS)
 #    correctness subset suitable for CI smoke runs.
 TESTS = $(notdir $(patsubst $(TEST_DIR)/%.c, %, $(TEST_SRCS)))
 
-TESTS_QUICK = test_add test_add_u64 test_all test_bpsw test_cmp test_div \
-              test_div_gcd test_divmod test_divmod_u64 test_field test_gcd \
+TESTS_QUICK = test_add test_add_u64 test_all test_bpsw test_cert test_cmp \
+              test_div test_div_gcd test_divmod test_divmod_u64 test_field \
               test_gcd_extended test_isqrt test_kernel test_kron test_lll \
               test_log_2 test_logic test_lshift test_matrix test_matrix_basic \
               test_matrix_elim test_matrix_kernel test_matrixq test_mod \

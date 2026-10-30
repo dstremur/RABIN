@@ -588,7 +588,6 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
   }
 
   // F is a proven prime roughly of size 2^(n/2)
-  bool cert_partial = false;
   rz_t F;
   rz_init(&F);
 
@@ -738,39 +737,26 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
       if (found_prime) {
         if (cert_out != NULL) {
           // Build the certificate for current N before touching p
-          *cert_out = malloc(sizeof(rzcert_t));
-          if (*cert_out == NULL) {
+          rzcert_t* ncert = calloc(1, sizeof(rzcert_t));
+          if (ncert == NULL) {
             err = RABIN_ERR_OUT_OF_MEMORY;
             goto cleanup;
           }
-          **cert_out = (rzcert_t){0};
-          cert_partial = true;
-          rz_init(&(*cert_out)->N);
-          if ((err = rz_copy(&(*cert_out)->N, &N)) != RABIN_SUCCESS)
-            goto cleanup;
-
-          // Allocate space for the single factor F we are proving against
-          (*cert_out)->size = 1;
-          (*cert_out)->capacity = 1;
-          (*cert_out)->data = malloc(sizeof(rzcert_elem_t));
-          if ((*cert_out)->data == NULL) {
+          rz_init(&ncert->N);
+          bool cert_built = (rz_copy(&ncert->N, &N) == RABIN_SUCCESS) &&
+                            rzcert_add_elem(ncert, &F, &alpha, F_cert);
+          if (!cert_built) {
+            // rzcert_add_elem links the child only on success, so F_cert
+            // is still ours and gets freed in cleanup
+            rzcert_clear(ncert);
             err = RABIN_ERR_OUT_OF_MEMORY;
             goto cleanup;
           }
-          rz_init(&(*cert_out)->data[0].q);
-          rz_init(&(*cert_out)->data[0].alpha_q);
-          if ((err = rz_copy(&(*cert_out)->data[0].q, &F)) != RABIN_SUCCESS)
-            goto cleanup;
 
-          if ((err = rz_copy(&(*cert_out)->data[0].alpha_q, &alpha)) !=
-              RABIN_SUCCESS)
-            goto cleanup;
-
-          // Link the recursive proof for F (ownership transfers to the
-          // certificate)
-          (*cert_out)->data[0].q_cert = F_cert;
+          // The recursive proof for F transferred ownership into the
+          // certificate
           F_cert = NULL;
-          cert_partial = false;
+          *cert_out = ncert;
         } else {
           rzcert_clear(F_cert);
           F_cert = NULL;
@@ -786,19 +772,6 @@ rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out)
 
   err = RABIN_SUCCESS;
 cleanup:
-  if (cert_partial) {
-    // partially built certificate; q_cert has not been linked yet
-    if ((*cert_out)->data != NULL) {
-      if ((*cert_out)->size > 0) {
-        rz_clear(&(*cert_out)->data[0].q);
-        rz_clear(&(*cert_out)->data[0].alpha_q);
-      }
-      free((*cert_out)->data);
-    }
-    rz_clear(&(*cert_out)->N);
-    free(*cert_out);
-    *cert_out = NULL;
-  }
   if (F_cert != NULL) {
     rzcert_clear(F_cert);
   }
