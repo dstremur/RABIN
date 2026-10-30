@@ -413,6 +413,46 @@ int rz_cmp(const rz_t* a, const rz_t* b)
   return cmp;
 }
 
+int rz_cmp_const_time(const rz_t* a, const rz_t* b)
+{
+  if (a == NULL || b == NULL) return 0;
+
+  size_t as = a->size, bs = b->size;
+  size_t max = (as > bs) ? as : bs;
+
+  // Magnitude comparison as 0/1 masks: when the sizes differ the size
+  // verdict wins (matching the normalized-limb invariant, same as rz_cmp);
+  // when equal, each limb position overwrites, so after the fixed-trip scan
+  // the most significant differing limb has decided.
+  u64 gt = (as > bs) ? 1u : 0u;
+  u64 lt = (as < bs) ? 1u : 0u;
+  u64 eq_size = (as == bs) ? 1u : 0u;
+
+  for (size_t i = 0; i < max; i++) {
+    u64 av = (i < as) ? a->limbs[i] : 0;
+    u64 bv = (i < bs) ? b->limbs[i] : 0;
+
+    u64 ngt = (av > bv) ? 1u : 0u;
+    u64 nlt = (av < bv) ? 1u : 0u;
+    u64 eq = (av == bv) ? 1u : 0u;
+
+    gt = eq_size ? (ngt | (eq & gt)) : gt;
+    lt = eq_size ? (nlt | (eq & lt)) : lt;
+  }
+
+  // Effective signs: 0 for zero (same definition as rz_is_zero), else ±1.
+  u64 az = (as == 0 || (as == 1 && a->limbs[0] == 0)) ? 1u : 0u;
+  u64 bz = (bs == 0 || (bs == 1 && b->limbs[0] == 0)) ? 1u : 0u;
+  int sa = az ? 0 : (a->is_neg ? -1 : 1);
+  int sb = bz ? 0 : (b->is_neg ? -1 : 1);
+
+  if (sa != sb) return (sa > sb) ? 1 : -1;
+  if (sa == 0) return 0;
+
+  int mag = (int)gt - (int)lt;  // at most one of gt/lt is ever set
+  return (sa > 0) ? mag : -mag;
+}
+
 int rz_cmp_abs(const rz_t* a, const rz_t* b)
 {
   if (a == NULL || b == NULL) return 0;

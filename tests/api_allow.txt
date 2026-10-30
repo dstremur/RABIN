@@ -1,12 +1,6 @@
 # Public symbols declared in include/ but intentionally not yet defined in
 # src/. Each entry must reference the PLAN.md phase that resolves it.
 
-# Phase 2: remove from rzfield.h (superseded by rz_field_* API)
-ec_point_add
-
-# Phase 2: implement constant-time comparison in core
-rz_cmp_const_time
-
 # Phase 3: certificate verification and helpers (rzcert.h)
 rzcert_add_elem
 rzcert_get_byte_size

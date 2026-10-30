@@ -387,14 +387,20 @@ int rz_get_bit(const rz_t* a, int i);
 int rz_cmp(const rz_t* a, const rz_t* b);
 
 /**
- * @brief Compare two signed bignums in constant time
+ * @brief Compare two signed bignums in constant time with respect to the
+ * limb \f$values\f$.
  *
  * Returns 1 if \f$a > b\f$, -1 if \f$a < b\f$, 0 if \f$a = b\f$.
  *
- * Same semantics as rz_cmp(), but this function always compares
- * all limbs to ensure constant time.
+ * Same semantics as rz_cmp(). All max(a->size, b->size) limb positions are
+ * always visited and the verdict is accumulated in branchless masks, so the
+ * runtime does not depend on where (or whether) the limbs differ.
  *
- * @note TODO: Not yet implemented (placeholder declaration).
+ * @warning The runtime still leaks the operand \f$sizes\f$ (the loop bound)
+ * and the signs; only limb values are hidden. Pair-wise equal-length
+ * operands are required to hide length entirely. Compilers may also
+ * reintroduce branches around the sign logic; this is best-effort, not
+ * formally verified constant time.
  *
  * Complexity:
  *   - Time: \f$O(n)\f$ always, where \f$n =\f$ max(a->size, b->size)
@@ -405,6 +411,8 @@ int rz_cmp(const rz_t* a, const rz_t* b);
  * @param[in] b Second rz_t.
  *
  * @return 1 If \f$a > b\f$, -1 if \f$a < b\f$, 0 if \f$a = b\f$.
+ *
+ * @see rz_cmp(), rz_cmp_abs()
  */
 int rz_cmp_const_time(const rz_t* a, const rz_t* b);
 

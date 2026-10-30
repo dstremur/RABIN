@@ -12,16 +12,6 @@ typedef struct {
   size_t limbs;    // Number of machine words p takes up
 } fp_ctx_t;
 
-typedef struct {
-  rz_t a;          // Curve parameter 'a'
-  rz_t b;          // Curve parameter 'b'
-  fp_ctx_t field;  // The underlying finite field
-} ec_curve_t;
-
-// TODO: Not yet implemented (placeholder declaration).
-rabin_err_t ec_point_add(rz_t* res, const rz_t* p, const rz_t* q,
-                         const ec_curve_t* curve);
-
 /*
  * field_ctx_t: arithmetic in the ring Z_m = Z / m Z.
  *

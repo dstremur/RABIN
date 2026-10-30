@@ -98,6 +98,8 @@ static void run_case(const char* name, const char* a_str, const char* b_str)
   snprintf(detail, sizeof(detail), "rz_cmp [%s] a=%s b=%s", name, a_str, b_str);
 
   assert_cmp_match(detail, a_str, b_str, rz_cmp(&a, &b), mpz_cmp(za, zb));
+  assert_cmp_match(detail, a_str, b_str, rz_cmp_const_time(&a, &b),
+                   mpz_cmp(za, zb));
 
   rz_clear_multi(&a, &b, NULL);
   mpz_clears(za, zb, NULL);
@@ -136,6 +138,12 @@ static void run_edge_cases()
     if (rz_cmp(&a, &a) != 0) {
       fprintf(stderr, "\n[FATAL ERROR] rz_cmp(&a, &a) must be 0, got %d\n",
               rz_cmp(&a, &a));
+      exit(EXIT_FAILURE);
+    }
+    if (rz_cmp_const_time(&a, &a) != 0) {
+      fprintf(stderr,
+              "\n[FATAL ERROR] rz_cmp_const_time(&a, &a) must be 0, got %d\n",
+              rz_cmp_const_time(&a, &a));
       exit(EXIT_FAILURE);
     }
     rz_clear(&a);
@@ -177,6 +185,8 @@ static void run_random(gmp_randstate_t state)
     snprintf(detail, sizeof(detail), "case %d (a=%d bits, b=%d bits)", i,
              bits_a, bits_b);
     assert_cmp_match(detail, sa, sb, rz_cmp(&a, &b), mpz_cmp(za, zb));
+    assert_cmp_match(detail, sa, sb, rz_cmp_const_time(&a, &b),
+                     mpz_cmp(za, zb));
 
     free(sa);
     free(sb);
@@ -185,6 +195,95 @@ static void run_random(gmp_randstate_t state)
   }
 
   printf("all %d random cases passed\n", FUZZ_ITERATIONS);
+}
+
+// =============================================================================
+// PART 2b: rz_cmp_const_time parity with rz_cmp (no GMP needed)
+// =============================================================================
+
+static void ct_fail(const char* sa, const char* sb, int ref, int ct)
+{
+  fprintf(stderr,
+          "\n[FATAL ERROR] rz_cmp_const_time disagrees with rz_cmp!\n"
+          "  a=%s b=%s rz_cmp=%d ct=%d\n",
+          sa, sb, ref, ct);
+  exit(EXIT_FAILURE);
+}
+
+static void run_ct_parity(void)
+{
+  printf("\n--- rz_cmp_const_time: parity battery vs rz_cmp ---\n");
+
+  char sa[32], sb[32];
+
+  // 1) dense small-integer grid, both signs
+  for (i64 x = -300; x <= 300; x++) {
+    for (i64 y = -300; y <= 300; y++) {
+      rz_t a, b;
+      rz_init_multi(&a, &b, NULL);
+      rz_set_i64(&a, x);
+      rz_set_i64(&b, y);
+      int ref = rz_cmp(&a, &b);
+      int ct = rz_cmp_const_time(&a, &b);
+      if (ref != ct) {
+        snprintf(sa, sizeof(sa), "%lld", (long long)x);
+        snprintf(sb, sizeof(sb), "%lld", (long long)y);
+        ct_fail(sa, sb, ref, ct);
+      }
+      rz_clear_multi(&a, &b, NULL);
+    }
+  }
+  printf("small-integer grid passed\n");
+
+  // 2) limb-boundary values 2^k, 2^k +/- 1 (k = 0..130), both signs
+  rz_t vals[790];
+  char strs[790][48];
+  int n = 0;
+
+  for (int k = 0; k <= 130; k++) {
+    for (int d = -1; d <= 1; d++) {
+      rz_t v, one;
+      rz_init_multi(&v, &one, NULL);
+      rz_set_u64(&v, 1);
+      rz_set_u64(&one, 1);
+      rz_lshift(&v, &v, k);
+      if (d == 1) rz_add(&v, &v, &one);
+      if (d == -1) rz_sub(&v, &v, &one);
+      for (int s = 0; s < 2; s++) {
+        rz_t w;
+        rz_init(&w);
+        rz_copy(&w, &v);
+        if (s == 1 && !rz_is_zero(&w)) w.is_neg = true;
+        snprintf(strs[n], sizeof(strs[n]), "%s2^%d%s%d", s ? "-" : "", k,
+                 d == 1 ? "+" : (d == -1 ? "-" : ""), d == 0 ? 0 : 1);
+        vals[n++] = w;
+      }
+      rz_clear_multi(&v, &one, NULL);
+    }
+  }
+
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      int ref = rz_cmp(&vals[i], &vals[j]);
+      int ct = rz_cmp_const_time(&vals[i], &vals[j]);
+      if (ref != ct) ct_fail(strs[i], strs[j], ref, ct);
+    }
+    if (rz_cmp_const_time(&vals[i], &vals[i]) != 0)
+      ct_fail(strs[i], strs[i], 0, rz_cmp_const_time(&vals[i], &vals[i]));
+  }
+  for (int i = 0; i < n; i++) rz_clear(&vals[i]);
+  printf("limb-boundary battery passed (%d values, %d pairs)\n", n, n * n);
+
+  // 3) NULL inputs must match rz_cmp's documented behavior (0)
+  rz_t a;
+  rz_init(&a);
+  rz_set_u64(&a, 7);
+  if (rz_cmp_const_time(NULL, &a) != 0 || rz_cmp_const_time(&a, NULL) != 0) {
+    fprintf(stderr, "\n[FATAL ERROR] rz_cmp_const_time(NULL,·) must be 0\n");
+    exit(EXIT_FAILURE);
+  }
+  rz_clear(&a);
+  printf("NULL handling passed\n");
 }
 
 // =============================================================================
@@ -267,6 +366,7 @@ int main()
 
   run_edge_cases();
   run_random(state);
+  run_ct_parity();
 
   print_table_header();
   benchmark_cmp(4096, bench_budget(4096), state);
