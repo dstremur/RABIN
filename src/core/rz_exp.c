@@ -134,6 +134,10 @@ rabin_err_t rz_mod_exp_slow(rz_t* r, const rz_t* a, const rz_t* b,
   if (r == NULL || a == NULL || b == NULL || m == NULL)
     return RABIN_ERR_NULL_PTR;
 
+  // Degenerate modulus: the only residue mod 1 is 0 (matches mpz_powm,
+  // which also maps 0^0 mod 1 to 0).
+  if (rz_is_eq_i64(m, 1)) return rz_set_u64(r, 0);
+
   rz_t base, exp, res, tmp;
   rz_init_multi(&base, &exp, &res, &tmp, NULL);
 
@@ -162,17 +166,18 @@ rabin_err_t rz_mod_exp(rz_t* r, const rz_t* a, const rz_t* b, const rz_t* m)
   if (r == NULL || a == NULL || b == NULL || m == NULL)
     return RABIN_ERR_NULL_PTR;
 
-  if (rz_is_even(m)) {
+  // Montgomery fast path requires an odd modulus > 1; everything else
+  // (m <= 1, negative, even) takes the generic path.
+  if (rz_is_even(m) || rz_is_zero(m) || m->is_neg || rz_is_eq_i64(m, 1)) {
     return rz_mod_exp_slow(r, a, b, m);
   }
 
-  // fast path
   rz_mont_ctx ctx;
   rabin_err_t err = rz_mont_ctx_init(&ctx, m);
   if (err == RABIN_SUCCESS) {
     err = rz_mod_exp_mont(r, a, b, m, &ctx);
+    rz_mont_ctx_clear(&ctx);
   }
-  rz_mont_ctx_clear(&ctx);
   return err;
 }
 

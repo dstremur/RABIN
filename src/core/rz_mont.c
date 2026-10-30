@@ -41,7 +41,9 @@
 rabin_err_t rz_mont_ctx_init(rz_mont_ctx* ctx, const rz_t* n)
 {
   if (ctx == NULL || n == NULL) return RABIN_ERR_NULL_PTR;
-  if (rz_is_zero(n) || rz_is_even(n)) return RABIN_ERR_INVALID_ARG;
+  // modulus must be an odd integer > 1
+  if (n->is_neg || rz_is_zero(n) || rz_is_even(n) || rz_is_eq_i64(n, 1))
+    return RABIN_ERR_INVALID_ARG;
 
   rz_init(&ctx->n);
   rz_init(&ctx->one_mont);
@@ -149,20 +151,24 @@ rabin_err_t rz_mont_in(rz_t* A_bar, const rz_t* A, rz_mont_ctx* ctx)
 {
   if (A_bar == NULL || A == NULL || ctx == NULL) return RABIN_ERR_NULL_PTR;
 
-  // REDC requires both operands < n (T < n*R); reduce A if necessary
-  if (rz_cmp(A, &ctx->n) >= 0) {
-    rz_t work;
-    rz_init(&work);
+  // REDC operates on magnitudes only, so A must be canonicalized into
+  // [0, n) first: a negative or oversized input is reduced with rz_mod
+  // (truncated remainder) and shifted up by n when the result is negative.
+  rz_t work;
+  rz_init(&work);
 
-    rabin_err_t err = rz_mod(&work, A, &ctx->n);
-    if (err == RABIN_SUCCESS) {
-      err = rz_mont_mul(A_bar, &work, &ctx->r_square, ctx);
+  rabin_err_t err = rz_copy(&work, A);
+  if (err == RABIN_SUCCESS && (work.is_neg || rz_cmp(&work, &ctx->n) >= 0)) {
+    err = rz_mod(&work, &work, &ctx->n);
+    if (err == RABIN_SUCCESS && work.is_neg) {
+      err = rz_add(&work, &work, &ctx->n);
     }
-    rz_clear(&work);
-    return err;
   }
-
-  return rz_mont_mul(A_bar, A, &ctx->r_square, ctx);
+  if (err == RABIN_SUCCESS) {
+    err = rz_mont_mul(A_bar, &work, &ctx->r_square, ctx);
+  }
+  rz_clear(&work);
+  return err;
 }
 
 rabin_err_t rz_mont_out(rz_t* A, const rz_t* A_bar, rz_mont_ctx* ctx)

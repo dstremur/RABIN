@@ -1675,6 +1675,9 @@ rabin_err_t rz_mont_redc(rz_t* r, rz_t* t, const rz_mont_ctx* ctx);
  * as one Montgomery multiplication of \f$A\f$ by \f$R^2 \bmod n\f$:
  * REDC(\f$A \cdot R^2\f$) = \f$A \cdot R \bmod n\f$.
  *
+ * \f$A\f$ may be any integer (negative or \f$\ge n\f$); it is first
+ * canonicalized into \f$[0, n)\f$, because REDC operates on magnitudes only.
+ *
  * Complexity:
  *   - Time: \f$O(n_l^2)\f$
  *   - Auxiliary memory: \f$O(n_l)\f$ limbs (ctx->tmp)
