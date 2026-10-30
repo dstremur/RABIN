@@ -187,6 +187,9 @@ cleanup:
 bool rz_bpsw(const rz_t* n)
 {
   if (n == NULL) return false;
+
+  if (rz_is_eq_i64(n, 2)) return true;
+
   if (rz_is_even(n)) return false;
 
   // Trial division by small primes to quickly reject composites (mirrors
