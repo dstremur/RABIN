@@ -63,6 +63,9 @@ endif
 
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 EXTRA_test_flint = -lflint
+# test_poly_div cross-checks against fmpz_poly_gcd when FLINT headers exist
+# (the suite itself gates the FLINT code on __has_include)
+EXTRA_test_poly_div = $(if $(filter yes,$(FLINT_OK)),-lflint)
 
 #.PHONY: all clean tests $(TEST_BINS)
 .PHONY: test-valgrind test-san test_quick test_complete check-api tests \
@@ -128,7 +131,8 @@ TESTS_QUICK = test_add test_add_u64 test_all test_bpsw test_cert test_cmp \
               test_log_2 test_logic test_lshift test_matrix test_matrix_basic \
               test_matrix_elim test_matrix_kernel test_matrixq test_mod \
               test_mod_inverse test_mod_u64 test_modexp test_mul test_mul_i64 \
-              test_neg test_ntt test_poly test_rat test_rns test_rshift \
+              test_neg test_ntt test_poly test_poly_div test_rat test_rns \
+              test_rshift \
               test_sqr test_sub test_u64 test_vector
 
 test_quick: $(TESTS_QUICK)

@@ -7,8 +7,9 @@
  * initialization, setting from coefficient arrays, copying,
  * comparison, growing the coefficient array, trimming, printing,
  * addition, subtraction, multiplication (schoolbook, rz_t NTT and
- * u64 NTT), fixed-width decomposition and recomposition, and carry
- * propagation.
+ * u64 NTT), pseudo-division and exact division, content, primitive
+ * part, gcd, evaluation and derivation, fixed-width decomposition
+ * and recomposition, and carry propagation.
  *
  * Copyright (C) 2026 Diego Strebel
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -35,6 +36,7 @@
 
 #include "../../include/rntt.h"
 #include "../../include/rzlogic.h"
+#include "../../include/rzmath.h"
 #include "../../include/u64.h"
 
 rabin_err_t rpol_init(rpol_t* p)
@@ -561,59 +563,533 @@ cleanup:
   return err;
 }
 
-// Knuth's Pseudo-Division: l^(m - n + 1) * a = q * b + r
-// rabin_err_t rpol_div(rpol_t* q_out, rpol_t* r_out, rpol_t* a, rpol_t* b)
-// {
-//   if (!a || !b || !q_out || !r_out) return RABIN_ERR_INVALID_ARG;
+/* ------------------------------------------------------------------------ */
+/* Division, content and gcd over Z[x]                                      */
+/* ------------------------------------------------------------------------ */
 
-//   i64 m = a->deg;
-//   i64 n = b->deg;
+/*
+ * True if p represents the zero polynomial. p may be freshly initialized
+ * (size == 0) or hold untrimmed leading zeros.
+ */
+static bool rpol_is_zero_poly(const rpol_t* p)
+{
+  if (p->size == 0) return true;
 
-//   if (n < 0 || b->coeff[n] == 0)
-//     return RABIN_ERR_INVALID_ARG;  // Division by zero
-//   if (m < n) {
-//     rpol_zero(q_out);
-//     rpol_copy(r_out, a);
-//     return RABIN_SUCCESS;
-//   }
+  for (u64 i = 0; i <= p->deg; i++) {
+    if (!rz_is_zero(&p->coeff[i])) return false;
+  }
+  return true;
+}
 
-//   rz_t l = b->coeff[n];  // Leading coefficient of b
+/* Set p to the canonical zero polynomial (deg 0, single zero coefficient). */
+static rabin_err_t rpol_set_zero_poly(rpol_t* p)
+{
+  rabin_err_t err = rpol_alloc(p, 0);
+  if (err != RABIN_SUCCESS) return err;
 
-//   rpol_t Q, R;
-//   rpol_init(&Q);
-//   rpol_copy(&R, a);  // R starts as a copy of the dividend 'a'
+  p->deg = 0;
+  return rz_set_u64(&p->coeff[0], 0);
+}
 
-//   // 1. [Initialize] k = m - n
-//   i64 k = m - n;
+/*
+ * Deep copy src into dst (allocating dst as needed) and set dst->deg.
+ * An empty src (size == 0) becomes the canonical zero polynomial.
+ */
+static rabin_err_t rpol_copy_full(rpol_t* dst, const rpol_t* src)
+{
+  if (src->size == 0) return rpol_set_zero_poly(dst);
 
-//   // 2. [Loop] Repeat while k >= 0
-//   while (k >= 0) {
-//     // 3. [Multiply by lc(v)] Q = l * Q, R = l * R
-//     rpol_scale(&Q, l);
-//     rpol_scale(&R, l);
+  rabin_err_t err = rpol_alloc(dst, src->deg);
+  if (err != RABIN_SUCCESS) return err;
 
-//     // 4. [Division step] If deg(R) == n + k, eliminate leading term
-//     if (R.deg == n + k) {
-//       rz_t c = R.coeff[R.deg];  // Leading coefficient of current remainder
+  err = rpol_copy(dst, src);
+  if (err != RABIN_SUCCESS) return err;
 
-//       // Add term c * x^k to Q
-//       rpol_add_term(&Q, c, k);
+  dst->deg = src->deg;
+  return RABIN_SUCCESS;
+}
 
-//       // Subtract (c * x^k) * b from R
-//       // This cancels out the leading coefficient cleanly without fractions
-//       rpol_sub_scaled_poly(&R, b, c, k);
-//     }
+/* Flip the sign of every coefficient, in place. */
+static rabin_err_t rpol_negate(rpol_t* p)
+{
+  for (u64 i = 0; i <= p->deg; i++) {
+    rabin_err_t err = rz_neg(&p->coeff[i], &p->coeff[i]);
+    if (err != RABIN_SUCCESS) return err;
+  }
+  return RABIN_SUCCESS;
+}
 
-//     // 5. [Decrease k]
-//     k--;
-//   }
+/*
+ * Divide p by its content and normalize the leading coefficient to be
+ * positive, in place. p must be trimmed, nonzero and have size >= deg + 1;
+ * scratch is a zero-initialized bignum used as working space.
+ */
+static rabin_err_t rpol_make_primitive(rpol_t* p, rz_t* scratch)
+{
+  rz_set_u64(scratch, 0);
 
-//   // Copy results back to user-provided pointers
-//   rpol_copy(q_out, &Q);
-//   rpol_copy(r_out, &R);
+  for (u64 i = 0; i <= p->deg; i++) {
+    rabin_err_t err = rz_gcd(scratch, scratch, &p->coeff[i]);
+    if (err != RABIN_SUCCESS) return err;
+    if (rz_is_eq_i64(scratch, 1)) break;
+  }
 
-//   // Clean up local polynomials if needed
-//   rpol_clear(&Q);
+  if (!rz_is_eq_i64(scratch, 1)) {
+    for (u64 i = 0; i <= p->deg; i++) {
+      rabin_err_t err = rz_div(&p->coeff[i], &p->coeff[i], scratch);
+      if (err != RABIN_SUCCESS) return err;
+    }
+  }
 
-//   return RABIN_SUCCESS;
-// }
+  if (p->coeff[p->deg].is_neg) return rpol_negate(p);
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rpol_pseudo_div(rpol_t* q, rpol_t* r, const rpol_t* a,
+                            const rpol_t* b)
+{
+  if (q == NULL || r == NULL || a == NULL || b == NULL)
+    return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t bb = {0}, R = {0}, Q = {0};
+  rz_t lc_b, lc_pow, expo, coef, prod;
+  rpol_init(&bb);
+  rpol_init(&R);
+  rpol_init(&Q);
+  rz_init_multi(&lc_b, &lc_pow, &expo, &coef, &prod, NULL);
+
+  /* Local, trimmed copy of the divisor */
+  err = rpol_copy_full(&bb, b);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&bb);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  if (rpol_is_zero_poly(&bb)) {
+    err = RABIN_ERR_DIV_BY_ZERO;
+    goto cleanup;
+  }
+
+  /* Local, trimmed copy of the dividend */
+  err = rpol_copy_full(&R, a);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&R);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  /* a = 0 or deg a < deg b: q = 0, r = a, identity a = 0*b + a */
+  if (rpol_is_zero_poly(&R) || R.deg < bb.deg) {
+    rpol_clear(q);
+    rpol_init(q);
+    err = rpol_set_zero_poly(q);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    rpol_clear(r);
+    rpol_init(r);
+    err = rpol_copy_full(r, &R);
+    goto cleanup;
+  }
+
+  /* R := lc(b)^(deg a - deg b + 1) * a, so all later divisions are exact */
+  u64 delta = R.deg - bb.deg;
+  err = rz_copy(&lc_b, &bb.coeff[bb.deg]);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rz_set_u64(&expo, delta + 1);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rz_pow(&lc_pow, &lc_b, &expo);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  for (u64 i = 0; i <= R.deg; i++) {
+    err = rz_mul(&R.coeff[i], &R.coeff[i], &lc_pow);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  /* Q holds the quotient coefficients q_delta ... q_0 (zero-initialized) */
+  err = rpol_alloc(&Q, delta);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  Q.deg = delta;
+
+  while (!rpol_is_zero_poly(&R) && R.deg >= bb.deg) {
+    /* q_k := lc(R) / lc(b); exact by the pseudo-division invariant */
+    u64 k = R.deg - bb.deg;
+    err = rz_div(&coef, &R.coeff[R.deg], &lc_b);
+    if (err != RABIN_SUCCESS) goto cleanup;
+    err = rz_copy(&Q.coeff[k], &coef);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    /* R := R - q_k * b * x^k (the leading term cancels exactly) */
+    for (u64 j = 0; j <= bb.deg; j++) {
+      if (rz_is_zero(&bb.coeff[j])) continue;
+
+      err = rz_mul(&prod, &coef, &bb.coeff[j]);
+      if (err != RABIN_SUCCESS) goto cleanup;
+      err = rz_sub(&R.coeff[k + j], &R.coeff[k + j], &prod);
+      if (err != RABIN_SUCCESS) goto cleanup;
+    }
+
+    err = rpol_trim(&R);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  err = rpol_trim(&Q);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  rpol_clear(q);
+  rpol_init(q);
+  err = rpol_copy_full(q, &Q);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  rpol_clear(r);
+  rpol_init(r);
+  err = rpol_copy_full(r, &R);
+
+cleanup:
+  rpol_clear(&bb);
+  rpol_clear(&R);
+  rpol_clear(&Q);
+  rz_clear_multi(&lc_b, &lc_pow, &expo, &coef, &prod, NULL);
+  return err;
+}
+
+rabin_err_t rpol_div_exact(rpol_t* q, const rpol_t* a, const rpol_t* b)
+{
+  if (q == NULL || a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t bb = {0}, R = {0}, Q = {0};
+  rz_t lc_b, coef, prod, rem;
+  rpol_init(&bb);
+  rpol_init(&R);
+  rpol_init(&Q);
+  rz_init_multi(&lc_b, &coef, &prod, &rem, NULL);
+
+  /* Local, trimmed copy of the divisor */
+  err = rpol_copy_full(&bb, b);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&bb);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  if (rpol_is_zero_poly(&bb)) {
+    err = RABIN_ERR_DIV_BY_ZERO;
+    goto cleanup;
+  }
+
+  /* Local, trimmed copy of the dividend */
+  err = rpol_copy_full(&R, a);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&R);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  bool exact = true;
+
+  if (rpol_is_zero_poly(&R)) {
+    /* 0 = 0 * b is exact */
+  } else if (R.deg < bb.deg) {
+    exact = false;
+  } else {
+    u64 delta = R.deg - bb.deg;
+
+    err = rz_copy(&lc_b, &bb.coeff[bb.deg]);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    err = rpol_alloc(&Q, delta);
+    if (err != RABIN_SUCCESS) goto cleanup;
+    Q.deg = delta;
+
+    while (!rpol_is_zero_poly(&R) && R.deg >= bb.deg) {
+      /* q_k := lc(R) / lc(b), but only if lc(b) divides lc(R) */
+      u64 k = R.deg - bb.deg;
+      err = rz_mod(&rem, &R.coeff[R.deg], &lc_b);
+      if (err != RABIN_SUCCESS) goto cleanup;
+      if (!rz_is_zero(&rem)) {
+        exact = false;
+        break;
+      }
+
+      err = rz_div(&coef, &R.coeff[R.deg], &lc_b);
+      if (err != RABIN_SUCCESS) goto cleanup;
+      err = rz_copy(&Q.coeff[k], &coef);
+      if (err != RABIN_SUCCESS) goto cleanup;
+
+      /* R := R - q_k * b * x^k */
+      for (u64 j = 0; j <= bb.deg; j++) {
+        if (rz_is_zero(&bb.coeff[j])) continue;
+
+        err = rz_mul(&prod, &coef, &bb.coeff[j]);
+        if (err != RABIN_SUCCESS) goto cleanup;
+        err = rz_sub(&R.coeff[k + j], &R.coeff[k + j], &prod);
+        if (err != RABIN_SUCCESS) goto cleanup;
+      }
+
+      err = rpol_trim(&R);
+      if (err != RABIN_SUCCESS) goto cleanup;
+    }
+
+    /* a = q*b holds over Z[x] only if the remainder vanished */
+    if (exact && !rpol_is_zero_poly(&R)) exact = false;
+  }
+
+  if (!exact) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  err = rpol_trim(&Q);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  rpol_clear(q);
+  rpol_init(q);
+  err = rpol_copy_full(q, &Q);
+
+cleanup:
+  rpol_clear(&bb);
+  rpol_clear(&R);
+  rpol_clear(&Q);
+  rz_clear_multi(&lc_b, &coef, &prod, &rem, NULL);
+  return err;
+}
+
+rabin_err_t rpol_content(rz_t* g, const rpol_t* p)
+{
+  if (g == NULL || p == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err = rz_set_u64(g, 0);
+  if (err != RABIN_SUCCESS) return err;
+
+  for (u64 i = 0; i <= p->deg; i++) {
+    err = rz_gcd(g, g, &p->coeff[i]);
+    if (err != RABIN_SUCCESS) return err;
+    if (rz_is_eq_i64(g, 1)) break;
+  }
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rpol_primitive_part(rpol_t* pp, const rpol_t* p)
+{
+  if (pp == NULL || p == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t T = {0};
+  rz_t c;
+  rpol_init(&T);
+  rz_init(&c);
+
+  err = rpol_copy_full(&T, p);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&T);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  if (rpol_is_zero_poly(&T)) {
+    rpol_clear(pp);
+    rpol_init(pp);
+    err = rpol_set_zero_poly(pp);
+    goto cleanup;
+  }
+
+  err = rpol_make_primitive(&T, &c);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  rpol_clear(pp);
+  rpol_init(pp);
+  err = rpol_copy_full(pp, &T);
+
+cleanup:
+  rpol_clear(&T);
+  rz_clear(&c);
+  return err;
+}
+
+rabin_err_t rpol_gcd(rpol_t* g, const rpol_t* a, const rpol_t* b)
+{
+  if (g == NULL || a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t aa = {0}, bb = {0}, Q = {0}, R = {0};
+  rz_t ca, cb, ct, tmp;
+  rpol_init(&aa);
+  rpol_init(&bb);
+  rpol_init(&Q);
+  rpol_init(&R);
+  rz_init_multi(&ca, &cb, &ct, &tmp, NULL);
+
+  err = rpol_copy_full(&aa, a);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&aa);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  err = rpol_copy_full(&bb, b);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&bb);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  bool aa_zero = rpol_is_zero_poly(&aa);
+  bool bb_zero = rpol_is_zero_poly(&bb);
+
+  /* gcd(0, 0) = 0; gcd(0, b) = b with positive leading coefficient */
+  if (aa_zero && bb_zero) {
+    rpol_clear(g);
+    rpol_init(g);
+    err = rpol_set_zero_poly(g);
+    goto cleanup;
+  }
+
+  if (aa_zero || bb_zero) {
+    rpol_t* nz = aa_zero ? &bb : &aa;
+
+    if (nz->coeff[nz->deg].is_neg) {
+      err = rpol_negate(nz);
+      if (err != RABIN_SUCCESS) goto cleanup;
+    }
+
+    rpol_clear(g);
+    rpol_init(g);
+    err = rpol_copy_full(g, nz);
+    goto cleanup;
+  }
+
+  /* gcd(a, b) = gcd(cont a, cont b) * gcd(pp a, pp b), Gauss's lemma */
+  err = rpol_content(&ca, &aa);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_content(&cb, &bb);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rz_gcd(&ct, &ca, &cb);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  err = rpol_make_primitive(&aa, &tmp);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_make_primitive(&bb, &tmp);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  if (aa.deg < bb.deg) {
+    rpol_t swap = aa;
+    aa = bb;
+    bb = swap;
+  }
+
+  /* Reduced pseudo-remainder sequence: strip the content of every
+   * remainder so coefficients cannot blow up unchecked. aa always holds
+   * the last nonzero remainder, so the rotation must happen before the
+   * zero-remainder exit. */
+  while (!rpol_is_zero_poly(&bb)) {
+    err = rpol_pseudo_div(&Q, &R, &aa, &bb);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    err = rpol_copy_full(&aa, &bb);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    if (rpol_is_zero_poly(&R)) break;
+
+    err = rpol_make_primitive(&R, &tmp);
+    if (err != RABIN_SUCCESS) goto cleanup;
+
+    err = rpol_copy_full(&bb, &R);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  /* aa is the primitive gcd with positive leading coefficient */
+  if (!rz_is_eq_i64(&ct, 1)) {
+    for (u64 i = 0; i <= aa.deg; i++) {
+      err = rz_mul(&aa.coeff[i], &aa.coeff[i], &ct);
+      if (err != RABIN_SUCCESS) goto cleanup;
+    }
+  }
+
+  rpol_clear(g);
+  rpol_init(g);
+  err = rpol_copy_full(g, &aa);
+
+cleanup:
+  rpol_clear(&aa);
+  rpol_clear(&bb);
+  rpol_clear(&Q);
+  rpol_clear(&R);
+  rz_clear_multi(&ca, &cb, &ct, &tmp, NULL);
+  return err;
+}
+
+rabin_err_t rpol_eval(rz_t* r, const rpol_t* p, const rz_t* x)
+{
+  if (r == NULL || p == NULL || x == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t T = {0};
+  rz_t acc;
+  rpol_init(&T);
+  rz_init(&acc);
+
+  err = rpol_copy_full(&T, p);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&T);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  if (rpol_is_zero_poly(&T)) {
+    err = rz_set_u64(r, 0);
+    goto cleanup;
+  }
+
+  /* Horner's scheme: acc = (...((c_d*x + c_{d-1})*x + ...)*x + c_0) */
+  err = rz_copy(&acc, &T.coeff[T.deg]);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  for (u64 i = T.deg; i-- > 0;) {
+    err = rz_mul(&acc, &acc, x);
+    if (err != RABIN_SUCCESS) goto cleanup;
+    err = rz_add(&acc, &acc, &T.coeff[i]);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  err = rz_copy(r, &acc);
+
+cleanup:
+  rpol_clear(&T);
+  rz_clear(&acc);
+  return err;
+}
+
+rabin_err_t rpol_derive(rpol_t* dp, const rpol_t* p)
+{
+  if (dp == NULL || p == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err;
+  rpol_t T = {0}, D = {0};
+  rz_t k;
+  rpol_init(&T);
+  rpol_init(&D);
+  rz_init(&k);
+
+  err = rpol_copy_full(&T, p);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  err = rpol_trim(&T);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  /* The derivative of a constant (or of 0) is 0 */
+  if (rpol_is_zero_poly(&T) || T.deg == 0) {
+    rpol_clear(dp);
+    rpol_init(dp);
+    err = rpol_set_zero_poly(dp);
+    goto cleanup;
+  }
+
+  err = rpol_alloc(&D, T.deg - 1);
+  if (err != RABIN_SUCCESS) goto cleanup;
+  D.deg = T.deg - 1;
+
+  for (u64 i = 1; i <= T.deg; i++) {
+    err = rz_set_u64(&k, i);
+    if (err != RABIN_SUCCESS) goto cleanup;
+    err = rz_mul(&D.coeff[i - 1], &T.coeff[i], &k);
+    if (err != RABIN_SUCCESS) goto cleanup;
+  }
+
+  err = rpol_trim(&D);
+  if (err != RABIN_SUCCESS) goto cleanup;
+
+  rpol_clear(dp);
+  rpol_init(dp);
+  err = rpol_copy_full(dp, &D);
+
+cleanup:
+  rpol_clear(&T);
+  rpol_clear(&D);
+  rz_clear(&k);
+  return err;
+}

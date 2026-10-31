@@ -333,6 +333,193 @@ rabin_err_t rpol_mul_school(rpol_t* r, const rpol_t* p, const rpol_t* q);
 rabin_err_t rpol_mul(rpol_t* r, const rpol_t* p, const rpol_t* q);
 
 /**
+ * @brief Pseudo-division over \f$\Z[x]\f$: \f$\delta \cdot a = q \cdot b +
+ * r\f$.
+ *
+ * Let \f$d_a = \f$ a->deg, \f$d_b = \f$ b->deg, and let the scaling factor be
+ * \f$\delta = lc(b)^{d_a - d_b + 1}\f$ (with \f$\delta = 1\f$ when
+ * \f$d_a < d_b\f$).
+ *
+ * Multiplying \f$a\f$ by \f$\delta\f$ makes every leading-coefficient
+ * division of ordinary long division exact, so \f$q\f$ and \f$r\f$ stay in
+ * \f$\Z[x]\f$ without ever introducing rationals. The remainder is zero or
+ * has degree \f$< d_b\f$. When \f$a = 0\f$ or \f$d_a < d_b\f$ the result is
+ * \f$q = 0\f$, \f$r = a\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O((d_a - d_b + 1) \cdot d_b \cdot n^2)\f$ where \f$n =\f$ the
+ * size of the coefficients in limbs (coefficients grow by up to
+ * \f$(d_a - d_b + 1) \cdot \log_2 |lc(b)|\f$ bits)
+ *   - Auxiliary memory: \f$O(d_a)\f$ bignums for the local copies
+ *   - Output memory: \f$O(d_a)\f$ bignums
+ *
+ * @param[out] q Pseudo-quotient (degree \f$\le d_a - d_b\f$).
+ * @param[out] r Pseudo-remainder (zero, or degree \f$< d_b\f$).
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (nonzero).
+ * @pre q and r must be initialized (rpol_init()) and distinct.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY. On error q and r are
+ * left unchanged.
+ *
+ * @par Algorithm Reference:
+ * D. E. Knuth, The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms, 3rd ed., Addison-Wesley, 1997, section 4.6.1,
+ * Algorithm P (pseudodivision).
+ * @see rpol_div_exact(), rpol_gcd()
+ */
+rabin_err_t rpol_pseudo_div(rpol_t* q, rpol_t* r, const rpol_t* a,
+                            const rpol_t* b);
+
+/**
+ * @brief Exact division over \f$\Z[x]\f$: \f$q = a / b\f$ (requires
+ * \f$b \mid a\f$).
+ *
+ * Runs ordinary long division over \f$\Z\f$ and aborts at the first
+ * leading coefficient not divisible by \f$lc(b)\f$. Fails with
+ * RABIN_ERR_INVALID_ARG iff no \f$q \in \Z[x]\f$ satisfies \f$a = q \cdot
+ * b\f$ (in particular when the remainder is nonzero).
+ *
+ * Complexity:
+ *   - Time: \f$O((d_a - d_b + 1) \cdot d_b \cdot n^2)\f$ where \f$n =\f$ the
+ * size of the coefficients in limbs
+ *   - Auxiliary memory: \f$O(d_a)\f$ bignums for the local copies
+ *   - Output memory: \f$O(d_a - d_b + 1)\f$ bignums
+ *
+ * @pre q must be initialized (rpol_init()).
+ * @param[out] q Quotient \f$a / b\f$.
+ * @param[in]  a Dividend.
+ * @param[in]  b Divisor (nonzero, must divide \f$a\f$ exactly).
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
+ * RABIN_ERR_DIV_BY_ZERO, RABIN_ERR_INVALID_ARG, or
+ * RABIN_ERR_OUT_OF_MEMORY. On error q is left unchanged.
+ * @see rpol_pseudo_div(), rpol_mul()
+ */
+rabin_err_t rpol_div_exact(rpol_t* q, const rpol_t* a, const rpol_t* b);
+
+/**
+ * @brief Content of \f$p\f$: the nonnegative gcd of its coefficients.
+ *
+ * The zero polynomial has content 0.
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot \log M)\f$ gcd steps where \f$d = \f$ p->deg and
+ * \f$M =\f$ the largest coefficient
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: one bignum
+ *
+ * @param[out] g Content \f$\mathrm{cont}(p)\f$.
+ * @param[in]  p Polynomial.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rpol_primitive_part(), rpol_gcd()
+ */
+rabin_err_t rpol_content(rz_t* g, const rpol_t* p);
+
+/**
+ * @brief Primitive part of \f$p\f$: \f$p / \mathrm{cont}(p)\f$ normalized to
+ * a positive leading coefficient.
+ *
+ * The zero polynomial maps to itself. For nonzero \f$p\f$ the result has
+ * content 1 and \f$lc > 0\f$, and satisfies
+ * \f$p = \pm \mathrm{cont}(p) \cdot \mathrm{pp}(p)\f$.
+ *
+ * Complexity:
+ *   - Time: see rpol_content(), plus \f$O(d \cdot n^2)\f$ divisions
+ *   - Auxiliary memory: \f$O(d)\f$ bignums for the local copy
+ *   - Output memory: \f$O(d)\f$ bignums
+ *
+ * @pre pp must be initialized (rpol_init()).
+ * @param[out] pp Primitive part \f$\mathrm{pp}(p)\f$.
+ * @param[in]  p Polynomial.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rpol_content()
+ */
+rabin_err_t rpol_primitive_part(rpol_t* pp, const rpol_t* p);
+
+/**
+ * @brief Greatest common divisor over \f$\Z[x]\f$, normalized to a positive
+ * leading coefficient.
+ *
+ * Let \f$d = \f$ max(a->deg, b->deg).
+ *
+ * By Gauss's lemma \f$\gcd(a, b) = \gcd(\mathrm{cont}\, a,
+ * \mathrm{cont}\, b) \cdot \gcd(\mathrm{pp}\, a, \mathrm{pp}\, b)\f$;
+ * the primitive part is computed with a reduced pseudo-remainder sequence
+ * (pseudo-division via rpol_pseudo_div(), with each remainder's content
+ * stripped to keep coefficients small). Conventions: \f$\gcd(0, 0) =
+ * 0\f$ and \f$\gcd(0, b) = \pm b\f$ normalized to \f$lc > 0\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(d^2)\f$ pseudo-division steps, each polynomial in the
+ * coefficient sizes
+ *   - Auxiliary memory: \f$O(d)\f$ bignums for the local copies
+ *   - Output memory: \f$O(d)\f$ bignums
+ *
+ * @pre g must be initialized (rpol_init()).
+ * @param[out] g Greatest common divisor (zero, or leading coefficient > 0).
+ * @param[in]  a First polynomial.
+ * @param[in]  b Second polynomial.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. E. Knuth, The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms, 3rd ed., Addison-Wesley, 1997, section 4.6.1 (gcd in
+ * \f$\Z[x]\f$); H. Cohen, A Course in Computational Algebraic Number
+ * Theory, Springer, 1993, Algorithm 3.5.4 (reduced PRS).
+ * @warning The reduced PRS has slightly worse coefficient growth than the
+ * subresultant PRS (Cohen, Algorithm 3.5.9); swap it in if this becomes a
+ * hot path.
+ * @see rpol_pseudo_div(), rpol_content(), rpol_primitive_part()
+ */
+rabin_err_t rpol_gcd(rpol_t* g, const rpol_t* a, const rpol_t* b);
+
+/**
+ * @brief Evaluate \f$p\f$ at \f$x\f$ with Horner's scheme: \f$r = p(x)\f$.
+ *
+ * Let \f$d = \f$ p->deg. Evaluates
+ * \f$r = (\ldots((c_d x + c_{d-1}) x + \ldots) x + c_0\f$).
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n^2)\f$ where \f$n =\f$ the size of the
+ * accumulated result in limbs
+ *   - Auxiliary memory: \f$O(1)\f$ bignums for the accumulator
+ *   - Output memory: one bignum
+ *
+ * @param[out] r Result \f$p(x)\f$.
+ * @param[in]  p Polynomial.
+ * @param[in]  x Evaluation point.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rpol_derive()
+ */
+rabin_err_t rpol_eval(rz_t* r, const rpol_t* p, const rz_t* x);
+
+/**
+ * @brief Formal derivative: \f$\frac{d}{dx} \sum_i c_i x^i = \sum_i i
+ * \cdot c_i x^{i-1}\f$.
+ *
+ * Let \f$d = \f$ p->deg. The derivative of a constant (and of the zero
+ * polynomial) is the zero polynomial.
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n^2)\f$ where \f$n =\f$ the size of the
+ * coefficients in limbs
+ *   - Auxiliary memory: \f$O(d)\f$ bignums for the local copy
+ *   - Output memory: \f$O(d)\f$ bignums
+ *
+ * @pre dp must be initialized (rpol_init()).
+ * @param[out] dp Derivative polynomial.
+ * @param[in]  p Polynomial.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rpol_eval()
+ */
+rabin_err_t rpol_derive(rpol_t* dp, const rpol_t* p);
+
+/**
  * @brief Decompose a rz_t into a polynomial of fixed-width chunks.
  *
  * Let \f$n =\f$ n->size, measured in 64-bit limbs, and \f$W =\f$ width.
