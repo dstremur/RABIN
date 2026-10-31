@@ -407,7 +407,8 @@ rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b)
 {
   if (d == NULL || a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
 
-  i64 a_hat, b_hat, A, B, C, D, T, q;
+  i64 a_hat, b_hat, A, B, C, D, q;
+  bool range_break = false;
   rz_t a_work, b_work, t, r, p1, p2;
 
   // 1. [Initialize]
@@ -436,44 +437,57 @@ rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b)
     D = 1;
 
     if (b_work.size > 1) {
-      a_hat = a_work.limbs[a_work.size - 1];
+      // Truncate the top limbs by one bit so the tracked values always lie in
+      // [0, 2^63) on a common scale; this is what keeps the Euclidian step
+      // products inside a signed 64-bit word (Knuth, TAOCP II, 4.5.2 Alg. B)
+      a_hat = (i64)(a_work.limbs[a_work.size - 1] >> 1);
 
       if (b_work.size == a_work.size) {
-        b_hat = b_work.limbs[a_work.size - 1];
+        b_hat = (i64)(b_work.limbs[b_work.size - 1] >> 1);
       } else {
         b_hat = 0;
       }
 
       // 2. [Test Quotient]
       while (true) {
-        __int128 num1 = (__int128)(u64)a_hat + A;
-        __int128 den1 = (__int128)(u64)b_hat + C;
-        __int128 num2 = (__int128)(u64)a_hat + B;
-        __int128 den2 = (__int128)(u64)b_hat + D;
+        // Only perform steps that keep both transformed values positive
+        __int128 den1 = (__int128)b_hat + C;
+        __int128 den2 = (__int128)b_hat + D;
 
-        if (den1 == 0 || den2 == 0) break;
+        if (den1 <= 0 || den2 <= 0) break;
 
-        q = (i64)(num1 / den1);
+        __int128 q1 = ((__int128)a_hat + A) / den1;
+        __int128 q2 = ((__int128)a_hat + B) / den2;
 
-        if (q == 0) break;
-
-        if (q != (i64)(num2 / den2)) break;
+        if (q1 != q2 || q1 <= 0) break;
 
         // 3. [Euclidian Step]
-        T = A - q * C;
+        __int128 nA = (__int128)A - q1 * C;
+        __int128 nB = (__int128)B - q1 * D;
+        __int128 nhat = (__int128)a_hat - q1 * b_hat;
+
+        // Guard against entries leaving the signed 64-bit range; this should
+        // not happen given the bounds above, but if it does the step is
+        // discarded and a plain remainder step is used instead
+        if (nA > (__int128)INT64_MAX || nA < (__int128)INT64_MIN ||
+            nB > (__int128)INT64_MAX || nB < (__int128)INT64_MIN ||
+            nhat > (__int128)INT64_MAX || nhat < (__int128)INT64_MIN) {
+          range_break = true;
+          break;
+        }
+
+        q = (i64)q1;
         A = C;
-        C = T;
-        T = B - q * D;
+        C = (i64)nA;
         B = D;
-        D = T;
-        T = a_hat - q * b_hat;
+        D = (i64)nB;
         a_hat = b_hat;
-        b_hat = T;
+        b_hat = (i64)nhat;
       }
     }
 
     // 4. [Multi-precision step]
-    if (B == 0) {
+    if (B == 0 || range_break) {
       TRY(rz_mod(&t, &a_work, &b_work));
       TRY(rz_copy(&a_work, &b_work));
       TRY(rz_copy(&b_work, &t));
