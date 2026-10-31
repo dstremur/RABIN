@@ -81,7 +81,12 @@ static inline void harvey_dit_butterfly(u64* u_ptr, u64* v_ptr, u64 twiddle,
   u64 t = u64_mont_mul(v, twiddle, mctx);
 
   *u_ptr = reduce_2q(u + t, two_q);
-  *v_ptr = u + two_q - t;
+  /* reduce_2q on the difference term too: an unreduced (u + 2q - t)
+     grows the lazy domain by 2q every stage (to (2s+1)q after s
+     stages), which overflows u64 for large q at deep transforms. One
+     masked subtract here keeps the invariant [0, 2q) for all stages,
+     leaving only the 4q < 2^64 butterfly bound (q < 2^62). */
+  *v_ptr = reduce_2q(u + two_q - t, two_q);
 }
 
 void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx)
@@ -229,6 +234,29 @@ rabin_err_t u64_ntt_ctx_init_goldilocks(u64_ntt_ctx_t* ctx, u64 k)
   return RABIN_SUCCESS;
 }
 
+rabin_err_t u64_ntt_ctx_init_proth2(u64_ntt_ctx_t* ctx, u64 k)
+{
+  if (ctx == NULL) return RABIN_ERR_NULL_PTR;
+  if (k > 54) return RABIN_ERR_INVALID_ARG;
+
+  /* Second RNS prime q2 = 69 * 2^55 + 1 (same 2-adicity and analogous
+     generator as the golden prime). q2 < 2^62 is required: the lazy
+     butterfly domain keeps values in [0, 2q) and the DIF diff term
+     reaches 4q, so REDC needs 4q^2 < q * 2^64, i.e. q < 2^62. With
+     q1 = 5*2^55+1 the product q1*q2 ~ 2^118 keeps W=32 chunk
+     convolutions exact for every admissible transform length. */
+  u64 p = 2485986994308513793ULL;
+  u64 g = 5;
+
+  // Exponent for psi: c * 2^(55 - (k+1)); 69 * 2^55 < 2^62 fits in u64
+  u64 exp = 69ULL << (55 - (k + 1));
+
+  u64 psi = u64_mod_pow(g, exp, p);
+  u64 omega = u64_mod_mul(psi, psi, p);
+
+  return u64_ntt_ctx_init(ctx, p, k, omega, psi);
+}
+
 /*
  * Cached golden-prime NTT contexts, one per transform size k (0..54).
  *
@@ -256,6 +284,31 @@ u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k)
   pthread_mutex_unlock(&golden_ctx_lock);
 
   return &golden_ctxs[k];
+}
+
+/*
+ * Cached q2 = 131*2^55+1 NTT contexts, one per transform size k (0..54).
+ * Same lazy, read-only-after-init scheme as the golden-prime cache.
+ */
+static u64_ntt_ctx_t proth2_ctxs[55];
+static bool proth2_ctx_ready[55] = {false};
+static pthread_mutex_t proth2_ctx_lock = PTHREAD_MUTEX_INITIALIZER;
+
+u64_ntt_ctx_t* u64_ntt_ctx_proth2_cached(u64 k)
+{
+  if (k > 54) return NULL;
+
+  pthread_mutex_lock(&proth2_ctx_lock);
+  if (!proth2_ctx_ready[k]) {
+    if (u64_ntt_ctx_init_proth2(&proth2_ctxs[k], k) != RABIN_SUCCESS) {
+      pthread_mutex_unlock(&proth2_ctx_lock);
+      return NULL;
+    }
+    proth2_ctx_ready[k] = true;
+  }
+  pthread_mutex_unlock(&proth2_ctx_lock);
+
+  return &proth2_ctxs[k];
 }
 
 /*

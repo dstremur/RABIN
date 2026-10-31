@@ -447,6 +447,61 @@ rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k);
 u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k);
 
 /**
+ * @brief Initialize an NTT context for the second RNS prime \f$q_2 = 69
+ * \cdot 2^{55} + 1\f$, used with the golden prime in two-prime NTT
+ * multiplication.
+ *
+ * Let \f$k =\f$ the logarithm to base \f$2\f$ of the transform length
+ * (\f$n = 2^k\f$, \f$k \le 54\f$). Like the golden prime, \f$q_2 - 1\f$
+ * has 2-adicity 55 and \f$g = 5\f$ is a primitive root:
+ *
+ *   \f$\psi   = g^{69 \cdot 2^{54 - k}} \bmod q_2\f$   (primitive
+ *   \f$(k + 1)\f$-th root)
+ *   \f$\omega = \psi^2 \bmod q_2\f$              (primitive \f$k\f$-th root)
+ *
+ * \f$q_2 < 2^{62}\f$ (required by the \f$4q\f$ lazy butterfly domain of
+ * the \f$2q\f$ Montgomery butterflies), so all tables are stored in the
+ * Montgomery domain as for the golden prime. The context delegates to
+ * u64_ntt_ctx_init().
+ *
+ * Complexity:
+ *   - Time: \f$O(n)\f$ for the precomputed tables, plus \f$O(\log p)\f$ for the
+ * root derivation
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$ per precomputed table (3 tables)
+ *
+ * @param[out] ctx NTT context to initialize.
+ * @param[in]    k Logarithm to base 2 of the transform length (\f$n = 2^k\f$,
+ *                 \f$k \le 54\f$).
+ *
+ * @return RABIN_SUCCESS on success, RABIN_ERR_NULL_PTR if ctx is NULL,
+ * RABIN_ERR_INVALID_ARG if \f$k > 54\f$, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see u64_ntt_ctx_init_golden(), u64_ntt_ctx_proth2_cached()
+ */
+rabin_err_t u64_ntt_ctx_init_proth2(u64_ntt_ctx_t* ctx, u64 k);
+
+/**
+ * @brief Return the shared \f$q_2 = 131 \cdot 2^{55} + 1\f$ NTT context for
+ * transform length \f$2^k\f$ (\f$k \le 54\f$), initializing it on first use.
+ *
+ * Returns NULL if \f$k > 54\f$ or initialization fails. The returned context
+ * is owned by the library and must not be freed or modified by the
+ * caller.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$ after the first call for a given \f$k\f$, \f$O(2^k)\f$
+ * the first time
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(2^k)\f$ u64s per table, once per \f$k\f$
+ *
+ * @param[in] k Logarithm to base 2 of the transform length (\f$n = 2^k\f$,
+ *              \f$k \le 54\f$).
+ *
+ * @return The shared context, or NULL if \f$k > 54\f$ or initialization fails.
+ */
+u64_ntt_ctx_t* u64_ntt_ctx_proth2_cached(u64 k);
+
+/**
  * @brief Initialize an NTT context for the Goldilocks prime \f$p = 2^{64} -
  * 2^{32} + 1\f$ with canonical (non-Montgomery) tables.
  *

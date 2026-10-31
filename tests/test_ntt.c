@@ -138,6 +138,119 @@ int main(void)
   rpol_clear(&a_res);
   rntt_ctx_clear(&ctx);
 
+  /* ---- q2 = 69*2^55+1 (second RNS prime) u64 NTT: asserted checks ---- */
+  const u64 q2 = 2485986994308513793ULL; /* 69 * 2^55 + 1 */
+  int p2_fails = 0;
+
+  /* context: root of unity orders, Montgomery tables, cached identity */
+  for (u64 k = 1; k <= 12; k++) {
+    u64_ntt_ctx_t* c2 = u64_ntt_ctx_proth2_cached(k);
+    if (c2 == NULL || u64_ntt_ctx_proth2_cached(k) != c2) {
+      p2_fails++;
+      continue;
+    }
+    u64 nk = 1ULL << k;
+    if (c2->n != nk || c2->q != q2 || c2->bit_rev_indices == NULL) p2_fails++;
+    /* omega table entry is mont(omega): canonicalize, then check orders */
+    u64 om = u64_mont_out(c2->omega_powers[1], &c2->mctx);
+    if (u64_mod_pow(om, nk, q2) != 1 || u64_mod_pow(om, nk >> 1, q2) != q2 - 1)
+      p2_fails++;
+    /* n * n_inv = 1 mod q2 (n_inv stored in Montgomery form) */
+    if (u64_mod_mul(nk % q2, u64_mont_out(c2->n_inv, &c2->mctx), q2) != 1)
+      p2_fails++;
+    /* omega * omega_inv = 1 */
+    if (u64_mod_mul(om, u64_mont_out(c2->omega_inv_powers[1], &c2->mctx), q2) !=
+        1)
+      p2_fails++;
+    /* Montgomery residues stay below q2 */
+    for (u64 i = 0; i < nk; i++)
+      if (c2->omega_powers[i] >= q2 || c2->omega_inv_powers[i] >= q2)
+        p2_fails++;
+  }
+
+  /* same-prime sanity: q2 is prime, q2-1 = 69 * 2^55 has 2-adicity 55 */
+  {
+    u64 m = q2 - 1;
+    u64 tz = 0;
+    while ((m & 1ULL) == 0) {
+      m >>= 1;
+      tz++;
+    }
+    if (tz != 55 || m != 69) p2_fails++;
+    if (q2 >= (1ULL << 62)) p2_fails++; /* butterfly needs 4q < 2^64 */
+    /* q1^{-1} mod q2 used by the CRT must match the kernel constant */
+    u64 q1 = 180143985094819841ULL;
+    if (u64_mod_mul(q1 % q2, 2291769260378161154ULL, q2) != 1) p2_fails++;
+  }
+
+  /* round trip forward (canonical in) -> inverse (canonical out) */
+  for (u64 k = 1; k <= 12; k++) {
+    u64_ntt_ctx_t* c2 = u64_ntt_ctx_proth2_cached(k);
+    u64 nk = 1ULL << k;
+    u64* src = malloc(sizeof(u64) * nk);
+    u64* mid = malloc(sizeof(u64) * nk);
+    u64* dst = malloc(sizeof(u64) * nk);
+    if (src == NULL || mid == NULL || dst == NULL) {
+      p2_fails++;
+    } else {
+      for (u64 i = 0; i < nk; i++)
+        src[i] = (i == 0) ? q2 - 1 : ((((u64)rand() << 32) ^ (u64)rand()) % q2);
+      u64_ntt_cyclic_forward(mid, src, c2);
+      u64_ntt_cyclic_inverse_montgomery_in(dst, mid, c2);
+      for (u64 i = 0; i < nk; i++)
+        if (dst[i] != src[i] || dst[i] >= q2) p2_fails++;
+    }
+    free(src);
+    free(mid);
+    free(dst);
+  }
+
+  /* cyclic convolution vs naive O(n^2) over the field (n = 16) */
+  {
+    u64 k = 4, nk = 1ULL << k;
+    u64_ntt_ctx_t* c2 = u64_ntt_ctx_proth2_cached(k);
+    u64 a_arr[16], b_arr[16], a_hat[16], b_hat[16], c_arr[16], ref[16];
+    for (u64 i = 0; i < nk; i++) {
+      a_arr[i] = ((u64)rand() << 32) ^ (u64)rand();
+      b_arr[i] = ((u64)rand() << 32) ^ (u64)rand();
+      a_arr[i] = (i == 0) ? q2 - 1 : a_arr[i] % q2;
+      b_arr[i] = (i == nk - 1) ? q2 - 1 : b_arr[i] % q2;
+      ref[i] = 0;
+    }
+    for (u64 i = 0; i < nk; i++)
+      for (u64 j = 0; j < nk; j++) {
+        u64 idx = i + j;
+        if (idx >= nk) idx -= nk;
+        ref[idx] =
+            u64_mod_add(ref[idx], u64_mod_mul(a_arr[i], b_arr[j], q2), q2);
+      }
+    u64_ntt_cyclic_forward(a_hat, a_arr, c2);
+    u64_ntt_cyclic_forward(b_hat, b_arr, c2);
+    for (u64 i = 0; i < nk; i++)
+      a_hat[i] = u64_mont_mul(a_hat[i], b_hat[i], &c2->mctx);
+    u64_ntt_cyclic_inverse_montgomery_in(c_arr, a_hat, c2);
+    for (u64 i = 0; i < nk; i++)
+      if (c_arr[i] != ref[i]) p2_fails++;
+  }
+
+  /* invalid k rejected, k = 54 accepted */
+  {
+    u64_ntt_ctx_t tmp;
+    if (u64_ntt_ctx_init_proth2(&tmp, 55) != RABIN_ERR_INVALID_ARG) p2_fails++;
+    if (u64_ntt_ctx_init_proth2(NULL, 4) != RABIN_ERR_NULL_PTR) p2_fails++;
+    if (u64_ntt_ctx_proth2_cached(55) != NULL) p2_fails++;
+    if (u64_ntt_ctx_init_proth2(&tmp, 13) != RABIN_SUCCESS)
+      p2_fails++;
+    else
+      u64_ntt_ctx_clear(&tmp);
+  }
+
+  if (p2_fails != 0) {
+    printf("PROTH2 (q2 = 69*2^55+1) NTT: %d FAILURES\n", p2_fails);
+    return 1;
+  }
+  printf("PROTH2 (q2 = 69*2^55+1) NTT: all checks passed\n");
+
   /* ---- Goldilocks u64 NTT: asserted checks ---- */
   const u64 gl_p = 0xFFFFFFFF00000001ULL;
   int gl_fails = 0;
