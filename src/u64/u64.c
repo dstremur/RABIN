@@ -133,13 +133,55 @@ u64 u64_barrett(u128 c, u64 q, u128 mu)
 
 u64 u64_goldilock_red(u128 c)
 {
-  u128 X_3 = c >> 96;
-  u128 X_2 = (c >> 64) & ((1ULL << 32) - 1);
-  u128 X_1 = c & 0xFFFFFFFFFFFFFFFFULL;
-  u128 C_out = X_1 + (X_2 * (1ULL << 32) - 1) - X_3;
-  if (C_out >= 18446744069414584321ULL) {
-    C_out -= 18446744069414584321ULL;
-  }
+  const u64 p = 0xFFFFFFFF00000001ULL;
 
-  return (u64)C_out;
+  /* Fold once in the 128-bit domain: with c = y*2^64 + x and
+     2^64 = 2^32 - 1 (mod p),  c = x + y*(2^32 - 1)  (mod p).
+     The folded value is < 2^96 + 2^64, so at most 32+1 bits remain
+     above the low word. */
+  u64 x = (u64)c, y = (u64)(c >> 64);
+  u128 t = (u128)x + (u128)y * 0xFFFFFFFFULL;
+  u64 lo = (u64)t, hi = (u64)(t >> 64); /* hi <= 2^32 - 1 */
+
+  /* Second fold in 64-bit arithmetic: hi*2^64 = hi*(2^32 - 1). */
+  u64 s = lo + ((hi << 32) - hi);
+  if (s < lo) s += 0xFFFFFFFFULL; /* fold the single 2^64 wrap */
+
+  /* Now 0 <= s < 2^64 < 2p, so one conditional subtraction canonicalizes. */
+  if (s >= p) s -= p;
+  return s;
+}
+
+u64 u64_mul_goldilocks(u64 a, u64 b)
+{
+  const u64 p = 0xFFFFFFFF00000001ULL;
+
+  /* c = lo + hi*2^64. Splitting hi = hl + hh*2^32 and using
+     2^64 = 2^32 - 1, 2^96 = -1 (mod p) gives the exact identity
+     c = lo - hh + hl*(2^32 - 1) (mod p), where every term fits in 64 bits
+     and hl*(2^32 - 1) needs no further folding. q tracks the net 2^64
+     overflow of the running sum (q in -1..1, kept two's complement).
+     The whole tail is branchless: masked adds/subtracts only, so the
+     transform butterflies never hit a mispredicted branch. */
+  u128 x = (u128)a * b;
+  u64 lo = (u64)x, hi = (u64)(x >> 64);
+  u64 hl = hi & 0xFFFFFFFFULL, hh = hi >> 32;
+  u64 hlf = (hl << 32) - hl; /* < 2^64 */
+
+  u64 s = lo - hh;
+  u64 q = 0 - (lo < hh);
+  u64 s0 = s + hlf;
+  q += (s0 < s);
+
+  /* fold q*(2^32-1) = (q<<32)-q. A wrap with q = -1 is the intended
+     mod-2^64 form of the debt (adding p); only q = +1 wraps carry a
+     surplus 2^64 that needs one more (2^32-1). */
+  s = s0 + ((q << 32) - q);
+  u64 w = -(u64)(s < s0);
+  u64 pos = ((q - 1) <= 0); /* q == +1 only */
+  s += 0xFFFFFFFFULL & w & -(u64)pos;
+
+  /* final representative is < 2p: one masked subtract canonicalizes */
+  s -= p & -(u64)(s >= p);
+  return s;
 }

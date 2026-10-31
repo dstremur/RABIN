@@ -21,18 +21,23 @@ typedef struct {
   u64 modulus;  // The prime for this specific slice
 } u64_mat_t;
 
+/* NTT context. Golden-prime contexts (u64_ntt_ctx_init_golden(),
+   u64_ntt_ctx_golden_cached()) store n_inv and all tables in the
+   Montgomery domain. Goldilocks contexts (u64_ntt_ctx_init_goldilocks(),
+   u64_ntt_ctx_goldilocks_cached()) store them canonically in [0, q)
+   and leave bit_rev_indices NULL and mctx unused. */
 typedef struct {
   u64 n;
   u64 k;
   u64 q;
-  u64 n_inv;              // in Montgomery form
-  u64* omega_powers;      // all in Montgomery form
-  u64* omega_inv_powers;  // all in Montgomery form
-  u64* bit_rev_indices;
+  u64 n_inv;  // Montgomery form for golden prime, canonical for Goldilocks
+  u64* omega_powers;      // all in the domain of n_inv
+  u64* omega_inv_powers;  // all in the domain of n_inv
+  u64* bit_rev_indices;   // NULL in Goldilocks contexts (unused)
 
   u64* twiddle_forward;
   u64* twiddle_inverse;
-  u64_mont_ctx_t mctx;
+  u64_mont_ctx_t mctx;  // used by golden-prime contexts only
 } u64_ntt_ctx_t;
 
 // u64.c
@@ -190,9 +195,9 @@ u64 u64_barrett(u128 c, u64 q, u128 mu);
  * 2^{32}
  * + 1\f$.
  *
- * Splits the 128-bit value \f$c\f$ into 32-bit chunks and uses the field
- * relation \f$2^{32} = 1 \bmod p\f$ to fold the upper chunks down, followed
- * by a single conditional subtraction.
+ * Folds the 128-bit value using the field relation \f$2^{64} = 2^{32} - 1
+ * \bmod p\f$ (hence \f$2^{96} = -1 \bmod p\f$) down to one 64-bit word,
+ * followed by a single conditional subtraction.
  *
  * Complexity:
  *   - Time: \f$O(1)\f$
@@ -202,8 +207,32 @@ u64 u64_barrett(u128 c, u64 q, u128 mu);
  * @param[in] c Value to reduce (128-bit).
  *
  * @return \f$c \bmod p\f$, where \f$p = 2^{64} - 2^{32} + 1\f$.
+ * @see u64_mul_goldilocks()
  */
 u64 u64_goldilock_red(u128 c);
+
+/**
+ * @brief Goldilocks field multiplication: \f$a \cdot b \bmod p\f$ with
+ * \f$0 \le a, b < p\f$ and \f$p = 2^{64} - 2^{32} + 1\f$.
+ *
+ * Multiplies to 128 bits and folds with u64 add/subtract chains only (no
+ * division): splitting \f$hi = hi_l + hi_h \cdot 2^{32}\f$, the relation
+ * \f$2^{64} = 2^{32} - 1,\ 2^{96} = -1 \bmod p\f$ gives exactly
+ * \f$a \cdot b \equiv lo - hi_h + hi_l (2^{32} - 1) \bmod p\f$. The tail
+ * is branchless (masked fixups only).
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(1)\f$
+ *
+ * @param[in] a First operand, \f$0 \le a < p\f$.
+ * @param[in] b Second operand, \f$0 \le b < p\f$.
+ *
+ * @return \f$a \cdot b \bmod p\f$.
+ * @see u64_goldilock_red(), u64_ntt_goldilocks_forward()
+ */
+u64 u64_mul_goldilocks(u64 a, u64 b);
 
 // u64_mont.c
 /**
@@ -367,7 +396,7 @@ u64 u64_mont_inverse(u64 a_mont, const u64_mont_ctx_t* ctx);
 void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx);
 
 /**
- * @brief Initialize an NTT context for the Goldilocks field \f$p = 5 \cdot
+ * @brief Initialize an NTT context for the golden NTT prime \f$p = 5 \cdot
  * 2^{55}
  * + 1\f$.
  *
@@ -397,7 +426,7 @@ void u64_ntt_cyclic_forward(u64* a_hat, const u64* a, const u64_ntt_ctx_t* ctx);
 rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k);
 
 /**
- * @brief Return the shared Goldilocks NTT context for transform length
+ * @brief Return the shared golden-prime NTT context for transform length
  * \f$2^k\f$ (\f$k \le 54\f$), initializing it on first use.
  *
  * Returns NULL if \f$k > 54\f$ or initialization fails. The returned context
@@ -416,6 +445,120 @@ rabin_err_t u64_ntt_ctx_init_golden(u64_ntt_ctx_t* ctx, u64 k);
  * @return The shared context, or NULL if \f$k > 54\f$ or initialization fails.
  */
 u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k);
+
+/**
+ * @brief Initialize an NTT context for the Goldilocks prime \f$p = 2^{64} -
+ * 2^{32} + 1\f$ with canonical (non-Montgomery) tables.
+ *
+ * Let \f$k =\f$ the logarithm to base \f$2\f$ of the transform length
+ * (\f$n = 2^k\f$, \f$k \le 31\f$; \f$p - 1\f$ has 2-adicity 32 and table
+ * size caps \f$k\f$). The \f$n\f$-th root of unity is derived from the
+ * primitive root \f$g = 7\f$ as \f$\omega = g^{(p-1)/n} \bmod p\f$.
+ *
+ * Montgomery reduction is unusable for this prime (\f$p > 2^{63}\f$
+ * breaks the \f$2q\f$ butterfly bounds), so all tables (\f$n_{inv}\f$,
+ * \f$\omega\f$ and \f$\omega^{-1}\f$ powers, and the pre-ordered forward
+ * and inverse twiddles) are stored as canonical residues in \f$[0, p)\f$
+ * and the transforms use u64_mul_goldilocks(). bit_rev_indices is left
+ * NULL (the paired transforms need no explicit permutation).
+ *
+ * Complexity:
+ *   - Time: \f$O(n)\f$ for the precomputed tables, plus \f$O(\log p)\f$ for the
+ * root derivation
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$ per precomputed table (4 tables)
+ *
+ * @param[out] ctx NTT context to initialize.
+ * @param[in]    k Logarithm to base 2 of the transform length (\f$n = 2^k\f$,
+ *                 \f$k \le 31\f$).
+ *
+ * @return RABIN_SUCCESS on success, RABIN_ERR_NULL_PTR if ctx is NULL,
+ * RABIN_ERR_INVALID_ARG if \f$k > 31\f$, or RABIN_ERR_OUT_OF_MEMORY.
+ * @see u64_ntt_goldilocks_forward(), u64_ntt_goldilocks_inverse()
+ */
+rabin_err_t u64_ntt_ctx_init_goldilocks(u64_ntt_ctx_t* ctx, u64 k);
+
+/**
+ * @brief Return the shared Goldilocks NTT context for transform length
+ * \f$2^k\f$ (\f$k \le 31\f$), initializing it on first use.
+ *
+ * Returns NULL if \f$k > 31\f$ or initialization fails. The returned context
+ * is owned by the library and must not be freed or modified by the
+ * caller.
+ *
+ * Complexity:
+ *   - Time: \f$O(1)\f$ after the first call for a given \f$k\f$, \f$O(2^k)\f$
+ * the first time
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(2^k)\f$ u64s per table, once per \f$k\f$
+ *
+ * @param[in] k Logarithm to base 2 of the transform length (\f$n = 2^k\f$,
+ *              \f$k \le 31\f$).
+ *
+ * @return The shared context, or NULL if \f$k > 31\f$ or initialization fails.
+ */
+u64_ntt_ctx_t* u64_ntt_ctx_goldilocks_cached(u64 k);
+
+/**
+ * @brief Forward cyclic NTT over the Goldilocks prime \f$p = 2^{64} -
+ * 2^{32} + 1\f$: \f$a_{hat} = NTT(a)\f$, canonical domain.
+ *
+ * Let \f$n =\f$ ctx->n = \f$2^k\f$. Iterative Gentleman-Sande (decimation
+ * in frequency) with pre-ordered twiddle tables; all values stay reduced
+ * in \f$[0, p)\f$ using fold-based u64 arithmetic (no Montgomery domain).
+ * The output is in the same digit-reversed order as the output of
+ * u64_ntt_cyclic_forward(), so it pairs with u64_ntt_goldilocks_inverse()
+ * without an explicit permutation.
+ *
+ * \f$a_{hat}\f$ must not alias \f$a\f$. Inputs must be reduced:
+ * \f$0 \le a[i] < p\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n \log n)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$
+ *
+ * @param[out] a_hat Result storing the forward NTT (canonical domain).
+ * @param[in]      a Input array, entries in \f$[0, p)\f$.
+ * @param[in]    ctx Goldilocks NTT context from
+ * u64_ntt_ctx_goldilocks_cached().
+ *
+ * @par Algorithm Reference:
+ * W. Gentleman and G. Sande, "Basic Optimizations of Fast Fourier
+ * Transform Algorithms," IEEE Trans. Audio Electroacoust., vol. 16,
+ * no. 3, 1968.
+ * @see u64_ntt_goldilocks_inverse(), u64_ntt_ctx_goldilocks_cached()
+ */
+void u64_ntt_goldilocks_forward(u64* a_hat, const u64* a,
+                                const u64_ntt_ctx_t* ctx);
+
+/**
+ * @brief Inverse cyclic NTT over the Goldilocks prime \f$p = 2^{64} -
+ * 2^{32} + 1\f$: \f$a_{hat} = NTT^{-1}(a)\f$, canonical domain.
+ *
+ * Let \f$n =\f$ ctx->n = \f$2^k\f$. Iterative Cooley-Tukey (decimation in
+ * time) with pre-ordered inverse twiddles; the final stage is fused with
+ * the \f$n^{-1} \bmod p\f$ scaling. All values stay reduced in \f$[0, p)\f$
+ * using fold-based u64 arithmetic (no Montgomery domain). Accepts the
+ * output order produced by u64_ntt_goldilocks_forward().
+ *
+ * \f$a_{hat}\f$ must not alias \f$a\f$. Inputs must be reduced:
+ * \f$0 \le a[i] < p\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(n \log n)\f$
+ *   - Auxiliary memory: \f$O(1)\f$
+ *   - Output memory: \f$O(n)\f$
+ *
+ * @param[out] a_hat Result storing the inverse NTT (canonical domain).
+ * @param[in]      a Input array, entries in \f$[0, p)\f$.
+ * @param[in]    ctx Goldilocks NTT context from
+ * u64_ntt_ctx_goldilocks_cached().
+ *
+ * @see u64_ntt_goldilocks_forward(), u64_ntt_ctx_goldilocks_cached()
+ */
+void u64_ntt_goldilocks_inverse(u64* a_hat, const u64* a,
+                                const u64_ntt_ctx_t* ctx);
 
 /**
  * @brief Initialize a u64 NTT context for a prime \f$p\f$ and transform
@@ -565,7 +708,5 @@ u64 u64_mat_det(u64_mat_t* M);
  * @return The determinant modulo ctx->p, or \f$0\f$ if singular.
  */
 u64 u64_mat_det_optimized(u64* mat, u64 n, const u64_mont_ctx_t* ctx);
-
-rabin_err_t u64_ntt_ctx_init_goldilocks(u64_ntt_ctx_t* ctx, u64 k);
 
 #endif

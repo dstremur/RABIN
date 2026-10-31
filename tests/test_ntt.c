@@ -137,6 +137,138 @@ int main(void)
   rpol_clear(&a_hat);
   rpol_clear(&a_res);
   rntt_ctx_clear(&ctx);
+
+  /* ---- Goldilocks u64 NTT: asserted checks ---- */
+  const u64 gl_p = 0xFFFFFFFF00000001ULL;
+  int gl_fails = 0;
+
+  /* fold reduction + multiplication vs u128 modulo oracle */
+  static const u64 bvals[] = {0,
+                              1,
+                              2,
+                              0xFFFFFFFFULL,
+                              0x100000000ULL,
+                              0x100000001ULL,
+                              1ULL << 32,
+                              1ULL << 63,
+                              0xFFFFFFFEFFFFFFFFULL,
+                              0xFFFFFFFF00000002ULL % 0xFFFFFFFF00000001ULL,
+                              0x8000000000000001ULL};
+  for (size_t i = 0; i < sizeof bvals / sizeof bvals[0]; i++) {
+    for (size_t j = 0; j < sizeof bvals / sizeof bvals[0]; j++) {
+      u64 x = bvals[i], y = bvals[j];
+      if (x >= gl_p || y >= gl_p) continue;
+      u128 prod = (u128)x * y;
+      if (u64_mul_goldilocks(x, y) != (u64)(prod % gl_p)) gl_fails++;
+      if (u64_goldilock_red(prod) != (u64)(prod % gl_p)) gl_fails++;
+    }
+  }
+  /* products at the fold boundaries: hi word all-ones, lo word all-ones */
+  {
+    u128 edges[] = {0,
+                    ~0ULL,
+                    (u128)~0ULL << 64,
+                    ~((u128)0),
+                    ((u128)gl_p << 64) | 7,
+                    (u128)(gl_p - 1) * (gl_p - 1)};
+    for (size_t i = 0; i < sizeof edges / sizeof edges[0]; i++)
+      if (u64_goldilock_red(edges[i]) != (u64)(edges[i] % (u128)gl_p))
+        gl_fails++;
+  }
+
+  /* context: root of unity orders, canonical tables, cached identity */
+  for (u64 k = 1; k <= 12; k++) {
+    u64_ntt_ctx_t* gl_ctx = u64_ntt_ctx_goldilocks_cached(k);
+    if (gl_ctx == NULL || u64_ntt_ctx_goldilocks_cached(k) != gl_ctx) {
+      gl_fails++;
+      continue;
+    }
+    u64 n = 1ULL << k;
+    if (gl_ctx->n != n || gl_ctx->q != gl_p || gl_ctx->bit_rev_indices != NULL)
+      gl_fails++;
+    u64 om = gl_ctx->omega_powers[1];
+    /* omega^n = 1 and omega^(n/2) = p-1 (primitive n-th root) */
+    if (u64_mod_pow(om, n, gl_p) != 1 ||
+        u64_mod_pow(om, n >> 1, gl_p) != gl_p - 1)
+      gl_fails++;
+    /* n * n_inv = 1 mod p */
+    if (u64_mul_goldilocks(n % gl_p, gl_ctx->n_inv) != 1) gl_fails++;
+    /* omega * omega_inv = 1, tables canonical */
+    if (u64_mul_goldilocks(om, gl_ctx->omega_inv_powers[1]) != 1) gl_fails++;
+    for (u64 i = 0; i < n; i++)
+      if (gl_ctx->omega_powers[i] >= gl_p ||
+          gl_ctx->omega_inv_powers[i] >= gl_p)
+        gl_fails++;
+  }
+
+  /* round trip fwd -> inv on random data for several sizes */
+  for (u64 k = 1; k <= 12; k++) {
+    u64_ntt_ctx_t* gl_ctx = u64_ntt_ctx_goldilocks_cached(k);
+    u64 n = 1ULL << k;
+    u64* src = malloc(sizeof(u64) * n);
+    u64* mid = malloc(sizeof(u64) * n);
+    u64* dst = malloc(sizeof(u64) * n);
+    if (src == NULL || mid == NULL || dst == NULL) {
+      gl_fails++;
+    } else {
+      for (u64 i = 0; i < n; i++) src[i] = ((u64)rand() << 32) ^ (u64)rand();
+      /* keep inputs reduced; also exercise the p-1 edge */
+      for (u64 i = 0; i < n; i++) src[i] = (i == 0) ? gl_p - 1 : src[i] % gl_p;
+      u64_ntt_goldilocks_forward(mid, src, gl_ctx);
+      for (u64 i = 0; i < n; i++)
+        if (mid[i] >= gl_p) gl_fails++;
+      u64_ntt_goldilocks_inverse(dst, mid, gl_ctx);
+      for (u64 i = 0; i < n; i++)
+        if (dst[i] != src[i]) gl_fails++;
+    }
+    free(src);
+    free(mid);
+    free(dst);
+  }
+
+  /* cyclic convolution vs naive O(n^2) over the field (n = 16) */
+  {
+    u64 k = 4, n = 1ULL << k;
+    u64_ntt_ctx_t* gl_ctx = u64_ntt_ctx_goldilocks_cached(k);
+    u64 a_arr[16], b_arr[16], a_hat[16], b_hat[16], c_arr[16], ref[16];
+    for (u64 i = 0; i < n; i++) {
+      a_arr[i] = ((u64)rand() << 32) ^ (u64)rand();
+      b_arr[i] = ((u64)rand() << 32) ^ (u64)rand();
+      a_arr[i] = (i == 0) ? gl_p - 1 : a_arr[i] % gl_p;
+      b_arr[i] = (i == n - 1) ? gl_p - 1 : b_arr[i] % gl_p;
+      ref[i] = 0;
+    }
+    for (u64 i = 0; i < n; i++)
+      for (u64 j = 0; j < n; j++) {
+        u64 idx = i + j;
+        if (idx >= n) idx -= n;
+        ref[idx] =
+            u64_mod_add(ref[idx], u64_mul_goldilocks(a_arr[i], b_arr[j]), gl_p);
+      }
+    u64_ntt_goldilocks_forward(a_hat, a_arr, gl_ctx);
+    u64_ntt_goldilocks_forward(b_hat, b_arr, gl_ctx);
+    for (u64 i = 0; i < n; i++)
+      a_hat[i] = u64_mul_goldilocks(a_hat[i], b_hat[i]);
+    u64_ntt_goldilocks_inverse(c_arr, a_hat, gl_ctx);
+    for (u64 i = 0; i < n; i++)
+      if (c_arr[i] != ref[i]) gl_fails++;
+  }
+
+  /* invalid k rejected, k = 31 accepted */
+  {
+    u64_ntt_ctx_t tmp;
+    if (u64_ntt_ctx_init_goldilocks(&tmp, 32) != RABIN_ERR_INVALID_ARG)
+      gl_fails++;
+    if (u64_ntt_ctx_init_goldilocks(NULL, 4) != RABIN_ERR_NULL_PTR) gl_fails++;
+    if (u64_ntt_ctx_goldilocks_cached(32) != NULL) gl_fails++;
+  }
+
+  if (gl_fails != 0) {
+    printf("GOLDILOCKS NTT: %d FAILURES\n", gl_fails);
+    return 1;
+  }
+  printf("GOLDILOCKS NTT: all checks passed\n");
+
   rz_clear_constants();
 
   return 0;
