@@ -481,7 +481,7 @@ u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k);
 rabin_err_t u64_ntt_ctx_init_proth2(u64_ntt_ctx_t* ctx, u64 k);
 
 /**
- * @brief Return the shared \f$q_2 = 131 \cdot 2^{55} + 1\f$ NTT context for
+ * @brief Return the shared \f$q_2 = 69 \cdot 2^{55} + 1\f$ NTT context for
  * transform length \f$2^k\f$ (\f$k \le 54\f$), initializing it on first use.
  *
  * Returns NULL if \f$k > 54\f$ or initialization fails. The returned context
