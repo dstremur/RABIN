@@ -759,16 +759,16 @@ rabin_err_t rz_sub_abs(rz_t* r, const rz_t* a, const rz_t* b);
  * is the xor of the operand signs; the magnitude is computed with:
  *
  *   - the squaring path (rz_sqr()) when \f$a = b\f$
- *   - the u64 NTT path (Kronecker substitution with 16-bit chunks over
- *     \f$p = 5 \cdot 2^{55} + 1\f$) when \f$n \ge\f$ RZ_NTT_LIMIT and the
- *     fitted cost model in rz_mul.c predicts the transform
- *     (\f$O(N \log N)\f$, \f$N\f$ the transform length) beats padded
- *     Karatsuba for the size pair; both operands need at least
- *     RZ_KARATSUBA_LIMIT limbs. The exactness bound
- *     \f$\min(n_a, n_b) \cdot 2^{32} < p\f$ must hold for the 16-bit
- *     chunk counts \f$n_a, n_b\f$ (smaller operand up to
- *     RZ_NTT_U64_MAX_CHUNKS chunks, 671 Mbit); beyond the bound it
- *     falls back to Karatsuba
+ *   - the u64 NTT path (Kronecker substitution with 32-bit chunks over
+ *     the pair of primes \f$q_1 = 5 \cdot 2^{55} + 1\f$ and
+ *     \f$q_2 = 69 \cdot 2^{55} + 1\f$, merged with CRT) when
+ *     \f$n \ge\f$ RZ_NTT_LIMIT and the fitted cost model in rz_mul.c
+ *     predicts the transform (\f$O(N \log N)\f$, \f$N\f$ the transform
+ *     length in chunks) beats padded Karatsuba for the size pair;
+ *     both operands need at least RZ_KARATSUBA_LIMIT limbs. The CRT
+ *     reconstruction is exact for every operand reachable under the
+ *     transform cap (\f$2^{54}\f$ chunks); beyond that cap it falls
+ *     back to Karatsuba
  *   - Karatsuba (\f$O(n^{1.585})\f$) when both operands have at least
  *     RZ_KARATSUBA_LIMIT limbs
  *   - schoolbook (\f$O(n^2)\f$) otherwise
@@ -841,28 +841,30 @@ rabin_err_t rz_mul_school(rz_t* r, const rz_t* a, const rz_t* b);
  *
  * Let \f$n =\f$ max(a->size, b->size), measured in 64-bit limbs.
  *
- * This computes the product of the magnitudes of a and b with a single
- * flat u64 Number Theoretic Transform (no rpol_t intermediates):
+ * This computes the product of the magnitudes of a and b with a flat
+ * two-prime u64 Number Theoretic Transform (no rpol_t intermediates):
  *
- *   1. unpacking each operand into 16-bit chunks (base \f$2^{16}\f$, four
+ *   1. unpacking each operand into 32-bit chunks (base \f$2^{32}\f$, two
  *      chunks per limb),
- *   2. running u64_ntt_cyclic_forward() on both chunk arrays over
- *      \f$p = 5 \cdot 2^{55} + 1\f$, multiplying pointwise in the
- *      Montgomery domain, and running
- *      u64_ntt_cyclic_inverse_montgomery_in(),
- *   3. propagating carries between the 16-bit coefficient slots,
- *   4. repacking four chunks per limb into the result.
+ *   2. for each of the primes \f$q_1 = 5 \cdot 2^{55} + 1\f$ and
+ *      \f$q_2 = 69 \cdot 2^{55} + 1\f$: running u64_ntt_cyclic_forward()
+ *      on both chunk arrays, multiplying pointwise in the Montgomery
+ *      domain, and running u64_ntt_cyclic_inverse_montgomery_in(),
+ *   3. merging each chunk's residue pair with the CRT, propagating
+ *      carries between the 32-bit coefficient slots,
+ *   4. repacking two chunks per limb into the result.
  *
  * Unlike rz_mul() this path is not gated by RZ_NTT_LIMIT; it is always
- * used. The convolution is exact while
- * \f$\min(n_a, n_b) \cdot 2^{32} < p\f$ for the chunk counts
- * \f$n_a, n_b\f$, i.e. \f$\min(n_a, n_b) \le\f$ RZ_NTT_U64_MAX_CHUNKS
- * (the smaller operand is at most 671 Mbit); beyond that bound it
- * returns RABIN_ERR_OVERFLOW.
+ * used. The CRT merge reconstructs every chunk exactly while the
+ * transform cap holds: with chunk counts \f$n_a, n_b\f$ the coefficient
+ * sums stay below \f$q_1 \cdot q_2 \approx 2^{118.4}\f$ for all
+ * \f$\min(n_a, n_b) \le 2^{54}\f$. Only operand sizes past that cap
+ * (transform length beyond \f$2^{54}\f$ chunks) return
+ * RABIN_ERR_OVERFLOW.
  *
  * Complexity:
- *   - Time: \f$O(n \log n)\f$ for the NTT, plus \f$O(n)\f$ for
- *           unpack/carry/repack
+ *   - Time: \f$O(n \log n)\f$ for the two-prime NTT, plus \f$O(n)\f$ for
+ *           unpack/CRT/carry/repack
  *   - Auxiliary memory: \f$O(n)\f$ u64s of scratch (five arrays of
  *                       transform length)
  *   - Output memory: \f$O(n)\f$ limbs (at most a->size + b->size)
@@ -889,8 +891,9 @@ rabin_err_t rz_mul_fast(rz_t* res, const rz_t* a, const rz_t* b);
  * This computes the square of the magnitude of a. For \f$n \ge\f$
  * RZ_NTT_LIMIT limbs and where the fitted cost model in rz_mul.c
  * predicts it pays off, the dedicated u64 NTT squaring kernel is used
- * (one forward transform; see rz_mul()), unless the square exceeds the
- * NTT exactness bound; below that threshold or beyond the bound the
+ * (one forward transform per prime; see rz_mul()), unless the square
+ * exceeds the u64 NTT transform-size cap; below that threshold or
+ * beyond the cap the
  * Karatsuba squaring kernel (limbs_sqr_karatsuba()) exploits the
  * symmetry of squaring to save about a quarter of the multiplications.
  * The result is always nonnegative.

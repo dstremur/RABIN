@@ -22,9 +22,11 @@ typedef unsigned __int128 u128;
    NTT-vs-Karatsuba comparison after any kernel change. */
 #define RZ_NTT_LIMIT 4096
 
-/* max number of 16-bit chunks per operand for an exact single-prime
-   (p = 5*2^55+1) convolution: min(na,nb) <= (p-1)/2^32 = 5*2^23 */
-#define RZ_NTT_U64_MAX_CHUNKS (5ULL << 23)
+/* max transform length in 32-bit chunks for the two-prime u64-NTT
+   kernels: q1 = 5*2^55+1 and q2 = 69*2^55+1 both have 2-adicity 55,
+   and the CRT bound q1*q2 ~ 2^118.4 exceeds 2^64*min(na,nb) for all
+   chunk counts reachable under this cap */
+#define RZ_NTT_U64_MAX_CHUNKS (1ULL << 54)
 
 /*---------------------------------------------------------------------------
  *  carry / borrow primitives
