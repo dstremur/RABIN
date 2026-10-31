@@ -454,13 +454,14 @@ static void run_ntt_sqr()
 // PART 6: NTT vs KARATSUBA TIMING (for tuning RZ_NTT_LIMIT)
 // =============================================================================
 
-static void benchmark_mul_ntt_vs_karat(int limbs)
+static void benchmark_mul_ntt_vs_karat(int limbs, int ratio)
 {
+  int m = limbs / RZ_MAX(ratio, 1);
   rz_t a, b, res_dispatch, res_karat, res_ntt;
   rz_init_multi(&a, &b, &res_dispatch, &res_karat, &res_ntt, NULL);
 
   rz_gen_random(&a, (u64)limbs * 64);
-  rz_gen_random(&b, (u64)limbs * 64);
+  rz_gen_random(&b, (u64)m * 64);
 
   // Establish a capacity-2n buffer via the dispatch path; keep a copy
   // as the correctness reference for the raw kernel below.
@@ -499,8 +500,10 @@ static void benchmark_mul_ntt_vs_karat(int limbs)
     printf("[FAIL] Mismatch (NTT/Karatsuba) at %d limbs!\n", limbs);
   } else {
     double speedup = (time_ntt > 0.0) ? (time_karat / time_ntt) : 0.0;
-    printf("Limbs: %5d | Karatsuba: %.6fs | NTT: %.6fs | Speedup: %.2fx\n",
-           limbs, time_karat, time_ntt, speedup);
+    printf(
+        "Limbs: %5d x %5d (%d:1) | Karatsuba: %.6fs | NTT: %.6fs | "
+        "Speedup: %.2fx\n",
+        limbs, m, RZ_MAX(ratio, 1), time_karat, time_ntt, speedup);
   }
 
   rz_clear_multi(&a, &b, &res_dispatch, &res_karat, &res_ntt, NULL);
@@ -509,11 +512,20 @@ static void benchmark_mul_ntt_vs_karat(int limbs)
 static void run_ntt_benchmark()
 {
   printf("\n--- rz_mul: Karatsuba vs NTT (internal) ---\n");
-  int sizes[] = {8192,   16384,  32768,  65536,   100000,  200000,
-                 256000, 300000, 500000, 1000000, 2000000, 4000000};
+  int sizes[] = {8192,   16384,  32768,  65536,  100000,  131072,  200000,
+                 262144, 256000, 300000, 500000, 1000000, 2000000, 4000000};
   for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-    benchmark_mul_ntt_vs_karat(sizes[i]);
+    benchmark_mul_ntt_vs_karat(sizes[i], 1);
   }
+
+  // Asymmetric pairs: the padded Karatsuba cost depends only on the
+  // larger operand while the transform length shrinks with the sum,
+  // so lopsided pairs trend FASTER with NTT (cost-model dispatch).
+  int asym_sizes[] = {8192, 16384, 65536, 131072};
+  int ratios[] = {2, 4, 8};
+  for (size_t i = 0; i < sizeof(asym_sizes) / sizeof(asym_sizes[0]); i++)
+    for (size_t j = 0; j < sizeof(ratios) / sizeof(ratios[0]); j++)
+      benchmark_mul_ntt_vs_karat(asym_sizes[i], ratios[j]);
 }
 
 // =============================================================================

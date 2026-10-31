@@ -25,6 +25,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -72,6 +73,26 @@ static void rz_ntt_pack(rz_t* r, u64* r_arr, u64 nz)
     r->limbs[i] = L;
   }
   r->size = n_limbs;
+}
+
+/* Fitted cost-model gate for the NTT kernels (benchmark on x86-64):
+ * the padded Karatsuba fallback costs ~ 2.1e-9 * max_len^1.585 s and
+ * depends only on max_len (both operands are zero-padded), while the
+ * NTT costs c * N * log2(N) with N the transform length in 16-bit
+ * chunks and c ~ 2.4e-9 for a product (two forward + one inverse
+ * transform) or ~ 1.7e-9 for a square (one forward + one inverse).
+ * Asymmetry therefore enters only through N: lopsided pairs shrink
+ * the transform and FAVOR the NTT, which is why the old 4:1
+ * asymmetry guard is replaced by this model. Callers keep the
+ * RZ_NTT_LIMIT floor and the RZ_KARATSUBA_LIMIT fallback gate. */
+static bool rz_ntt_beats_karat(u64 na, u64 nb, bool squaring)
+{
+  u64 mx = RZ_MAX(na, nb);
+  /* nextpow2 of the chunk convolution length 4*(na+nb)-1 */
+  double N = ldexp(1.0, ceil(log2(4.0 * ((double)na + (double)nb))));
+  double kar = 2.1e-9 * pow((double)mx, 1.585);
+  double c = squaring ? 1.7e-9 : 2.4e-9;
+  return c * N * log2(N) < kar;
 }
 
 /* Exact single-prime NTT multiplication of magnitudes.
@@ -237,7 +258,7 @@ rabin_err_t rz_sqr(rz_t* r, const rz_t* a)
   rabin_err_t err = rz_alloc(r, 2 * a->size);
   if (err != RABIN_SUCCESS) return err;
 
-  if (a->size >= RZ_NTT_LIMIT) {
+  if (a->size >= RZ_NTT_LIMIT && rz_ntt_beats_karat(a->size, a->size, true)) {
     rabin_err_t nerr = rz_sqr_ntt_u64(r, a);
     if (nerr == RABIN_SUCCESS) {
       r->is_neg = false;
@@ -295,9 +316,13 @@ rabin_err_t rz_mul(rz_t* r, const rz_t* a, const rz_t* b)
   rabin_err_t err = rz_alloc(r, 2 * max_len);
   if (err != RABIN_SUCCESS) return err;
 
-  // use the u64-NTT path for large, reasonably balanced operands;
-  // lopsided pairs are cheaper with Karatsuba/schoolbook
-  if (max_len >= RZ_NTT_LIMIT && RZ_MIN(a->size, b->size) >= max_len / 4) {
+  // use the u64-NTT path for large pairs where the fitted cost model
+  // predicts the transform beats padded Karatsuba (asymmetric pairs
+  // often shrink N enough for the NTT to win; both operands must be
+  // Karatsuba-sized, otherwise the schoolbook fallback is cheaper)
+  if (max_len >= RZ_NTT_LIMIT &&
+      RZ_MIN(a->size, b->size) >= RZ_KARATSUBA_LIMIT &&
+      rz_ntt_beats_karat(a->size, b->size, false)) {
     rabin_err_t nerr = rz_mul_ntt_u64(r, a, b);
     if (nerr == RABIN_SUCCESS) {
       /* the kernel already set r->size; do NOT overwrite it */

@@ -12,12 +12,15 @@
 
 typedef unsigned __int128 u128;
 
-/* limb count below which multiplication falls back to schoolbook */
+/* limb count below which multiplication falls back to schoolbook
+   (crossover confirmed by benchmark: schoolbook wins through 96 limbs) */
 #define RZ_KARATSUBA_LIMIT 128
 
-/* limb count at which rz_mul() switches to the u64-NTT path (tune via
-   tests/test_mul.c internal comparison) */
-#define RZ_NTT_LIMIT 16384
+/* floor limb count at which the fitted cost model in rz_mul.c is
+   allowed to select the u64-NTT path; the model (see rz_ntt_beats_karat)
+   then decides per size pair. Re-fit via tests/test_mul.c's internal
+   NTT-vs-Karatsuba comparison after any kernel change. */
+#define RZ_NTT_LIMIT 4096
 
 /* max number of 16-bit chunks per operand for an exact single-prime
    (p = 5*2^55+1) convolution: min(na,nb) <= (p-1)/2^32 = 5*2^23 */

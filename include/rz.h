@@ -760,9 +760,12 @@ rabin_err_t rz_sub_abs(rz_t* r, const rz_t* a, const rz_t* b);
  *
  *   - the squaring path (rz_sqr()) when \f$a = b\f$
  *   - the u64 NTT path (Kronecker substitution with 16-bit chunks over
- *     \f$p = 5 \cdot 2^{55} + 1\f$) when \f$n \ge\f$ RZ_NTT_LIMIT, the
- *     smaller operand has at least \f$n / 4\f$ limbs, and the exactness
- *     bound \f$\min(n_a, n_b) \cdot 2^{32} < p\f$ holds for the 16-bit
+ *     \f$p = 5 \cdot 2^{55} + 1\f$) when \f$n \ge\f$ RZ_NTT_LIMIT and the
+ *     fitted cost model in rz_mul.c predicts the transform
+ *     (\f$O(N \log N)\f$, \f$N\f$ the transform length) beats padded
+ *     Karatsuba for the size pair; both operands need at least
+ *     RZ_KARATSUBA_LIMIT limbs. The exactness bound
+ *     \f$\min(n_a, n_b) \cdot 2^{32} < p\f$ must hold for the 16-bit
  *     chunk counts \f$n_a, n_b\f$ (smaller operand up to
  *     RZ_NTT_U64_MAX_CHUNKS chunks, 671 Mbit); beyond the bound it
  *     falls back to Karatsuba
@@ -884,12 +887,13 @@ rabin_err_t rz_mul_fast(rz_t* res, const rz_t* a, const rz_t* b);
  * Let \f$n =\f$ a->size, measured in 64-bit limbs.
  *
  * This computes the square of the magnitude of a. For \f$n \ge\f$
- * RZ_NTT_LIMIT limbs the u64 NTT path is used (see rz_mul()), unless
- * the square exceeds the NTT exactness bound; below that threshold or
- * beyond the bound the Karatsuba squaring kernel
- * (limbs_sqr_karatsuba()) exploits the symmetry of squaring to save
- * about a quarter of the multiplications. The result is always
- * nonnegative.
+ * RZ_NTT_LIMIT limbs and where the fitted cost model in rz_mul.c
+ * predicts it pays off, the dedicated u64 NTT squaring kernel is used
+ * (one forward transform; see rz_mul()), unless the square exceeds the
+ * NTT exactness bound; below that threshold or beyond the bound the
+ * Karatsuba squaring kernel (limbs_sqr_karatsuba()) exploits the
+ * symmetry of squaring to save about a quarter of the multiplications.
+ * The result is always nonnegative.
  *
  * If a is zero, r is set to zero.
  *
