@@ -66,6 +66,45 @@
  *    rzcert.h    Pocklington certificates           (src/number_theory)
  */
 
+/*
+ *  Threading:
+ *    Global state:
+ *      Call rz_init_constants() once, on one thread, before spawning
+ *      any worker threads. RZ_ZERO, RZ_ONE and RZ_TWO are global
+ *      read-only bignums afterwards; do not call rz_clear_constants()
+ *      while other threads may still use the library.
+ *
+ *      The cached Goldilocks NTT contexts (u64_ntt_ctx_golden_cached,
+ *      src/u64/u64_ntt.c) are built lazily on first use under a
+ *      pthread mutex. Each context is read-only after warmup, so
+ *      concurrent lookups from multiple threads are safe; only the
+ *      first miss per size k serializes.
+ *
+ *    Scratch arena (rz_scratch_get / rz_scratch_release):
+ *      The arena is thread-local (__thread), grow-only. Each thread
+ *      gets its own arena on its first get(); release() only rewinds
+ *      the calling thread's bump offset and never touches other
+ *      threads. Hold at most one block per call and release it before
+ *      returning into other library code, because a later get() may
+ *      regrow the arena and invalidate outstanding pointers. Arena
+ *      memory is intentionally kept for reuse until thread exit.
+ *
+ *    OpenMP regions:
+ *      rmat_mul(), rmat_det(), the scalar ops in rmat_ops.c and the
+ *      RNS transforms in rns.c parallelize their inner loops with
+ *      OpenMP. They inherit the ambient thread count (OMP_NUM_THREADS
+ *      or omp_set_num_threads()). Object-level discipline still
+ *      applies: distinct matrices may be processed concurrently, but
+ *      a single rmat_t/rz_t must not be touched by two threads at
+ *      once.
+ *
+ *      Nested parallelism: these regions are top-level (parallel /
+ *      parallel-for). Calling them from inside a user parallel region
+ *      is safe but runs single-threaded by default; enable
+ *      OMP_MAX_ACTIVE_LEVELS (plus OMP_NESTED or nested places
+ *      clauses) if nested teaming is wanted.
+ */
+
 #include "rabin_errors.h"
 #include "rmat.h"
 #include "rns.h"
