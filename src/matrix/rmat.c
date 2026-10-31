@@ -25,7 +25,10 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "../core/strparse_internal.h"
 
 #define RMAT_PRINT_MAX_WIDTH 16
 rabin_err_t rmat_init(rmat_t* M, u64 r, u64 c)
@@ -372,4 +375,144 @@ rabin_err_t rmat_print_full(const rmat_t* A)
 rabin_err_t rmat_print_tail(const rmat_t* A)
 {
   return rmat_print_impl(A, false, true);
+}
+
+size_t rmat_to_string_len(const rmat_t* A)
+{
+  if (A == NULL) return 0;
+
+  size_t len = 3; /* outer '[' + ']' + NUL */
+  for (u64 r = 0; r < A->rows; r++) {
+    if (r + 1 < A->rows) len++;
+    len += 2; /* row '[' + ']' */
+    for (u64 c = 0; c < A->cols; c++) {
+      if (c + 1 < A->cols) len++;
+      char* ns = rz_to_string(RMAT_GET(A, r, c));
+      if (ns == NULL) return 0;
+      len += strlen(ns);
+      free(ns);
+    }
+  }
+  return len;
+}
+
+rabin_err_t rmat_to_string(const rmat_t* A, char* out, size_t cap)
+{
+  if (A == NULL || out == NULL) return RABIN_ERR_NULL_PTR;
+
+  size_t need = rmat_to_string_len(A);
+  if (need == 0) return RABIN_ERR_OUT_OF_MEMORY;
+  if (need > cap) return RABIN_ERR_INVALID_ARG;
+
+  size_t w = 0;
+  out[w++] = '[';
+  for (u64 r = 0; r < A->rows; r++) {
+    if (r > 0) out[w++] = ',';
+    out[w++] = '[';
+    for (u64 c = 0; c < A->cols; c++) {
+      if (c > 0) out[w++] = ',';
+      char* ns = rz_to_string(RMAT_GET(A, r, c));
+      if (ns == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+      const size_t l = strlen(ns);
+      memcpy(out + w, ns, l);
+      w += l;
+      free(ns);
+    }
+    out[w++] = ']';
+  }
+  out[w++] = ']';
+  out[w] = '\0';
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rmat_init_val(rmat_t* A, const char* str)
+{
+  if (A == NULL || str == NULL) return RABIN_ERR_NULL_PTR;
+
+  strpx_lexer lx;
+  strpx_init(&lx, str);
+  if (!strpx_eat(&lx, '[')) return RABIN_ERR_INVALID_ARG;
+
+  const u64 total = A->rows * A->cols;
+  rz_t* tmp = NULL;
+  u64 ninit = 0, rows_got = 0;
+  rabin_err_t err = RABIN_SUCCESS;
+
+  if (total > 0) {
+    tmp = malloc(total * sizeof(rz_t));
+    if (tmp == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+    for (u64 i = 0; i < total; i++) {
+      if (rz_init(&tmp[i]) != RABIN_SUCCESS) {
+        err = RABIN_ERR_OUT_OF_MEMORY;
+        goto cleanup;
+      }
+      ninit++;
+    }
+  }
+
+  bool closed = strpx_eat(&lx, ']'); /* empty row list */
+  while (!closed) {
+    if (rows_got == A->rows) {
+      err = RABIN_ERR_MATRIX_DIM; /* more rows than fit */
+      goto cleanup;
+    }
+    if (!strpx_eat(&lx, '[')) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup;
+    }
+
+    u64 cols_got = 0;
+    if (!strpx_eat(&lx, ']')) {
+      for (;;) {
+        if (cols_got == A->cols) {
+          err = RABIN_ERR_MATRIX_DIM; /* more columns than fit */
+          goto cleanup;
+        }
+        if (strpx_int(&lx, &tmp[rows_got * A->cols + cols_got]) !=
+            RABIN_SUCCESS) {
+          err = RABIN_ERR_INVALID_ARG;
+          goto cleanup;
+        }
+        cols_got++;
+        if (strpx_eat(&lx, ',')) continue;
+        break;
+      }
+      if (!strpx_eat(&lx, ']')) {
+        err = RABIN_ERR_INVALID_ARG;
+        goto cleanup;
+      }
+    }
+    if (cols_got != A->cols) {
+      err = RABIN_ERR_MATRIX_DIM;
+      goto cleanup;
+    }
+
+    rows_got++;
+    if (strpx_eat(&lx, ',')) continue;
+    if (!strpx_eat(&lx, ']')) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup;
+    }
+    closed = true;
+  }
+
+  if (rows_got != A->rows) {
+    err = RABIN_ERR_MATRIX_DIM;
+    goto cleanup;
+  }
+  if (!strpx_done(&lx)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  for (u64 i = 0; i < total; i++) {
+    TRY(rz_copy(&A->data[i], &tmp[i]));
+  }
+
+cleanup:
+  if (tmp != NULL) {
+    for (u64 i = 0; i < ninit; i++) rz_clear(&tmp[i]);
+    free(tmp);
+  }
+  return err;
 }

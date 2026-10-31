@@ -591,4 +591,68 @@ rabin_err_t rpol_carry_propagation(rpol_t* r, u64 bit_width);
  */
 rabin_err_t rz_recompose(rz_t* n, const rpol_t* p, u64 bit_width);
 
+/**
+ * @brief Number of bytes rpol_to_string() needs for \p p, NUL included.
+ *
+ * Complexity:
+ *   - Time: \f$O((d+1) \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *
+ * @param[in] p Polynomial to measure.
+ * @return Required buffer size including the NUL terminator, or 0 if
+ * \p p is NULL or conversion fails.
+ * @see rpol_to_string()
+ */
+size_t rpol_to_string_len(const rpol_t* p);
+
+/**
+ * @brief Write a polynomial as a bracketed ascending coefficient list
+ * \f$[c_0,\dots,c_d]\f$ into a caller buffer.
+ *
+ * Coefficients are printed from \f$c_0\f$ up to \f$c_d\f$ of the
+ * stored (trimmed) degree; the empty state prints \c []. The output
+ * is exactly NUL-terminated and needs rpol_to_string_len() bytes
+ * including the terminator; a smaller \p cap leaves \p out untouched
+ * and fails.
+ *
+ * Complexity:
+ *   - Time: \f$O((d+1) \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(d)\f$ characters
+ *
+ * @param[out] out Caller buffer receiving the string.
+ * @param[in]  p   Polynomial to print.
+ * @param[in]  cap Size of \p out in bytes, NUL included.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p out or
+ * \p p is NULL; RABIN_ERR_INVALID_ARG if \p cap is too small;
+ * RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @see rpol_init_val()
+ */
+rabin_err_t rpol_to_string(const rpol_t* p, char* out, size_t cap);
+
+/**
+ * @brief Parse a bracketed ascending coefficient list \f$[c_0,\dots,c_d]\f$
+ * into a polynomial.
+ *
+ * Coefficients are signed decimal integers; whitespace is allowed
+ * between tokens. Trailing high-degree zeros are trimmed, e.g. \c
+ * "[5,0,0]" stores degree \f$0\f$; \c [] yields the empty zero
+ * polynomial. \p p must be initialized; a failed parse leaves \p p
+ * unchanged. The trimmed result round-trips exactly with
+ * rpol_to_string().
+ *
+ * Complexity:
+ *   - Time: \f$O((d+1) \cdot n^2)\f$ where \f$n =\f$ the digit count
+ *   - Auxiliary memory: \f$O((d+1) \cdot n)\f$ limbs
+ *   - Output memory: \f$O((d+1) \cdot n)\f$ limbs
+ *
+ * @param[out] p   Polynomial to set; must be initialized.
+ * @param[in]  str String to parse.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p p or
+ * \p str is NULL; RABIN_ERR_INVALID_ARG if \p str is malformed;
+ * RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @see rpol_to_string()
+ */
+rabin_err_t rpol_init_val(rpol_t* p, const char* str);
+
 #endif

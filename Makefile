@@ -136,7 +136,7 @@ TESTS_QUICK = test_add test_add_u64 test_all test_bpsw test_cert test_cmp \
               test_matrix_elim test_matrix_kernel test_matrixq test_mod \
               test_mod_inverse test_mod_u64 test_modexp test_mul test_mul_i64 \
               test_neg test_ntt test_poly test_poly_div test_rat test_rns \
-              test_rshift \
+              test_serialization test_rshift \
               test_sqr test_sub test_u64 test_vector
 
 test_quick: $(TESTS_QUICK)

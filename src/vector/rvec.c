@@ -31,8 +31,11 @@
 #include "../../include/rvec.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "../../include/rmat.h"
+#include "../core/strparse_internal.h"
 
 rabin_err_t rvec_init(rvec_t* a, u64 d)
 {
@@ -261,4 +264,105 @@ rabin_err_t rvec_println(rvec_t* a)
   if (err != RABIN_SUCCESS) return err;
   printf("\n");
   return RABIN_SUCCESS;
+}
+
+size_t rvec_to_string_len(const rvec_t* a)
+{
+  if (a == NULL) return 0;
+
+  size_t len = 3; /* '[' + ']' + NUL */
+  for (u64 i = 0; i < a->size; i++) {
+    char* ns = rz_to_string(&a->data[i]);
+    if (ns == NULL) return 0;
+    len += strlen(ns);
+    free(ns);
+    if (i + 1 < a->size) len++; /* comma */
+  }
+  return len;
+}
+
+rabin_err_t rvec_to_string(const rvec_t* a, char* out, size_t cap)
+{
+  if (a == NULL || out == NULL) return RABIN_ERR_NULL_PTR;
+
+  size_t need = rvec_to_string_len(a);
+  if (need == 0) return RABIN_ERR_OUT_OF_MEMORY;
+  if (need > cap) return RABIN_ERR_INVALID_ARG;
+
+  size_t w = 0;
+  out[w++] = '[';
+  for (u64 i = 0; i < a->size; i++) {
+    if (i > 0) out[w++] = ',';
+    char* ns = rz_to_string(&a->data[i]);
+    if (ns == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+    const size_t l = strlen(ns);
+    memcpy(out + w, ns, l);
+    w += l;
+    free(ns);
+  }
+  out[w++] = ']';
+  out[w] = '\0';
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rvec_init_val(rvec_t* a, const char* str)
+{
+  if (a == NULL || str == NULL) return RABIN_ERR_NULL_PTR;
+
+  strpx_lexer lx;
+  strpx_init(&lx, str);
+
+  if (!strpx_eat(&lx, '[')) return RABIN_ERR_INVALID_ARG;
+
+  rz_t* tmp = NULL;
+  u64 ninit = 0, got = 0;
+  rabin_err_t err = RABIN_SUCCESS;
+
+  if (a->size > 0) {
+    tmp = malloc(a->size * sizeof(rz_t));
+    if (tmp == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+    for (u64 i = 0; i < a->size; i++) {
+      if (rz_init(&tmp[i]) != RABIN_SUCCESS) {
+        err = RABIN_ERR_OUT_OF_MEMORY;
+        goto cleanup;
+      }
+      ninit++;
+    }
+  }
+
+  if (!strpx_eat(&lx, ']')) {
+    for (;;) {
+      if (got == a->size) {
+        err = RABIN_ERR_INVALID_ARG; /* more elements than fit */
+        goto cleanup;
+      }
+      if (strpx_int(&lx, &tmp[got]) != RABIN_SUCCESS) {
+        err = RABIN_ERR_INVALID_ARG;
+        goto cleanup;
+      }
+      got++;
+      if (strpx_eat(&lx, ',')) continue;
+      break;
+    }
+    if (!strpx_eat(&lx, ']')) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup;
+    }
+  }
+
+  if (got != a->size || !strpx_done(&lx)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  for (u64 i = 0; i < a->size; i++) {
+    TRY(rz_copy(&a->data[i], &tmp[i]));
+  }
+
+cleanup:
+  if (tmp != NULL) {
+    for (u64 i = 0; i < ninit; i++) rz_clear(&tmp[i]);
+    free(tmp);
+  }
+  return err;
 }

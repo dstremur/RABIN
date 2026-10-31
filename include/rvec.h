@@ -255,4 +255,65 @@ rabin_err_t rvec_println(rvec_t* a);
  */
 rabin_err_t rvec_neg(rvec_t* r, const rvec_t* a);
 
+/**
+ * @brief Number of bytes rvec_to_string() needs for \p a, NUL included.
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *
+ * @param[in] a Vector to measure.
+ * @return Required buffer size including the NUL terminator, or 0 if
+ * \p a is NULL or conversion fails.
+ * @see rvec_to_string()
+ */
+size_t rvec_to_string_len(const rvec_t* a);
+
+/**
+ * @brief Write a vector as a bracketed decimal list
+ * \f$[c_0,\dots,c_{d-1}]\f$ into a caller buffer.
+ *
+ * The output is exactly NUL-terminated and needs rvec_to_string_len()
+ * bytes including the terminator; a smaller \p cap leaves \p out
+ * untouched and fails. A zero-size vector prints \c [].
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(d)\f$ characters
+ *
+ * @param[out] out Caller buffer receiving the string.
+ * @param[in]  a   Vector to print.
+ * @param[in]  cap Size of \p out in bytes, NUL included.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p out or
+ * \p a is NULL; RABIN_ERR_INVALID_ARG if \p cap is too small;
+ * RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @see rvec_init_val()
+ */
+rabin_err_t rvec_to_string(const rvec_t* a, char* out, size_t cap);
+
+/**
+ * @brief Parse a bracketed decimal list \f$[c_0,\dots,c_{d-1}]\f$ into
+ * an existing vector.
+ *
+ * Elements are signed decimal integers; whitespace is allowed between
+ * tokens. \p a must be initialized and the parsed element count must
+ * equal a->size; otherwise the call fails and leaves \p a unchanged.
+ * The result round-trips exactly with rvec_to_string().
+ *
+ * Complexity:
+ *   - Time: \f$O(d \cdot n^2)\f$ where \f$n =\f$ the digit count
+ *   - Auxiliary memory: \f$O(d \cdot n)\f$ limbs
+ *   - Output memory: \f$O(d \cdot n)\f$ limbs
+ *
+ * @param[out] a   Vector to fill; must be initialized.
+ * @param[in]  str String to parse.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p a or
+ * \p str is NULL; RABIN_ERR_INVALID_ARG if \p str is malformed or the
+ * element count differs from a->size; RABIN_ERR_OUT_OF_MEMORY on
+ * allocation failure.
+ * @see rvec_to_string()
+ */
+rabin_err_t rvec_init_val(rvec_t* a, const char* str);
+
 #endif

@@ -1532,4 +1532,66 @@ rabin_err_t rmat_linear_dependence(const double* re, const double* im, u64 n,
  */
 rabin_err_t rmat_algebraic_relation(double re, double im, u64 degree,
                                     double scale, rmat_t* poly, double* err);
+
+/**
+ * @brief Number of bytes rmat_to_string() needs for \p A, NUL included.
+ *
+ * Complexity:
+ *   - Time: \f$O(rc \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *
+ * @param[in] A Matrix to measure.
+ * @return Required buffer size including the NUL terminator, or 0 if
+ * \p A is NULL or conversion fails.
+ * @see rmat_to_string()
+ */
+size_t rmat_to_string_len(const rmat_t* A);
+
+/**
+ * @brief Write a matrix as nested bracketed decimal lists
+ * \f$[[r_{0,0},\dots],[r_{1,0},\dots],\dots]\f$ into a caller buffer.
+ *
+ * The output is exactly NUL-terminated and needs rmat_to_string_len()
+ * bytes including the terminator; a smaller \p cap leaves \p out
+ * untouched and fails.
+ *
+ * Complexity:
+ *   - Time: \f$O(rc \cdot n^2)\f$ decimal conversion, see rz_to_string()
+ *   - Auxiliary memory: \f$O(n)\f$ limbs
+ *   - Output memory: \f$O(rc)\f$ characters
+ *
+ * @param[out] out Caller buffer receiving the string.
+ * @param[in]  A   Matrix to print.
+ * @param[in]  cap Size of \p out in bytes, NUL included.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p out or
+ * \p A is NULL; RABIN_ERR_INVALID_ARG if \p cap is too small;
+ * RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @see rmat_init_val()
+ */
+rabin_err_t rmat_to_string(const rmat_t* A, char* out, size_t cap);
+
+/**
+ * @brief Parse nested bracketed decimal lists into an existing matrix.
+ *
+ * Elements are signed decimal integers; whitespace is allowed between
+ * tokens. \p A must be initialized and the parsed row and column
+ * counts must match A->rows and A->cols (RABIN_ERR_MATRIX_DIM
+ * otherwise); a failed parse leaves \p A unchanged. The result
+ * round-trips exactly with rmat_to_string().
+ *
+ * Complexity:
+ *   - Time: \f$O(rc \cdot n^2)\f$ where \f$n =\f$ the digit count
+ *   - Auxiliary memory: \f$O(rc \cdot n)\f$ limbs
+ *   - Output memory: \f$O(rc \cdot n)\f$ limbs
+ *
+ * @param[out] A   Matrix to fill; must be initialized.
+ * @param[in]  str String to parse.
+ * @return RABIN_SUCCESS on success; RABIN_ERR_NULL_PTR if \p A or
+ * \p str is NULL; RABIN_ERR_INVALID_ARG if \p str is malformed;
+ * RABIN_ERR_MATRIX_DIM if the parsed shape differs;
+ * RABIN_ERR_OUT_OF_MEMORY on allocation failure.
+ * @see rmat_to_string()
+ */
+rabin_err_t rmat_init_val(rmat_t* A, const char* str);
+
 #endif

@@ -32,12 +32,14 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../../include/rntt.h"
 #include "../../include/rzlogic.h"
 #include "../../include/rzmath.h"
 #include "../../include/u64.h"
+#include "../core/strparse_internal.h"
 
 rabin_err_t rpol_init(rpol_t* p)
 {
@@ -1091,5 +1093,128 @@ cleanup:
   rpol_clear(&T);
   rpol_clear(&D);
   rz_clear(&k);
+  return err;
+}
+
+size_t rpol_to_string_len(const rpol_t* p)
+{
+  if (p == NULL) return 0;
+
+  const u64 count = (p->coeff == NULL || p->size == 0) ? 0 : p->deg + 1;
+  size_t len = 3; /* '[' + ']' + NUL */
+  for (u64 i = 0; i < count; i++) {
+    char* ns = rz_to_string(&p->coeff[i]);
+    if (ns == NULL) return 0;
+    len += strlen(ns);
+    free(ns);
+    if (i + 1 < count) len++; /* comma */
+  }
+  return len;
+}
+
+rabin_err_t rpol_to_string(const rpol_t* p, char* out, size_t cap)
+{
+  if (p == NULL || out == NULL) return RABIN_ERR_NULL_PTR;
+
+  size_t need = rpol_to_string_len(p);
+  if (need == 0) return RABIN_ERR_OUT_OF_MEMORY;
+  if (need > cap) return RABIN_ERR_INVALID_ARG;
+
+  const u64 count = (p->coeff == NULL || p->size == 0) ? 0 : p->deg + 1;
+
+  size_t w = 0;
+  out[w++] = '[';
+  for (u64 i = 0; i < count; i++) {
+    if (i > 0) out[w++] = ',';
+    char* ns = rz_to_string(&p->coeff[i]);
+    if (ns == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+    const size_t l = strlen(ns);
+    memcpy(out + w, ns, l);
+    w += l;
+    free(ns);
+  }
+  out[w++] = ']';
+  out[w] = '\0';
+  return RABIN_SUCCESS;
+}
+
+rabin_err_t rpol_init_val(rpol_t* p, const char* str)
+{
+  if (p == NULL || str == NULL) return RABIN_ERR_NULL_PTR;
+
+  strpx_lexer lx;
+  strpx_init(&lx, str);
+  if (!strpx_eat(&lx, '[')) return RABIN_ERR_INVALID_ARG;
+
+  /* Pass 1: validate the grammar and count coefficients. */
+  u64 count = 0;
+  rabin_err_t err = RABIN_SUCCESS;
+  rz_t scratch;
+  if (rz_init(&scratch) != RABIN_SUCCESS) return RABIN_ERR_OUT_OF_MEMORY;
+
+  if (!strpx_eat(&lx, ']')) {
+    for (;;) {
+      if (strpx_int(&lx, &scratch) != RABIN_SUCCESS) {
+        err = RABIN_ERR_INVALID_ARG;
+        goto cleanup;
+      }
+      count++;
+      if (strpx_eat(&lx, ',')) continue;
+      break;
+    }
+    if (!strpx_eat(&lx, ']')) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto cleanup;
+    }
+  }
+  if (!strpx_done(&lx)) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  if (count == 0) {
+    rpol_init(p); /* empty state: the zero polynomial */
+    goto cleanup;
+  }
+
+  /* Pass 2: parse into a temporary array, then commit and trim. */
+  rz_t* tmp = malloc(count * sizeof(rz_t));
+  if (tmp == NULL) {
+    err = RABIN_ERR_OUT_OF_MEMORY;
+    goto cleanup;
+  }
+  u64 ninit = 0;
+  for (u64 i = 0; i < count; i++) {
+    if (rz_init(&tmp[i]) != RABIN_SUCCESS) {
+      err = RABIN_ERR_OUT_OF_MEMORY;
+      for (u64 j = 0; j < ninit; j++) rz_clear(&tmp[j]);
+      free(tmp);
+      goto cleanup;
+    }
+    ninit++;
+  }
+
+  strpx_init(&lx, str);
+  strpx_eat(&lx, '[');
+  for (u64 i = 0; i < count; i++) {
+    if (strpx_int(&lx, &tmp[i]) != RABIN_SUCCESS) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto abort_commit;
+    }
+    if (i + 1 < count && !strpx_eat(&lx, ',')) {
+      err = RABIN_ERR_INVALID_ARG;
+      goto abort_commit;
+    }
+  }
+
+  err = rpol_set(p, tmp, count - 1);
+  if (err == RABIN_SUCCESS) err = rpol_trim(p);
+
+abort_commit:
+  for (u64 i = 0; i < ninit; i++) rz_clear(&tmp[i]);
+  free(tmp);
+
+cleanup:
+  rz_clear(&scratch);
   return err;
 }
