@@ -168,6 +168,42 @@ static void run_random(gmp_randstate_t state)
 }
 
 // =============================================================================
+// PART 2b: LARGE-SIZE CROSS CHECK (sizes at/above RZ_NTT_LIMIT use the
+// NTT squaring kernel; verify them against GMP exactly once each)
+// =============================================================================
+
+static void run_large_vs_gmp(gmp_randstate_t state)
+{
+  static const int limb_sizes[] = {16384, 24576, 65536};
+  const int n = (int)(sizeof(limb_sizes) / sizeof(limb_sizes[0]));
+
+  printf("\n--- rz_sqr: %d large sizes vs mpz_mul (NTT path) ---\n", n);
+
+  for (int i = 0; i < n; i++) {
+    int bits = limb_sizes[i] * 64;
+
+    rz_t a, res;
+    mpz_t za;
+    char* sa;
+
+    rz_init_multi(&a, &res, NULL);
+    mpz_init(za);
+
+    sa = random_mpz_str(za, bits, state);
+    rz_init_val(&a, sa);
+
+    rz_sqr(&res, &a);
+    assert_sqr_match("rz_sqr (large)", "(large input)", &res, za);
+
+    free(sa);
+    rz_clear_multi(&a, &res, NULL);
+    mpz_clear(za);
+  }
+
+  printf("all %d large-size cases passed\n", n);
+}
+
+// =============================================================================
 // PART 3: TIME-BASED BENCHMARKS vs GMP
 // =============================================================================
 
@@ -238,6 +274,7 @@ int main()
 
   run_edge_cases();
   run_random(state);
+  run_large_vs_gmp(state);
 
   print_table_header();
   benchmark_sqr(2048, bench_budget(2048), state);

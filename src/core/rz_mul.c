@@ -35,15 +35,55 @@
 #include "../../include/u64.h"
 #include "rz_internal.h"
 
+/* Shared NTT epilogue: propagate carries in base 2^16 over the nz
+   convolution chunks in r_arr (destroyed in place) and pack the result
+   into r->limbs. Sets r->size; leaves r->is_neg to the caller.
+   Exact while r_arr holds the uncarried product of nonzero operands,
+   so the product is nonzero and last >= 0. */
+static void rz_ntt_pack(rz_t* r, u64* r_arr, u64 nz)
+{
+  u64 carry = 0;
+  u64 last = 0;
+  u64 tail[4] = {0, 0, 0, 0}; /* chunk values at indices nz .. nz+3 */
+  u64 i = 0;
+  while (i < nz || carry) {
+    u64 total = (i < nz) ? r_arr[i] + carry : carry;
+    u64 low = total & 0xFFFFu;
+    carry = total >> 16;
+    if (i < nz)
+      r_arr[i] = low;
+    else
+      tail[i - nz] = low;
+    if (low || carry) last = i; /* last nonzero chunk */
+    i++;
+  }
+
+  /* Pack: 4 x 16-bit chunks per limb, exactly (last+4)/4 limbs.
+     Since a*b < 2^(16*(na+nb)), n_limbs <= (na+nb)/4 = a->size + b->size
+     <= 2*max_len, so this never overruns r. */
+  u64 n_limbs = (last + 4) / 4;
+  for (i = 0; i < n_limbs; i++) {
+    u64 L = 0;
+    for (u64 j = 0; j < 4; j++) {
+      u64 ci = 4 * i + j;
+      u64 c = (ci < nz) ? r_arr[ci] : tail[ci - nz];
+      L |= c << (16 * j);
+    }
+    r->limbs[i] = L;
+  }
+  r->size = n_limbs;
+}
+
 /* Exact single-prime NTT multiplication of magnitudes.
  * a, b must be nonzero; r must not alias a or b (dispatch handles it).
- * Does NOT set r->is_neg (caller does). */
+ * Does NOT set r->is_neg (caller does).
+ * Four scratch arrays: the inverse transform reuses the dead a_arr
+ * region for its output, and only the transform padding is zeroed. */
 static rabin_err_t rz_mul_ntt_u64(rz_t* r, const rz_t* a, const rz_t* b)
 {
   u64 na, nb, nz, ntt_size, k, i;
   const u64_ntt_ctx_t* ctx;
   u64 *buf, *a_arr, *b_arr, *a_hat, *b_hat, *r_arr;
-  u64 carry;
   rabin_err_t err;
 
   if (a->size > SIZE_MAX / 4 || b->size > SIZE_MAX / 4)
@@ -65,21 +105,20 @@ static rabin_err_t rz_mul_ntt_u64(rz_t* r, const rz_t* a, const rz_t* b)
      caller to fall back to Karatsuba. */
   if (RZ_MIN(na, nb) > RZ_NTT_U64_MAX_CHUNKS) return RABIN_ERR_OVERFLOW;
   if (ntt_size < nz) return RABIN_ERR_OVERFLOW; /* transform size k > 54 */
-  if (ntt_size > SIZE_MAX / (5 * sizeof(u64))) return RABIN_ERR_OVERFLOW;
+  if (ntt_size > SIZE_MAX / (4 * sizeof(u64))) return RABIN_ERR_OVERFLOW;
 
   ctx = u64_ntt_ctx_golden_cached(k);
   if (ctx == NULL) return RABIN_ERR_OUT_OF_MEMORY;
 
-  buf = rz_scratch_get(5 * ntt_size);
+  buf = rz_scratch_get(4 * ntt_size);
   if (buf == NULL) return RABIN_ERR_OUT_OF_MEMORY;
-  memset(buf, 0, 5 * ntt_size * sizeof(u64)); /* scratch is NOT zeroed */
   a_arr = buf;
   b_arr = buf + ntt_size;
   a_hat = buf + 2 * ntt_size;
   b_hat = buf + 3 * ntt_size;
-  r_arr = buf + 4 * ntt_size;
+  r_arr = a_arr; /* dead after the forward transforms */
 
-  /* Unpack: 4 x 16-bit chunks per 64-bit limb (rest stays zero). */
+  /* Unpack: 4 x 16-bit chunks per 64-bit limb. */
   for (i = 0; i < a->size; i++) {
     u64 L = a->limbs[i];
     a_arr[4 * i + 0] = L & 0xFFFFu;
@@ -94,6 +133,10 @@ static rabin_err_t rz_mul_ntt_u64(rz_t* r, const rz_t* a, const rz_t* b)
     b_arr[4 * i + 2] = (L >> 32) & 0xFFFFu;
     b_arr[4 * i + 3] = L >> 48;
   }
+  /* Scratch is NOT zeroed; only the padding beyond the operands must be.
+     The transform outputs are fully written, so a_hat/b_hat need none. */
+  if (na < ntt_size) memset(a_arr + na, 0, (ntt_size - na) * sizeof(u64));
+  if (nb < ntt_size) memset(b_arr + nb, 0, (ntt_size - nb) * sizeof(u64));
 
   /* The proven u64-NTT convolution chain. */
   u64_ntt_cyclic_forward(a_hat, a_arr, ctx);
@@ -102,40 +145,66 @@ static rabin_err_t rz_mul_ntt_u64(rz_t* r, const rz_t* a, const rz_t* b)
     a_hat[i] = u64_mont_mul(a_hat[i], b_hat[i], &ctx->mctx);
   u64_ntt_cyclic_inverse_montgomery_in(r_arr, a_hat, ctx);
 
-  /* Carry propagation, base 2^16.
-     Since a*b < 2^(16*na + 16*nb), every carried chunk at index >= nz + 1
-     is zero; the tail chunks are kept locally (tail[4] bounds the loose
-     per-step carry analysis, which allows at most indices nz .. nz+3). */
-  carry = 0;
-  u64 last = 0;
-  u64 tail[4] = {0, 0, 0, 0}; /* chunk values at indices nz .. nz+3 */
-  i = 0;
-  while (i < nz || carry) {
-    u64 total = (i < nz) ? r_arr[i] + carry : carry;
-    u64 low = total & 0xFFFFu;
-    carry = total >> 16;
-    if (i < nz)
-      r_arr[i] = low;
-    else
-      tail[i - nz] = low;
-    if (low || carry) last = i; /* last nonzero chunk (a,b != 0 => last >= 0) */
-    i++;
+  rz_ntt_pack(r, r_arr, nz);
+
+  err = RABIN_SUCCESS;
+  rz_scratch_release();
+  return err;
+}
+
+/* Exact single-prime NTT squaring of a magnitude.
+ * a must be nonzero; r must not alias a (dispatch handles it).
+ * Only one forward transform is needed; two scratch arrays suffice:
+ * a_hat squared pointwise, inverse transform into the dead a_arr. */
+static rabin_err_t rz_sqr_ntt_u64(rz_t* r, const rz_t* a)
+{
+  u64 na, nz, ntt_size, k, i;
+  const u64_ntt_ctx_t* ctx;
+  u64 *buf, *a_arr, *a_hat;
+  rabin_err_t err;
+
+  if (a->size > SIZE_MAX / 4) return RABIN_ERR_OVERFLOW;
+
+  na = a->size * 4;                                          /* 16-bit chunks */
+  if (na > UINT64_MAX - (na - 1)) return RABIN_ERR_OVERFLOW; /* nz overflow */
+  nz = 2 * na - 1; /* true square length in chunks */
+
+  ntt_size = 1;
+  k = 0;
+  while (k < 54 && ntt_size < nz) {
+    ntt_size <<= 1;
+    k++;
   }
 
-  /* Pack: 4 x 16-bit chunks per limb, exactly (last+4)/4 limbs.
-     Since a*b < 2^(16*(na+nb)), n_limbs <= (na+nb)/4 = a->size + b->size
-     <= 2*max_len, so this never overruns r. */
-  u64 n_limbs = (last + 4) / 4;
-  for (i = 0; i < n_limbs; i++) {
-    u64 L = 0;
-    for (u64 j = 0; j < 4; j++) {
-      u64 ci = 4 * i + j;
-      u64 c = (ci < nz) ? r_arr[ci] : tail[ci - nz];
-      L |= c << (16 * j);
-    }
-    r->limbs[i] = L;
+  /* Same coefficient-sum bound as the product case (na terms per sum). */
+  if (na > RZ_NTT_U64_MAX_CHUNKS) return RABIN_ERR_OVERFLOW;
+  if (ntt_size < nz) return RABIN_ERR_OVERFLOW; /* transform size k > 54 */
+  if (ntt_size > SIZE_MAX / (2 * sizeof(u64))) return RABIN_ERR_OVERFLOW;
+
+  ctx = u64_ntt_ctx_golden_cached(k);
+  if (ctx == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+
+  buf = rz_scratch_get(2 * ntt_size);
+  if (buf == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+  a_arr = buf;
+  a_hat = buf + ntt_size;
+
+  /* Unpack: 4 x 16-bit chunks per 64-bit limb. */
+  for (i = 0; i < a->size; i++) {
+    u64 L = a->limbs[i];
+    a_arr[4 * i + 0] = L & 0xFFFFu;
+    a_arr[4 * i + 1] = (L >> 16) & 0xFFFFu;
+    a_arr[4 * i + 2] = (L >> 32) & 0xFFFFu;
+    a_arr[4 * i + 3] = L >> 48;
   }
-  r->size = n_limbs;
+  if (na < ntt_size) memset(a_arr + na, 0, (ntt_size - na) * sizeof(u64));
+
+  u64_ntt_cyclic_forward(a_hat, a_arr, ctx);
+  for (i = 0; i < ntt_size; i++)
+    a_hat[i] = u64_mont_mul(a_hat[i], a_hat[i], &ctx->mctx);
+  u64_ntt_cyclic_inverse_montgomery_in(a_arr, a_hat, ctx);
+
+  rz_ntt_pack(r, a_arr, nz);
 
   err = RABIN_SUCCESS;
   rz_scratch_release();
@@ -169,7 +238,7 @@ rabin_err_t rz_sqr(rz_t* r, const rz_t* a)
   if (err != RABIN_SUCCESS) return err;
 
   if (a->size >= RZ_NTT_LIMIT) {
-    rabin_err_t nerr = rz_mul_ntt_u64(r, a, a);
+    rabin_err_t nerr = rz_sqr_ntt_u64(r, a);
     if (nerr == RABIN_SUCCESS) {
       r->is_neg = false;
       rz_trim(r);
