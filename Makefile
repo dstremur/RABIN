@@ -49,6 +49,10 @@ GMP_OK := $(shell echo '#include <gmp.h>' | $(CC) -E -x c - \
     -o /dev/null 2>/dev/null && echo yes)
 GMP_TEST_NAMES := $(notdir $(basename $(shell grep -l '#include.*gmp' \
     $(TEST_DIR)/*.c 2>/dev/null)))
+# test_rat only uses GMP when the header is available (guarded include), so
+# it must survive the auto-skip above and link -lgmp conditionally.
+GMP_TEST_NAMES := $(filter-out test_rat, $(GMP_TEST_NAMES))
+EXTRA_test_rat = $(if $(filter yes,$(GMP_OK)),-lgmp)
 ifneq ($(GMP_OK),yes)
 TEST_SRCS := $(filter-out $(addprefix $(TEST_DIR)/,$(addsuffix .c,$(GMP_TEST_NAMES))), \
     $(TEST_SRCS))

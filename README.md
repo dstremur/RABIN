@@ -11,7 +11,7 @@
 
 ## Features
 
-- Arbitrary-precision integers and rationals (experimental)
+- Arbitrary-precision integers and rationals
 - Higher-level structs for arbitrary-precision matrices over $\mathbb{Z}$ and $\mathbb{Q}$, polynomials, and vectors
 - Various number theory algorithms and primality tests
 - Implementation of a provable prime generation algorithm including Pocklington certificate

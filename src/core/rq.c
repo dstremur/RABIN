@@ -1,6 +1,9 @@
 #include "../../include/rq.h"
 
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 rabin_err_t rq_add(rq_t* r, const rq_t* p, const rq_t* q)
 {
@@ -287,4 +290,199 @@ rabin_err_t rq_set_u64(rq_t* r, u64 a)
   rabin_err_t err = rz_set_u64(&r->num, a);
   if (err == RABIN_SUCCESS) err = rz_set_u64(&r->den, 1);
   return err;
+}
+
+static int rq_char_is_ws(char c)
+{
+  return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+/* rz_init_val on the digit run [i, j): copy out, NUL-terminate, parse. */
+static rabin_err_t rq_parse_uint(rz_t* out, const char* s, size_t i, size_t j)
+{
+  char* tmp = strndup(s + i, j - i);
+  if (tmp == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+
+  rabin_err_t err = rz_init_val(out, tmp);
+  free(tmp);
+  return err;
+}
+
+rabin_err_t rq_init_val(rq_t* r, const char* str)
+{
+  if (r == NULL || str == NULL) return RABIN_ERR_NULL_PTR;
+
+  size_t n = strlen(str);
+  size_t i = 0, j = n;
+  while (i < j && rq_char_is_ws(str[i])) i++;
+  while (j > i && rq_char_is_ws(str[j - 1])) j--;
+
+  int neg = 0;
+  if (i < j && (str[i] == '+' || str[i] == '-')) {
+    neg = (str[i] == '-');
+    i++;
+  }
+
+  const size_t ns = i;
+  while (i < j && str[i] >= '0' && str[i] <= '9') i++;
+  const size_t ne = i;
+  if (ne == ns) {
+    rz_set_u64(&r->num, 0);
+    rz_set_u64(&r->den, 0);
+    return RABIN_ERR_INVALID_ARG;
+  }
+
+  int have_den = 0;
+  size_t den_start = 0, den_end = 0;
+  if (i < j && str[i] == '/') {
+    i++;
+    den_start = i;
+    while (i < j && str[i] >= '0' && str[i] <= '9') i++;
+    den_end = i;
+    if (den_end == den_start) {
+      rz_set_u64(&r->num, 0);
+      rz_set_u64(&r->den, 0);
+      return RABIN_ERR_INVALID_ARG;
+    }
+    have_den = 1;
+  }
+  if (i != j) {
+    rz_set_u64(&r->num, 0);
+    rz_set_u64(&r->den, 0);
+    return RABIN_ERR_INVALID_ARG;
+  }
+
+  rabin_err_t err = rq_parse_uint(&r->num, str, ns, ne);
+  if (err == RABIN_SUCCESS) {
+    if (have_den)
+      err = rq_parse_uint(&r->den, str, den_start, den_end);
+    else
+      err = rz_set_u64(&r->den, 1);
+  }
+  if (err != RABIN_SUCCESS) {
+    rz_set_u64(&r->num, 0);
+    rz_set_u64(&r->den, 0);
+    return err;
+  }
+
+  if (rz_is_zero(&r->den)) {
+    rz_set_u64(&r->num, 0);
+    rz_set_u64(&r->den, 0);
+    return RABIN_ERR_DIV_BY_ZERO;
+  }
+
+  if (neg) rz_neg(&r->num, &r->num);
+  return rq_normalize(r);
+}
+
+size_t rq_to_string_len(const rq_t* r)
+{
+  if (r == NULL) return 0;
+
+  char* ns = rz_to_string(&r->num);
+  if (ns == NULL) return 0;
+  size_t len = strlen(ns) + 1; /* digits + NUL */
+
+  if (!rz_is_one(&r->den)) {
+    char* ds = rz_to_string(&r->den);
+    if (ds == NULL) {
+      free(ns);
+      return 0;
+    }
+    len += strlen(ds) + 1; /* '/' + digits */
+    free(ds);
+  }
+
+  free(ns);
+  return len;
+}
+
+rabin_err_t rq_to_string(const rq_t* r, char* out, size_t cap)
+{
+  if (r == NULL || out == NULL) return RABIN_ERR_NULL_PTR;
+  if (cap == 0) return RABIN_ERR_INVALID_ARG;
+
+  char* ns = rz_to_string(&r->num);
+  if (ns == NULL) return RABIN_ERR_OUT_OF_MEMORY;
+
+  rabin_err_t err = RABIN_SUCCESS;
+  if (rz_is_one(&r->den)) {
+    if (strlen(ns) + 1 > cap)
+      err = RABIN_ERR_INVALID_ARG;
+    else
+      snprintf(out, cap, "%s", ns);
+  } else {
+    char* ds = rz_to_string(&r->den);
+    if (ds == NULL) {
+      free(ns);
+      return RABIN_ERR_OUT_OF_MEMORY;
+    }
+    if (strlen(ns) + strlen(ds) + 2 > cap)
+      err = RABIN_ERR_INVALID_ARG;
+    else
+      snprintf(out, cap, "%s/%s", ns, ds);
+    free(ds);
+  }
+
+  free(ns);
+  return err;
+}
+
+rabin_err_t rq_set_i64(rq_t* r, i64 a)
+{
+  if (r == NULL) return RABIN_ERR_NULL_PTR;
+
+  rabin_err_t err = rz_set_i64(&r->num, a);
+  if (err == RABIN_SUCCESS) err = rz_set_u64(&r->den, 1);
+  return err;
+}
+
+rabin_err_t rq_inv(rq_t* r, const rq_t* a)
+{
+  if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+  if (rz_is_zero(&a->num)) return RABIN_ERR_DIV_BY_ZERO;
+  if (rz_is_zero(&a->den)) return RABIN_ERR_INVALID_ARG;
+
+  /* r may alias a: stage both fields first. */
+  rz_t n, d;
+  rz_init_multi(&n, &d, NULL);
+
+  rabin_err_t err = rz_copy(&n, &a->den);
+  if (err == RABIN_SUCCESS) err = rz_copy(&d, &a->num);
+  if (err == RABIN_SUCCESS) err = rz_copy(&r->num, &n);
+  if (err == RABIN_SUCCESS) err = rz_copy(&r->den, &d);
+  if (err == RABIN_SUCCESS) err = rq_normalize(r);
+
+  rz_clear_multi(&n, &d, NULL);
+  return err;
+}
+
+rabin_err_t rq_get_num(rz_t* out, const rq_t* r)
+{
+  if (out == NULL || r == NULL) return RABIN_ERR_NULL_PTR;
+  return rz_copy(out, &r->num);
+}
+
+rabin_err_t rq_get_den(rz_t* out, const rq_t* r)
+{
+  if (out == NULL || r == NULL) return RABIN_ERR_NULL_PTR;
+  return rz_copy(out, &r->den);
+}
+
+int rq_cmp_i64(const rq_t* r, i64 a)
+{
+  if (r == NULL) return 0;
+  if (rz_is_zero(&r->den)) return 0;
+
+  rz_t v;
+  if (rz_init(&v) != RABIN_SUCCESS) return 0;
+
+  int res = 0;
+  if (rz_set_i64(&v, a) == RABIN_SUCCESS &&
+      rz_mul(&v, &v, &r->den) == RABIN_SUCCESS) {
+    res = rz_cmp(&r->num, &v);
+  }
+
+  rz_clear(&v);
+  return res;
 }

@@ -121,6 +121,17 @@ rabin_err_t rmatq_set(rmatq_t* A, const rq_t* a, u64 r, u64 c)
   if (r >= A->M.rows || c >= A->M.cols) return RABIN_ERR_INVALID_ARG;
   if (rz_is_zero(&a->den)) return RABIN_ERR_INVALID_ARG;
 
+  /* Canonicalize first: an unnormalized a (e.g. negative den) would
+   * otherwise poison the shared denominator, which must stay positive. */
+  rq_t v;
+  rq_init(&v);
+  rabin_err_t verr = rq_copy(&v, a);
+  if (verr != RABIN_SUCCESS) {
+    rq_clear(&v);
+    return verr;
+  }
+  a = &v;
+
   rz_t l, s, t;
   rz_init_multi(&l, &s, &t, NULL);
   rabin_err_t err = RABIN_SUCCESS;
@@ -147,6 +158,7 @@ rabin_err_t rmatq_set(rmatq_t* A, const rq_t* a, u64 r, u64 c)
   TRY(rmatq_normalize(A));
 
 cleanup:
+  rq_clear(&v);
   rz_clear_multi(&l, &s, &t, NULL);
   return err;
 }
@@ -224,8 +236,19 @@ rabin_err_t rmatq_normalize(rmatq_t* M)
   rz_t d;
   rz_init(&d);
 
-  // Compute GCD of m->den and all entries in m->num
+  /* The common denominator must stay positive; fold a negative one into
+   * the numerators before reducing. */
   rabin_err_t err = RABIN_SUCCESS;
+  if (M->den.is_neg) {
+    for (u64 i = 0; i < M->M.rows; i++) {
+      for (u64 j = 0; j < M->M.cols; j++) {
+        TRY(rz_neg(RMAT_GET(&M->M, i, j), RMAT_GET(&M->M, i, j)));
+      }
+    }
+    TRY(rz_neg(&M->den, &M->den));
+  }
+
+  // Compute GCD of m->den and all entries in m->num
   TRY(rmat_gcd_all(&d, &M->M));
   TRY(rz_gcd(&d, &d, &M->den));
 
