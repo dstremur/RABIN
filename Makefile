@@ -2,8 +2,15 @@
 CC = gcc
 AS = nasm
 AR = gcc-ar
+
 # Flags
-CFLAGS = -Iinclude -Wall -Wextra -g -march=native -O3 -fopenmp -flto=auto -funroll-loops
+ifeq ($(GITHUB_ACTIONS),true)
+ARCH_FLAGS ?= -march=x86-64-v3
+else
+ARCH_FLAGS ?= -march=native
+endif
+
+CFLAGS = -Iinclude -Wall -Wextra -g $(ARCH_FLAGS) -O3 -fopenmp -flto=auto -funroll-loops
 LDFLAGS = -fopenmp -lm -flto
 ASFLAGS = -f elf64
 
