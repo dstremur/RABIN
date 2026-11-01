@@ -363,7 +363,7 @@ rabin_err_t rz_trim(rz_t* r);
  *
  * @return The value of bit i (0 or 1).
  */
-int rz_get_bit(const rz_t* a, int i);
+i64 rz_get_bit(const rz_t* a, i64 i);
 
 /**
  * @brief Compare two signed bignums.
@@ -541,7 +541,7 @@ rabin_err_t rz_clear_bit(rz_t* a, int i);
  * @return The bit length of \f$a\f$ (index of highest set bit + \f$1\f$, or
  * \f$0\f$).
  */
-int rz_bit_length(const rz_t* a);
+i64 rz_bit_length(const rz_t* a);
 
 /**
  * @brief Return the number of trailing zero bits of a.
@@ -990,7 +990,8 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b);
  * @param[in]  a Dividend.
  * @param[in]  b Divisor (must be nonzero).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_DIV_BY_ZERO, RABIN_ERR_INVALID_ARG (\f$q\f$ aliasing \f$r\f$),
+ * or RABIN_ERR_OUT_OF_MEMORY.
  *
  * @par Algorithm Reference:
  * D. E. Knuth, "The Art of Computer Programming, Vol. 2: Seminumerical
@@ -1045,10 +1046,11 @@ rabin_err_t rz_newton_div(rz_t* q, const rz_t* a, const rz_t* d);
  * running remainder. No estimation or correction steps are needed, which makes
  * this about 2x faster than a real division.
  *
- * The behaviour is undefined if \f$b\f$ does not divide \f$a\f$. If \f$b\f$ is
- * zero,
- * \f$q\f$ is left unchanged (asserts in debug builds). If \f$a\f$ is zero,
- * \f$q\f$ is set to 0. \f$q\f$ may alias \f$a\f$ or \f$b\f$.
+ * The result is unspecified if \f$b\f$ does not divide \f$a\f$ (some
+ * degenerate non-exact inputs are rejected with
+ * \f$\text{RABIN_ERR_INVALID_ARG}\f$). If \f$b\f$ is zero, \f$q\f$ is
+ * left unchanged. If \f$a\f$ is zero, \f$q\f$ is set to 0. \f$q\f$ may
+ * alias \f$a\f$ or \f$b\f$.
  *
  * Complexity:
  *   - Time: \f$O(n \cdot m)\f$ - one \f$O(m)\f$ submul per quotient limb
@@ -1059,7 +1061,8 @@ rabin_err_t rz_newton_div(rz_t* q, const rz_t* a, const rz_t* d);
  * @param[in]  a Dividend.
  * @param[in]  b Divisor (must divide \f$a\f$ exactly).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_DIV_BY_ZERO, or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_DIV_BY_ZERO, RABIN_ERR_INVALID_ARG, or
+ * RABIN_ERR_OUT_OF_MEMORY.
  *
  * @par Algorithm Reference:
  * M. Jebelean, "A Fast Divmod Algorithm Based on Number Theoretic
@@ -1117,9 +1120,10 @@ rabin_err_t rz_mod(rz_t* r, const rz_t* a, const rz_t* b);
  *
  * @param[out] q Quotient \f$a / d\f$ (truncated toward zero).
  * @param[in]  a Dividend.
- * @param[in]  d 64-bit divisor (must be nonzero).
+ * @param[in]  d 64-bit divisor.
  *
- * @return The remainder \f$a \bmod d\f$.
+ * @return The remainder \f$a \bmod d\f$; \f$0\f$ if any pointer is NULL,
+ * \f$d\f$ is zero, or the quotient allocation fails.
  */
 uint64_t rz_divmod_u64(rz_t* q, const rz_t* a, uint64_t d);
 
@@ -1148,9 +1152,10 @@ rabin_err_t rz_mod_pos(rz_t* r, const rz_t* a, const rz_t* b);
  *   - Output memory: \f$O(1)\f$
  *
  * @param[in] a Bignum to reduce.
- * @param[in] d 64-bit divisor (must be nonzero).
+ * @param[in] d 64-bit divisor.
  *
- * @return The residue \f$a \bmod d\f$, in the range \f$[0, d)\f$.
+ * @return The residue \f$a \bmod d\f$, in the range \f$[0, d)\f$; \f$0\f$
+ * if \f$a\f$ is NULL or \f$d\f$ is zero.
  */
 uint64_t rz_mod_u64(const rz_t* a, uint64_t d);
 
@@ -1164,16 +1169,15 @@ uint64_t rz_mod_u64(const rz_t* a, uint64_t d);
  *   \f$res = a^{-1} \bmod m\f$
  *
  * i.e. the value in \f$[0, m)\f$ such that \f$(a \cdot res) \bmod m = 1\f$,
- * using the binary extended GCD (Stein's algorithm) with coefficient tracking.
- * The coefficients are kept reduced modulo \f$m\f$ at every step so they
- * never grow beyond \f$n\f$ limbs.
+ * using the extended Lehmer GCD with Bézout coefficient tracking. The
+ * final coefficient is reduced \f$\bmod m\f$ into the output range.
  *
  * Stores the inverse in \f$res\f$ if it exists (i.e. \f$\gcd(a, m) = 1\f$).
  * If no inverse exists, \f$res\f$ is set to zero and an error is returned.
  *
  * Complexity:
- *   - Time: \f$O(n^2)\f$ - \f$O(n)\f$ iterations of shifts and subtractions of
- *           n-limb values (binary GCD), each \f$O(n)\f$
+ *   - Time: \f$O(n^2)\f$ - Lehmer steps replace many Euclidean
+ *           iterations, see rz_gcd_extended_lehmer()
  *   - Auxiliary memory: \f$O(n)\f$ limbs for temporaries
  *   - Output memory: \f$O(n)\f$ limbs
  *
@@ -1213,9 +1217,9 @@ rabin_err_t rz_mod_inverse(rz_t* res, const rz_t* a, const rz_t* m);
  *
  * @param[out] r Result of \f$a^b\f$.
  * @param[in]  a Base.
- * @param[in]  b Exponent.
+ * @param[in]  b Exponent (must be nonnegative).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$b\f$) / RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rz_pow(rz_t* r, const rz_t* a, const rz_t* b);
 
@@ -1250,11 +1254,11 @@ rabin_err_t rz_pow(rz_t* r, const rz_t* a, const rz_t* b);
  *
  * @param[out] r_bar Result in Montgomery form: \f$a_{bar}^d \bmod n\f$.
  * @param[in]  a_bar Base in Montgomery form (\f$a \cdot R \bmod n\f$).
- * @param[in]  d     Exponent.
+ * @param[in]  d     Exponent (must be nonnegative).
  * @param[in,out] ctx Initialized Montgomery context for the modulus \f$n\f$
  *                    (uses ctx->tmp as scratch).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$d\f$) / RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rz_mont_exp(rz_t* r_bar, const rz_t* a_bar, const rz_t* d,
                         rz_mont_ctx* ctx);
@@ -1420,9 +1424,9 @@ rabin_err_t rz_rshift1(rz_t* r);
  *
  * @param[out] r     Result of \f$a \ll shift\f$.
  * @param[in]  a     Value to shift.
- * @param[in]  shift Number of bits to shift left.
+ * @param[in]  shift Number of bits to shift left (must be nonnegative).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$shift\f$) / RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rz_lshift(rz_t* r, const rz_t* a, int shift);
 
@@ -1450,9 +1454,9 @@ rabin_err_t rz_lshift(rz_t* r, const rz_t* a, int shift);
  *
  * @param[out] r     Result of \f$a \gg shift\f$.
  * @param[in]  a     Value to shift.
- * @param[in]  shift Number of bits to shift right.
+ * @param[in]  shift Number of bits to shift right (must be nonnegative).
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
- * RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (negative \f$shift\f$) / RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rz_rshift(rz_t* r, const rz_t* a, int shift);
 

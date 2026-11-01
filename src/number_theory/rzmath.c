@@ -3,8 +3,9 @@
  *
  * Classical number-theory routines.
  *
- * This file implements the Jacobi symbol, the Tonelli-Shanks square
- * root algorithm modulo a prime, and the binary (Stein) GCD.
+ * This file implements the Jacobi and Kronecker symbols, the
+ * Tonelli-Shanks square root algorithm modulo a prime, binary (Stein)
+ * and Lehmer GCD variants, and Cornacchia's algorithm.
  *
  * Copyright (C) 2026 Diego Strebel
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -32,6 +33,27 @@
 
 // TODO: make faster
 // Comp. Number Theory p.29: Algorithm 1.4.10
+// True when |a| == 1; the i64 symbol helpers need this test in several
+// places and cannot signal allocation failures, so a failed copy maps
+// to false (the caller then yields the 0 "undefined" result).
+static bool rz_abs_is_one(const rz_t* a)
+{
+  rz_t a_abs, one;
+  rz_init_multi(&a_abs, &one, NULL);
+  if (rz_set_u64(&one, 1) != RABIN_SUCCESS) {
+    rz_clear_multi(&a_abs, &one, NULL);
+    return false;
+  }
+  if (rz_copy(&a_abs, a) != RABIN_SUCCESS) {
+    rz_clear_multi(&a_abs, &one, NULL);
+    return false;
+  }
+  a_abs.is_neg = false;
+  bool res = (rz_cmp(&a_abs, &one) == 0);
+  rz_clear_multi(&a_abs, &one, NULL);
+  return res;
+}
+
 i64 rz_kronecker(const rz_t* a, const rz_t* b)
 {
   static const short tab2[8] = {0, 1, 0, -1, 0, -1, 0, 1};
@@ -40,19 +62,16 @@ i64 rz_kronecker(const rz_t* a, const rz_t* b)
   // allocation failures both yield 0 (the "no symbol defined" value)
   if (a == NULL || b == NULL) return 0;
 
-  // 1. [Test b == 0]
+  // 1. [Test b == 0] the Kronecker symbol (a/0) is 1 for a == +-1
+  // and 0 otherwise
   if (rz_is_zero(b)) {
-    rz_t a_abs, one;
-    rz_init_multi(&a_abs, &one, NULL);
-    if (rz_set_u64(&one, 1) != RABIN_SUCCESS) return 0;
-    if (rz_copy(&a_abs, a) != RABIN_SUCCESS) {
-      rz_clear_multi(&a_abs, &one, NULL);
-      return 0;
-    }
-    a_abs.is_neg = false;
-    i64 r = (rz_cmp(&a_abs, &one) == 0) ? 1 : 0;
-    rz_clear_multi(&a_abs, &one, NULL);
-    return r;
+    return (rz_abs_is_one(a)) ? 1 : 0;
+  }
+
+  // 1a. [Test a == 0] the Kronecker symbol (0/b) is 1 for b == +-1
+  // and 0 otherwise
+  if (rz_is_zero(a)) {
+    return (rz_abs_is_one(b)) ? 1 : 0;
   }
 
   // 2. [Remove 2's from b]
@@ -100,6 +119,7 @@ i64 rz_kronecker(const rz_t* a, const rz_t* b)
   // 3. [Finished?]
   for (;;) {
     if (rz_is_zero(&a_work)) {
+      // gcd has collapsed to |b|; the symbol is k only when b == 1
       rz_t one;
       rz_init(&one);
       if (rz_set_u64(&one, 1) != RABIN_SUCCESS) {
@@ -107,15 +127,9 @@ i64 rz_kronecker(const rz_t* a, const rz_t* b)
         k = 0;
         goto cleanup;
       }
-      if (rz_cmp(&b_work, &one) == 1) {
-        rz_clear(&one);
-        k = 0;
-        goto cleanup;
-      }
-      if (rz_cmp(&b_work, &one) == 0) {
-        rz_clear(&one);
-        goto cleanup;
-      }
+      k = (rz_cmp(&b_work, &one) == 0) ? k : 0;
+      rz_clear(&one);
+      break;
     }
 
     u64 v = rz_cnt_trailing_zeros(&a_work);
@@ -326,6 +340,8 @@ rabin_err_t rz_lcm(rz_t* l, const rz_t* a, const rz_t* b)
   if (err != RABIN_SUCCESS) goto cleanup;
   TRY(rz_mul(l, a, b));
   TRY(rz_div(l, l, &d));
+  // the LCM is the principal (non-negative) value
+  l->is_neg = false;
 
   err = RABIN_SUCCESS;
 cleanup:
@@ -403,12 +419,72 @@ cleanup:
   return err;
 }
 
+// Runs the Lehmer [Test Quotient] inner loop shared by rz_gcd_lehmer()
+// and rz_gcd_extended_lehmer(). Accumulates the 2x2 transformation
+// matrix [[A, B], [C, D]] from the top limbs until no further Euclidian
+// step is justified, returning true only if a non-identity, in-range
+// matrix was accumulated; false means the caller must fall back to a
+// plain remainder step.
+static bool lehmer_quotient_loop(const rz_t* a_work, const rz_t* b_work, i64* A,
+                                 i64* B, i64* C, i64* D)
+{
+  *A = 1;
+  *B = 0;
+  *C = 0;
+  *D = 1;
+
+  if (b_work->size <= 1) return false;
+
+  // Truncate the top limbs by one bit so the tracked values always lie
+  // in [0, 2^63) on a common scale; this is what keeps the Euclidian
+  // step products inside a signed 64-bit word (Knuth, TAOCP II,
+  // 4.5.2 Alg. B)
+  i64 a_hat = (i64)(a_work->limbs[a_work->size - 1] >> 1);
+  i64 b_hat = (b_work->size == a_work->size)
+                  ? (i64)(b_work->limbs[b_work->size - 1] >> 1)
+                  : 0;
+
+  while (true) {
+    // Only accept steps that keep both transformed values positive
+    __int128 den1 = (__int128)b_hat + *C;
+    __int128 den2 = (__int128)b_hat + *D;
+
+    if (den1 <= 0 || den2 <= 0) break;
+
+    __int128 q1 = ((__int128)a_hat + *A) / den1;
+    __int128 q2 = ((__int128)a_hat + *B) / den2;
+
+    if (q1 != q2 || q1 <= 0) break;
+
+    // Euclidian step, computed in 128 bits
+    __int128 nA = (__int128)*A - q1 * *C;
+    __int128 nB = (__int128)*B - q1 * *D;
+    __int128 nh = (__int128)a_hat - q1 * b_hat;
+
+    // Discard a step whose entries leave the signed 64-bit range; the
+    // caller falls back to a plain remainder step instead
+    if (nA > (__int128)INT64_MAX || nA < (__int128)INT64_MIN ||
+        nB > (__int128)INT64_MAX || nB < (__int128)INT64_MIN ||
+        nh > (__int128)INT64_MAX || nh < (__int128)INT64_MIN) {
+      break;
+    }
+
+    *A = *C;
+    *C = (i64)nA;
+    *B = *D;
+    *D = (i64)nB;
+    a_hat = b_hat;
+    b_hat = (i64)nh;
+  }
+
+  // B == 0 means no Euclidian step was accepted
+  return *B != 0;
+}
+
 rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b)
 {
   if (d == NULL || a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
 
-  i64 a_hat, b_hat, A, B, C, D, q;
-  bool range_break = false;
   rz_t a_work, b_work, t, r, p1, p2;
 
   // 1. [Initialize]
@@ -431,90 +507,38 @@ rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b)
       continue;
     }
 
-    A = 1;
-    B = 0;
-    C = 0;
-    D = 1;
+    // 2. [Test Quotient]
+    i64 A, B, C, D;
+    bool matrix_ok = lehmer_quotient_loop(&a_work, &b_work, &A, &B, &C, &D);
 
-    if (b_work.size > 1) {
-      // Truncate the top limbs by one bit so the tracked values always lie in
-      // [0, 2^63) on a common scale; this is what keeps the Euclidian step
-      // products inside a signed 64-bit word (Knuth, TAOCP II, 4.5.2 Alg. B)
-      a_hat = (i64)(a_work.limbs[a_work.size - 1] >> 1);
+    // 3. [Multi-precision step]
+    if (matrix_ok) {
+      // Apply the accumulated matrix exactly:
+      // a_new = A*a + B*b, b_new = C*a + D*b (rz_mul_i64 is signed)
+      TRY(rz_mul_i64(&p1, &a_work, A));
+      TRY(rz_mul_i64(&p2, &b_work, B));
+      TRY(rz_add(&t, &p1, &p2));
 
-      if (b_work.size == a_work.size) {
-        b_hat = (i64)(b_work.limbs[b_work.size - 1] >> 1);
-      } else {
-        b_hat = 0;
-      }
+      TRY(rz_mul_i64(&p1, &a_work, C));
+      TRY(rz_mul_i64(&p2, &b_work, D));
+      TRY(rz_add(&r, &p1, &p2));
 
-      // 2. [Test Quotient]
-      while (true) {
-        // Only perform steps that keep both transformed values positive
-        __int128 den1 = (__int128)b_hat + C;
-        __int128 den2 = (__int128)b_hat + D;
-
-        if (den1 <= 0 || den2 <= 0) break;
-
-        __int128 q1 = ((__int128)a_hat + A) / den1;
-        __int128 q2 = ((__int128)a_hat + B) / den2;
-
-        if (q1 != q2 || q1 <= 0) break;
-
-        // 3. [Euclidian Step]
-        __int128 nA = (__int128)A - q1 * C;
-        __int128 nB = (__int128)B - q1 * D;
-        __int128 nhat = (__int128)a_hat - q1 * b_hat;
-
-        // Guard against entries leaving the signed 64-bit range; this should
-        // not happen given the bounds above, but if it does the step is
-        // discarded and a plain remainder step is used instead
-        if (nA > (__int128)INT64_MAX || nA < (__int128)INT64_MIN ||
-            nB > (__int128)INT64_MAX || nB < (__int128)INT64_MIN ||
-            nhat > (__int128)INT64_MAX || nhat < (__int128)INT64_MIN) {
-          range_break = true;
-          break;
-        }
-
-        q = (i64)q1;
-        A = C;
-        C = (i64)nA;
-        B = D;
-        D = (i64)nB;
-        a_hat = b_hat;
-        b_hat = (i64)nhat;
+      // The quotient test only sees truncated limbs, so the transformed
+      // pair could still be invalid; require 0 <= b_new <= a_new with b
+      // strictly decreasing, otherwise discard the matrix
+      if (t.is_neg || r.is_neg || rz_cmp(&t, &r) < 0 ||
+          rz_cmp(&r, &b_work) >= 0) {
+        matrix_ok = false;
       }
     }
 
-    // 4. [Multi-precision step]
-    if (B == 0 || range_break) {
-      TRY(rz_mod(&t, &a_work, &b_work));
-      TRY(rz_copy(&a_work, &b_work));
-      TRY(rz_copy(&b_work, &t));
-    } else {
-      if (A > 0) {
-        // A > 0, B <= 0, C <= 0, D > 0
-        TRY(rz_mul_i64(&p1, &a_work, (u64)A));
-        TRY(rz_mul_i64(&p2, &b_work, (u64)(-B)));
-        TRY(rz_sub(&t, &p1, &p2));  // t = A*a - |B|*b
-
-        TRY(rz_mul_i64(&p1, &a_work, (u64)(-C)));
-        TRY(rz_mul_i64(&p2, &b_work, (u64)D));
-        TRY(rz_sub(&r, &p2, &p1));  // r = D*b - |C|*a
-      } else {
-        // A <= 0, B > 0, C > 0, D <= 0
-        TRY(rz_mul_i64(&p1, &a_work, (u64)(-A)));
-        TRY(rz_mul_i64(&p2, &b_work, (u64)B));
-        TRY(rz_sub(&t, &p2, &p1));  // t = B*b - |A|*a
-
-        TRY(rz_mul_i64(&p1, &a_work, (u64)C));
-        TRY(rz_mul_i64(&p2, &b_work, (u64)(-D)));
-        TRY(rz_sub(&r, &p1, &p2));  // r = C*a - |D|*b
-      }
-
-      TRY(rz_copy(&a_work, &t));
-      TRY(rz_copy(&b_work, &r));
+    if (!matrix_ok) {
+      TRY(rz_copy(&t, &b_work));
+      TRY(rz_mod(&r, &a_work, &b_work));
     }
+
+    TRY(rz_copy(&a_work, &t));
+    TRY(rz_copy(&b_work, &r));
   }
 
   TRY(rz_copy(d, &a_work));
@@ -591,7 +615,6 @@ rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
   if (u == NULL || v == NULL || d == NULL || a == NULL || b == NULL)
     return RABIN_ERR_NULL_PTR;
 
-  i64 a_hat, b_hat, A, B, C, D, T, q;
   rz_t a_work, b_work, t, r, v_1, Q, p1, p2;
 
   rz_init_multi(&a_work, &b_work, &t, &r, &v_1, &Q, &p1, &p2, NULL);
@@ -639,47 +662,32 @@ rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
 
   // 2. [Finished?]
   while (!rz_is_zero(&b_work)) {
-    A = 1;
-    B = 0;
-    C = 0;
-    D = 1;
+    // 3. [Test Quotient]
+    i64 A, B, C, D;
+    bool matrix_ok = lehmer_quotient_loop(&a_work, &b_work, &A, &B, &C, &D);
 
-    if (b_work.size > 1) {
-      a_hat = a_work.limbs[a_work.size - 1];
+    // 4. [Multi-precision step]
+    if (matrix_ok) {
+      // Apply the accumulated matrix exactly:
+      // a_new = A*a + B*b, b_new = C*a + D*b (rz_mul_i64 is signed)
+      TRY(rz_mul_i64(&p1, &a_work, A));
+      TRY(rz_mul_i64(&p2, &b_work, B));
+      TRY(rz_add(&t, &p1, &p2));
 
-      if (b_work.size == a_work.size) {
-        b_hat = b_work.limbs[a_work.size - 1];
-      } else {
-        b_hat = 0;
-      }
+      TRY(rz_mul_i64(&p1, &a_work, C));
+      TRY(rz_mul_i64(&p2, &b_work, D));
+      TRY(rz_add(&r, &p1, &p2));
 
-      // 3. [Test Quotient]
-      while (true) {
-        __int128 num1 = (__int128)(u64)a_hat + A;
-        __int128 den1 = (__int128)(u64)b_hat + C;
-        __int128 num2 = (__int128)(u64)a_hat + B;
-        __int128 den2 = (__int128)(u64)b_hat + D;
-
-        if (den1 == 0 || den2 == 0) break;
-
-        q = (i64)(num1 / den1);
-        if (q != (i64)(num2 / den2)) break;
-
-        // 4. [Euclidian Step]
-        T = A - q * C;
-        A = C;
-        C = T;
-        T = B - q * D;
-        B = D;
-        D = T;
-        T = a_hat - q * b_hat;
-        a_hat = b_hat;
-        b_hat = T;
+      // The quotient test only sees truncated limbs, so the transformed
+      // pair could still be invalid; require 0 <= b_new <= a_new with b
+      // strictly decreasing, otherwise discard the matrix
+      if (t.is_neg || r.is_neg || rz_cmp(&t, &r) < 0 ||
+          rz_cmp(&r, &b_work) >= 0) {
+        matrix_ok = false;
       }
     }
 
-    // 5. [Multi-precision step]
-    if (B == 0) {
+    if (!matrix_ok) {
       TRY(rz_divmod(&Q, &t, &a_work, &b_work));
       TRY(rz_copy(&a_work, &b_work));
       TRY(rz_copy(&b_work, &t));
@@ -690,14 +698,6 @@ rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
       TRY(rz_copy(u, &v_1));
       TRY(rz_copy(&v_1, &t));
     } else {
-      TRY(rz_mul_i64(&p1, &a_work, A));
-      TRY(rz_mul_i64(&p2, &b_work, B));
-      TRY(rz_add(&t, &p1, &p2));
-
-      TRY(rz_mul_i64(&p1, &a_work, C));
-      TRY(rz_mul_i64(&p2, &b_work, D));
-      TRY(rz_add(&r, &p1, &p2));
-
       TRY(rz_copy(&a_work, &t));
       TRY(rz_copy(&b_work, &r));
 
@@ -750,7 +750,13 @@ rabin_err_t rz_cornacchia(rz_t* x, rz_t* y, const rz_t* p, const rz_t* d)
   rabin_err_t err = rz_copy(&d_work, d);
   if (err != RABIN_SUCCESS) goto cleanup;
 
-  // d > 0
+  // cornacchia needs 0 < d < p; the loop below works with -d mod p
+  if (d_work.is_neg || rz_is_zero(&d_work) || rz_cmp(&d_work, p) >= 0) {
+    err = RABIN_ERR_INVALID_ARG;
+    goto cleanup;
+  }
+
+  // d_work = -d; ( -d | p ) != -1 is required for a square root to exist
   d_work.is_neg = true;
   i64 k = rz_jacobi(&d_work, p);
   if (k == -1) {

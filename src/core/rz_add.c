@@ -123,6 +123,12 @@ rabin_err_t rz_add_u64(rz_t* r, const rz_t* a, u64 b)
     return rz_copy(r, a);
   }
 
+  // a zero a (size 0 or one zero limb) has no limb for the loop below to
+  // add b into, so handle it directly
+  if (rz_is_zero(a)) {
+    return rz_set_u64(r, b);
+  }
+
   if (!a->is_neg) {
     // POSITIVE + POSITIVE
     rabin_err_t err = rz_copy(r, a);

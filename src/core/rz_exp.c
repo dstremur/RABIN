@@ -36,6 +36,9 @@ rabin_err_t rz_pow(rz_t* r, const rz_t* a, const rz_t* b)
 {
   if (r == NULL || a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
 
+  // a negative exponent has no integer result in this non-modular power
+  if (b->is_neg) return RABIN_ERR_INVALID_ARG;
+
   if (rz_is_zero(b)) {
     return rz_set_u64(r, 1);
   }
@@ -57,6 +60,9 @@ rabin_err_t rz_mont_exp(rz_t* r_bar, const rz_t* a_bar, const rz_t* d,
 {
   if (r_bar == NULL || a_bar == NULL || d == NULL || ctx == NULL)
     return RABIN_ERR_NULL_PTR;
+
+  // a negative exponent is only defined for invertible bases; reject it
+  if (d->is_neg) return RABIN_ERR_INVALID_ARG;
 
   i64 bits = rz_bit_length(d);
   rabin_err_t err;

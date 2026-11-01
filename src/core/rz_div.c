@@ -488,7 +488,9 @@ static inline u64 rz_nsize(const rz_t* x)
 rabin_err_t rz_divmod(rz_t* q, rz_t* r, const rz_t* a, const rz_t* b)
 {
   if (a == NULL || b == NULL) return RABIN_ERR_NULL_PTR;
-  assert(q == NULL || q != r);
+  // q and r are distinct outputs; writing the remainder into q would
+  // clobber the quotient mid-algorithm
+  if (q != NULL && q == r) return RABIN_ERR_INVALID_ARG;
 
   u64 an = rz_nsize(a);
   u64 vn = rz_nsize(b);
@@ -680,7 +682,12 @@ rabin_err_t rz_div_exact(rz_t* q, const rz_t* a, const rz_t* b)
   u64 kl = 0;
   while (b->limbs[kl] == 0) kl++;
   unsigned kb = (unsigned)__builtin_ctzll(b->limbs[kl]);
-  assert(an > kl);
+  // an exact nonzero dividend must carry at least as many limbs as b's
+  // trailing zero limbs; if not, b cannot divide a and the shifted
+  // window below would underflow
+  if (RZ_UNLIKELY(an <= kl)) {
+    return RABIN_ERR_INVALID_ARG;
+  }
 
   u64 dl = rz_size - kl, al = an - kl;
   u64* buf = rz_scratch_get(dl + al);

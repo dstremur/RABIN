@@ -287,7 +287,7 @@ u64_ntt_ctx_t* u64_ntt_ctx_golden_cached(u64 k)
 }
 
 /*
- * Cached q2 = 131*2^55+1 NTT contexts, one per transform size k (0..54).
+ * Cached q2 = 69*2^55+1 NTT contexts, one per transform size k (0..54).
  * Same lazy, read-only-after-init scheme as the golden-prime cache.
  */
 static u64_ntt_ctx_t proth2_ctxs[55];
@@ -484,7 +484,12 @@ rabin_err_t u64_ntt_ctx_init(u64_ntt_ctx_t* ctx, u64 p, u64 k, u64 omega,
 {
   (void)psi;  // Accepted for interface compatibility; only omega is used.
   if (ctx == NULL) return RABIN_ERR_NULL_PTR;
-  if (k >= 64) return RABIN_ERR_INVALID_ARG;
+  // n = 2^k limb tables: k > 60 would wrap the allocation size, and no
+  // allocation beyond that is plausible anyway
+  if (k > 60) return RABIN_ERR_INVALID_ARG;
+  // the Montgomery context divides by p, and every NTT prime is odd
+  if (p < 3 || (p & 1) == 0) return RABIN_ERR_INVALID_ARG;
+  if (omega >= p) return RABIN_ERR_INVALID_ARG;
 
   u64 n = (1ULL << k);
   *ctx = (u64_ntt_ctx_t){0};

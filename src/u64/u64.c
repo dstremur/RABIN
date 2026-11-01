@@ -178,7 +178,7 @@ u64 u64_mul_goldilocks(u64 a, u64 b)
      surplus 2^64 that needs one more (2^32-1). */
   s = s0 + ((q << 32) - q);
   u64 w = -(u64)(s < s0);
-  u64 pos = ((q - 1) <= 0); /* q == +1 only */
+  u64 pos = (q == 1); /* only a +1 surplus needs the extra fold */
   s += 0xFFFFFFFFULL & w & -(u64)pos;
 
   /* final representative is < 2p: one masked subtract canonicalizes */

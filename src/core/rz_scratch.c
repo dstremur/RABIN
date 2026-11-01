@@ -31,6 +31,7 @@
  */
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "../../include/rabin.h"
@@ -43,6 +44,9 @@ u64* rz_scratch_get(u64 n)
 {
   if (n == 0) n = 1;
 
+  /* a request this large cannot be backed by any allocation; reject it
+   * before a byte-size computation or the doubling below can wrap */
+  if (n > SIZE_MAX / sizeof(u64)) return NULL;
   if (tls_off + n <= tls_cap) {
     u64* p = tls_buf + tls_off;
     tls_off += n;

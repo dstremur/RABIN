@@ -5,7 +5,7 @@
  *
  * This file implements reduction of a rz_t modulo a 64-bit divisor
  * (with and without quotient output) and the modular multiplicative
- * inverse via the binary extended GCD.
+ * inverse via the extended Lehmer GCD.
  *
  * Copyright (C) 2026 Diego Strebel
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -36,6 +36,9 @@
 
 uint64_t rz_mod_u64(const rz_t* a, uint64_t d)
 {
+  // no error channel in the return type; reject invalid inputs with 0
+  if (a == NULL || d == 0) return 0;
+
   unsigned __int128 rem = 0;
 
   // Purely mathematical reduction with zero memory allocation
@@ -55,6 +58,9 @@ uint64_t rz_mod_u64(const rz_t* a, uint64_t d)
 
 uint64_t rz_divmod_u64(rz_t* q, const rz_t* a, uint64_t d)
 {
+  // no error channel in the return type; reject invalid inputs with 0
+  if (q == NULL || a == NULL || d == 0) return 0;
+
   // aliasing
   if (q == a) {
     rz_t tmp;
@@ -64,7 +70,8 @@ uint64_t rz_divmod_u64(rz_t* q, const rz_t* a, uint64_t d)
     rz_clear(&tmp);
     return rem;
   }
-  rz_alloc(q, a->size);
+  rabin_err_t err = rz_alloc(q, a->size);
+  if (err != RABIN_SUCCESS) return 0;
   q->size = a->size;
   q->is_neg = a->is_neg;
 

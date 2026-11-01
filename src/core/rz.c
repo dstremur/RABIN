@@ -171,8 +171,7 @@ rabin_err_t rz_init_val(rz_t* n, const char* str)
     while (carry) {
       err = rz_alloc(n, n->size + 1);
       if (err != RABIN_SUCCESS) return err;
-      n->limbs[n->size++] = carry % 0xFFFFFFFFFFFFFFFFULL;
-      n->limbs[n->size - 1] = carry;
+      n->limbs[n->size++] = carry;
       carry = 0;
     }
   }
@@ -368,12 +367,12 @@ rabin_err_t rz_trim(rz_t* r)
   return RABIN_SUCCESS;
 }
 
-int rz_get_bit(const rz_t* a, int i)
+i64 rz_get_bit(const rz_t* a, i64 i)
 {
   if (a == NULL || i < 0) return 0;
 
-  u64 limb = i / 64;
-  u64 offset = i % 64;
+  u64 limb = (u64)i / 64;
+  u64 offset = (u64)i % 64;
 
   if (limb >= a->size) return 0;
 
@@ -556,20 +555,20 @@ rabin_err_t rz_clear_bit(rz_t* a, int i)
   return RABIN_SUCCESS;
 }
 
-int rz_bit_length(const rz_t* a)
+i64 rz_bit_length(const rz_t* a)
 {
   if (a == NULL) return 0;
   if (a->size == 0) return 0;
 
   u64 top = a->limbs[a->size - 1];
-  int bits = 0;
+  i64 bits = 0;
 
   while (top) {
     top >>= 1;
     bits++;
   }
 
-  return (a->size - 1) * 64 + bits;
+  return ((i64)a->size - 1) * 64 + bits;
 }
 
 /**

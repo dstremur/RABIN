@@ -62,7 +62,8 @@ void run_det_benchmark(u64 size, u64 bits)
 
   // printf("rns: ");
   // rz_println(&det);
-  printf("size of result: %llu bits \n", rz_bit_length(&det));
+  printf("size of result: %llu bits \n",
+         (unsigned long long)rz_bit_length(&det));
 
   rmat_clear(&M);
   rz_clear(&det);

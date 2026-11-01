@@ -218,10 +218,9 @@ rabin_err_t field_mul(rz_t* r, const rz_t* a, const rz_t* b, field_ctx_t* ctx);
  * The inverse exists exactly when \f$a\f$ is a unit of \f$Z_m\f$ (\f$\gcd(a, m)
  * = 1\f$); for a prime modulus that is every nonzero element. The Montgomery
  * path (odd \f$m\f$) converts the operand to the plain domain and uses the
- * fast binary extended GCD (rz_mod_inverse()); the plain path (even
- * \f$m\f$) uses the classical extended Euclidean algorithm
- * (u64_mod_inverse_euclid()), because the binary GCD is only correct for
- * odd moduli.
+ * extended Lehmer GCD (rz_mod_inverse()); non-Montgomery contexts use the
+ * classical extended Euclidean algorithm
+ * (u64_mod_inverse_euclid()), which is valid for any modulus.
  *
  * Complexity:
  *   - Time: \f$O(n^2)\f$ (Montgomery) or \f$O(n^3)\f$ (plain)

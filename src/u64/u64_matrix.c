@@ -31,15 +31,16 @@
 
 u64 u64_mat_det(u64_mat_t* M)
 {
-  if (M->rows != M->cols) {
-    printf("Not square\n");
-  }
+  if (M == NULL || M->data == NULL) return 0;
+
+  if (M->rows != M->cols) return 0;
 
   u64 p = M->modulus;
   u64 det = 1;
   u64 n = M->rows;
 
   u64* mat = malloc(sizeof(u64) * n * n);
+  if (mat == NULL) return 0;
   memcpy(mat, M->data, sizeof(u64) * n * n);
 
   for (u64 i = 0; i < n; i++) {

@@ -725,8 +725,7 @@ void u64_ntt_cyclic_inverse_montgomery_in(u64* a_hat, const u64* a,
  * accumulated as the product of the pivots, and the rows below are
  * eliminated. Returns \f$0\f$ if the matrix is singular.
  *
- * The matrix must be square; a message is printed otherwise (the
- * computation still proceeds with \f$n =\f$ rows).
+ * Returns \f$0\f$ if the matrix is not square or an allocation fails.
  *
  * Complexity:
  *   - Time: \f$O(n^3)\f$

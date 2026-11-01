@@ -154,10 +154,91 @@ rabin_err_t rz_tonelli_shanks(rz_t* r, const rz_t* n, const rz_t* p);
  */
 rabin_err_t rz_gcd(rz_t* d, const rz_t* a, const rz_t* b);
 
+/**
+ * @brief Greatest common divisor of two bignums via the binary (Stein)
+ * algorithm.
+ *
+ * A single preliminary \f$\bmod\f$ step reduces the operands, after which
+ * only subtraction, comparison and powers of two are used: the common
+ * power \f$2^k\f$ is factored out first, then
+ * \f$\gcd(a, b) = \gcd(\max, \min)\f$ is driven by
+ * \f$a \leftarrow (a - b) / 2^v\f$ until the operands agree; the result
+ * is rescaled by \f$2^k\f$. Avoids division but performs \f$O(n)\f$
+ * subtract steps per bit, so it is slower than rz_gcd() on large inputs.
+ *
+ * Zero handling follows rz_gcd(); the result is non-negative and the
+ * signs of the inputs are ignored.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$ word operations for \f$n\f$-word operands
+ *   - Auxiliary memory: \f$O(\max(a, b))\f$ limbs
+ *   - Output memory: \f$O(\max(a, b))\f$ limbs
+ *
+ * @param[out] d Receives \f$\gcd(a, b) \ge 0\f$. May alias @p a or @p b.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * H. Cohen, "A Course in Computational Algebraic Number Theory,"
+ * Springer-Verlag, Berlin, 1993, p. 15 (Algorithm 1.3.4).
+ * @see rz_gcd(), rz_gcd_lehmer()
+ */
 rabin_err_t rz_gcd_binary(rz_t* d, const rz_t* a, const rz_t* b);
 
+/**
+ * @brief Greatest common divisor of two bignums via Lehmer's GCD.
+ *
+ * Euclid's algorithm accelerated by multi-precision steps: while both
+ * operands have the same limb length, their truncated top limbs drive a
+ * \f$2 \times 2\f$ unimodular transformation \f$[[A, B], [C, D]]\f$
+ * accumulated in i64; one combined step replaces many remainder steps.
+ * When the limb views are too small, disagree on the quotient, or the
+ * exact transformed pair fails the \f$0 \le b' < b \le a'\f$ sanity
+ * check, the routine falls back to a plain rz_mod() step.
+ *
+ * Zero handling follows rz_gcd(); the result is non-negative.
+ *
+ * Complexity:
+ *   - Time: \f$O(n^2)\f$ word operations for \f$n\f$-word operands
+ *   - Auxiliary memory: \f$O(\max(a, b))\f$ limbs
+ *   - Output memory: \f$O(\max(a, b))\f$ limbs
+ *
+ * @param[out] d Receives \f$\gcd(a, b) \ge 0\f$. May alias @p a or @p b.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. H. Lehmer, "Euclid's algorithm for great numbers," American
+ * Mathematical Monthly, vol. 45, 1938.
+ * D. E. Knuth, "The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms," 3rd ed., Addison-Wesley, 1997, Algorithm 4.5.2B.
+ * @see rz_gcd(), rz_gcd_extended_lehmer()
+ */
 rabin_err_t rz_gcd_lehmer(rz_t* d, const rz_t* a, const rz_t* b);
 
+/**
+ * @brief Least common multiple of two bignums.
+ *
+ * Computes \f$l = |a \cdot b| / \gcd(a, b)\f$ via rz_gcd(); the result
+ * is the principal (non-negative) LCM and is zero when either operand
+ * is zero.
+ *
+ * Complexity:
+ *   - Time: one gcd, one multiply and one division, see rz_gcd()
+ *   - Auxiliary memory: \f$O(a + b)\f$ limbs
+ *   - Output memory: \f$O(a + b)\f$ limbs
+ *
+ * @param[out] l Receives \f$\mathrm{lcm}(a, b) \ge 0\f$.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ * @see rz_gcd(), rz_div()
+ */
 rabin_err_t rz_lcm(rz_t* l, const rz_t* a, const rz_t* b);
 /**
  * @brief Extended Euclidean algorithm: Bézout coefficients of a and b.
@@ -184,6 +265,37 @@ rabin_err_t rz_lcm(rz_t* l, const rz_t* a, const rz_t* b);
 rabin_err_t rz_gcd_extended(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
                             const rz_t* b);
 
+/**
+ * @brief Extended Lehmer GCD: Bézout coefficients via multi-precision steps.
+ *
+ * Same Lehmer loop as rz_gcd_lehmer(), but the accumulated
+ * \f$2 \times 2\f$ matrix is also applied to the Bézout cofactor pair,
+ * so several Euclidean steps cost one pair of rz_mul_i64() calls.
+ * Whenever the truncated-limb quotient test is not justified, the
+ * routine takes a full rz_divmod() step and updates the cofactors from
+ * the quotient instead.
+ *
+ * Computes \f$u \cdot a + v \cdot b = d = \gcd(a, b) \ge 0\f$ (GMP
+ * convention); operand signs are honoured in \f$u\f$ and \f$v\f$.
+ *
+ * Complexity:
+ *   - Time: \f$O(\log \min(a, b))\f$ multi-precision steps, see rz_gcd()
+ *   - Auxiliary memory: \f$O(\max(a, b))\f$ limbs
+ *   - Output memory: \f$O(\max(a, b))\f$ limbs per result
+ *
+ * @param[out] u Receives the Bézout coefficient of \f$a\f$.
+ * @param[out] v Receives the Bézout coefficient of \f$b\f$.
+ * @param[out] d Receives \f$\gcd(a, b) \ge 0\f$.
+ * @param[in]  a First operand.
+ * @param[in]  b Second operand.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @par Algorithm Reference:
+ * D. E. Knuth, "The Art of Computer Programming, Vol. 2: Seminumerical
+ * Algorithms," 3rd ed., Addison-Wesley, 1997, Algorithm 4.5.2B.
+ * @see rz_gcd_extended(), rz_gcd_lehmer(), rz_mod_inverse()
+ */
 rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
                                    const rz_t* b);
 
@@ -204,10 +316,11 @@ rabin_err_t rz_gcd_extended_lehmer(rz_t* u, rz_t* v, rz_t* d, const rz_t* a,
  * @param[out] x Receives the solution \f$x\f$.
  * @param[out] y Receives the solution \f$y\f$.
  * @param[in]  p Prime modulus.
- * @param[in]  d Coefficient \f$d > 0\f$.
+ * @param[in]  d Coefficient \f$d\f$ with \f$0 < d < p\f$.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_INVALID_ARG (if \f$-d\f$ is a quadratic nonresidue \f$\bmod
- * p\f$ or no solution exists), or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_INVALID_ARG (if \f$d \notin (0, p)\f$, \f$-d\f$ is a quadratic
+ * nonresidue \f$\bmod p\f$, or no solution exists), or
+ * RABIN_ERR_OUT_OF_MEMORY.
  *
  * @par Algorithm Reference:
  * H. Cohen, "A Course in Computational Algebraic Number Theory,"

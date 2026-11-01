@@ -6,8 +6,11 @@
  *   1. Edge cases: 0, 1, -1, (0,0), 2^64-1, 2^64 boundaries + pointer
  *      aliasing (d == a and d == b)
  *   2. 1000 randomized cases (1..4096 bits, occasional zeros) vs mpz_gcd
- *   3. Time-based benchmark vs GMP at 512/1024/2048/4096 bits
- *   4. (kept) internal comparison of gcd variants (normal / extended /
+ *   3. Deterministic rz_gcd_lehmer() stress cases (fixed seed): bit-63
+ *      limb overflow patterns, fibonacci quotient chains, pairs whose
+ *      truncated top limbs agree
+ *   4. Time-based benchmark vs GMP at 512/1024/2048/4096 bits
+ *   5. (kept) internal comparison of gcd variants (normal / extended /
  *      lehmer / lehmer-extended)
  *
  * Copyright (C) 2026 Diego Strebel
@@ -206,7 +209,110 @@ static void run_random(gmp_randstate_t state)
 }
 
 // =============================================================================
-// PART 3: TIME-BASED BENCHMARKS vs GMP
+// PART 3: DETERMINISTIC LEHMER STRESS CASES
+// =============================================================================
+
+// Regression net for the Lehmer quotient loop: operands whose top limb
+// carries bit 63 (bit lengths that are exact multiples of 64, where a
+// naive limb-to-i64 conversion overflows), quotient-1 chains from
+// consecutive Fibonacci numbers that grow the transformation matrix, and
+// same-size pairs whose truncated top views agree before diverging.
+// Every pair is also run through all four input sign combinations.
+static void lehmer_stress_pair(const char* what, const mpz_t za, const mpz_t zb)
+{
+  rz_t a, b, d;
+  mpz_t zg;
+  rz_init_multi(&a, &b, &d, NULL);
+  mpz_init(zg);
+  mpz_gcd(zg, za, zb);
+
+  char op[128];
+  snprintf(op, sizeof(op), "rz_gcd_lehmer [%s]", what);
+
+  static const int signs[4][2] = {{1, 1}, {-1, 1}, {1, -1}, {-1, -1}};
+  for (int s = 0; s < 4; s++) {
+    mpz_t xa, xb;
+    mpz_inits(xa, xb, NULL);
+    mpz_set(xa, za);
+    mpz_set(xb, zb);
+    if (signs[s][0] < 0) mpz_neg(xa, xa);
+    if (signs[s][1] < 0) mpz_neg(xb, xb);
+
+    char* sa = mpz_get_str(NULL, 10, xa);
+    char* sb = mpz_get_str(NULL, 10, xb);
+    rz_init_val(&a, sa);
+    rz_init_val(&b, sb);
+
+    rz_gcd_lehmer(&d, &a, &b);
+    assert_match(op, sa, sb, &d, zg);
+
+    free(sa);
+    free(sb);
+    mpz_clears(xa, xb, NULL);
+  }
+
+  rz_clear_multi(&a, &b, &d, NULL);
+  mpz_clear(zg);
+}
+
+static void run_lehmer_stress(void)
+{
+  printf("\n--- rz_gcd_lehmer: deterministic stress cases ---\n");
+
+  // fixed seed: a failing case must reproduce without the run's seed
+  gmp_randstate_t state;
+  gmp_randinit_default(state);
+  gmp_randseed_ui(state, 0x5EED5EEDUL);
+
+  mpz_t a, b, s;
+  mpz_inits(a, b, s, NULL);
+
+  // Consecutive Fibonacci pairs: every quotient is 1, the longest matrix
+  // accumulation; the scaled variant leaves a multi-limb common factor
+  const unsigned long fibs[] = {3, 10, 40, 80, 160, 320};
+  for (size_t i = 0; i < sizeof(fibs) / sizeof(fibs[0]); i++) {
+    mpz_fib_ui(a, fibs[i] + 1);
+    mpz_fib_ui(b, fibs[i]);
+    lehmer_stress_pair("fibonacci chain", a, b);
+
+    mpz_set_ui(s, 1);
+    mpz_setbit(s, 64);  // s = 2^64 + 1
+    mpz_mul(a, a, s);
+    mpz_mul(b, b, s);
+    lehmer_stress_pair("scaled fibonacci chain", a, b);
+  }
+
+  // Sizes that are exact multiples of 64 bits: the top limb carries
+  // bit 63, the exact overflow point of a raw limb-to-i64 view
+  const unsigned limb_counts[] = {1, 2, 5, 16, 64};
+  for (size_t i = 0; i < sizeof(limb_counts) / sizeof(limb_counts[0]); i++) {
+    unsigned bits = 64 * limb_counts[i];
+
+    mpz_urandomb(a, state, bits - 1);
+    mpz_setbit(a, bits - 1);
+    mpz_urandomb(b, state, bits - 1);
+    mpz_setbit(b, bits - 1);
+    lehmer_stress_pair("top limb bit 63", a, b);
+
+    // b = 2^bits - 1: all-ones limb views
+    mpz_ui_pow_ui(b, 2, bits);
+    mpz_sub_ui(b, b, 1);
+    lehmer_stress_pair("all-ones divisor", a, b);
+
+    // b = a with one low bit toggled: identical truncated views that
+    // only diverge in the bottom limbs
+    mpz_set(b, a);
+    mpz_combit(b, 7);
+    lehmer_stress_pair("identical top views", a, b);
+  }
+
+  mpz_clears(a, b, s, NULL);
+  gmp_randclear(state);
+  printf("all lehmer stress cases passed\n");
+}
+
+// =============================================================================
+// PART 4: TIME-BASED BENCHMARKS vs GMP
 // =============================================================================
 
 static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
@@ -258,7 +364,7 @@ static void benchmark_gcd(int bits, double target_sec, gmp_randstate_t state)
 }
 
 // =============================================================================
-// PART 4 (kept): INTERNAL VARIANT COMPARISON
+// PART 5 (kept): INTERNAL VARIANT COMPARISON
 // =============================================================================
 
 static void benchmark_gcd_internal(int limbs)
@@ -342,6 +448,7 @@ int main()
 
   run_edge_cases();
   run_random(state);
+  run_lehmer_stress();
 
   print_table_header();
   benchmark_gcd(2048, bench_budget(2048), state);

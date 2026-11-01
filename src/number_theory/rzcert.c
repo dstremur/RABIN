@@ -166,7 +166,7 @@ static bool rzcert_verify_node(const rzcert_t* cert, u64 base_case_bound)
   // Leaf: accepted only within the trust bound, via a BPSW test.
   // rz_bpsw() decides small values correctly (including N = 2).
   if (cert->size == 0) {
-    return rz_bit_length(N) <= (int)base_case_bound && rz_bpsw(N);
+    return rz_bit_length(N) <= (i64)base_case_bound && rz_bpsw(N);
   }
 
   // Non-leaf N must be odd: no even integer can satisfy the Pocklington

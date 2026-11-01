@@ -457,11 +457,17 @@ rabin_err_t rz_mul_i64(rz_t* r, const rz_t* a, const i64 c)
 {
   if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
 
-  u64 carry = 0;
-  r->size = a->size;
+  // a zero factor or zero multiplier gives a clean non-negative zero;
+  // the loop below would leave r->size stale or flag a negative zero
+  if (c == 0 || rz_is_zero(a)) {
+    return rz_set_u64(r, 0);
+  }
 
   rabin_err_t err = rz_alloc(r, a->size + 1);
   if (err != RABIN_SUCCESS) return err;
+  r->size = a->size;
+
+  u64 carry = 0;
 
   // In two's complement, 0 - (u64)c safely computes |c| for all negative c,
   // including INT64_MIN.
@@ -486,6 +492,12 @@ bool rz_is_square(rz_t* q, const rz_t* a)
 {
   if (a == NULL) return false;
 
+  // 0 is a square; the limb tests below would read limbs[0] of a size-0
+  // zero
+  if (rz_is_zero(a)) {
+    return rz_set_u64(q, 0) == RABIN_SUCCESS;
+  }
+
   // 1. [Test 64]
   u64 t = a->limbs[0] & 63;
 
@@ -495,7 +507,7 @@ bool rz_is_square(rz_t* q, const rz_t* a)
   for (int i = a->size - 1; i >= 0; --i)
     r = (r * 16 + (a->limbs[i] % 45045)) % 45045;
 
-  // 2. [Test 63
+  // 2. [Test 63]
   if (q63[r % 63] == 0) return false;
   // 3. [Test 65]
   if (q65[r % 65] == 0) return false;

@@ -48,9 +48,11 @@ static bool rmat_row_prefix_is_zero(const rmat_t* A, u64 i, u64 k)
   return true;
 }
 
-static u64 rmat_min_abs_index(const rmat_t* A, int i, int k)
+// Column index in [0, k] of the nonzero entry of row i with smallest
+// magnitude, or -1 when the whole prefix is zero.
+static i64 rmat_min_abs_index(const rmat_t* A, i64 i, i64 k)
 {
-  int j, j0 = -1;
+  i64 j, j0 = -1;
   for (j = 0; j <= k; j++) {
     if (rz_is_zero(RMAT_GET(A, i, j))) continue;
 
@@ -108,9 +110,9 @@ step2:
   }
 
   // 3. [Choose non-zero entry]
-  u64 j_0 = rmat_min_abs_index(&A_work, i, k);
-  if ((i64)j_0 < k) {
-    TRY(rmat_swap_col(&A_work, k, j_0));
+  i64 j_0 = rmat_min_abs_index(&A_work, i, k);
+  if (j_0 != -1 && j_0 < k) {
+    TRY(rmat_swap_col(&A_work, k, (u64)j_0));
   }
   if (RMAT_GET(&A_work, i, k)->is_neg) {
     TRY(rmat_neg_col(&A_work, k));

@@ -66,6 +66,7 @@ rabin_err_t rz_rshift1(rz_t* r)
 rabin_err_t rz_lshift(rz_t* r, const rz_t* a, int shift)
 {
   if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+  if (shift < 0) return RABIN_ERR_INVALID_ARG;
 
   // aliasing
   if (r == a) {
@@ -111,9 +112,9 @@ rabin_err_t rz_lshift(rz_t* r, const rz_t* a, int shift)
     unsigned __int128 sum = (unsigned __int128)src << bits;
     sum += carry;
 
-    // top 64 bits
+    // lower 64 bits stay in place
     r->limbs[dst] = (u64)sum;
-    // lower 64 bits go to the carry
+    // upper 64 bits go to the carry
     carry = (u64)(sum >> 64);
   }
 
@@ -132,6 +133,7 @@ rabin_err_t rz_lshift(rz_t* r, const rz_t* a, int shift)
 rabin_err_t rz_rshift(rz_t* r, const rz_t* a, int shift)
 {
   if (r == NULL || a == NULL) return RABIN_ERR_NULL_PTR;
+  if (shift < 0) return RABIN_ERR_INVALID_ARG;
 
   // aliasing
   if (r == a) {

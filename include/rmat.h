@@ -1259,6 +1259,8 @@ rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D);
  * row and column operations; the input is not modified. S must already be
  * initialized with the same dimensions as A.
  *
+ * @pre A must be nonsingular: the reduction works modulo \f$\det A\f$.
+ *
  * Complexity:
  *   - Time: \f$O(n^3 \cdot d^2)\f$ where \f$d =\f$ the entry size in limbs
  * (worst case, dominated by the gcd reductions)
@@ -1269,7 +1271,8 @@ rabin_err_t rmat_hermite_mod_d(rmat_t* W, const rmat_t* A, const rz_t* D);
  * @param[out] S Smith normal form of A.
  * @param[in]  A Square matrix.
  * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR,
- * RABIN_ERR_MATRIX_DIM, or RABIN_ERR_OUT_OF_MEMORY.
+ * RABIN_ERR_MATRIX_DIM, RABIN_ERR_SINGULAR (\f$\det A = 0\f$), or
+ * RABIN_ERR_OUT_OF_MEMORY.
  */
 rabin_err_t rmat_smith(rmat_t* S, const rmat_t* A);
 

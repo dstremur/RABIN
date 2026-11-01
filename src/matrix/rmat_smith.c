@@ -41,6 +41,13 @@ rabin_err_t rmat_smith(rmat_t* S, const rmat_t* A)
   TRY(rmat_det(&R, A));
   R.is_neg = false;
 
+  // the whole reduction works modulo the determinant; a singular matrix
+  // has no nonzero modulus to reduce against
+  if (rz_is_zero(&R)) {
+    err = RABIN_ERR_SINGULAR;
+    goto cleanup;
+  }
+
   if (n == 1) {
     err = rmat_set(S, &R, 0, 0);
     goto cleanup;

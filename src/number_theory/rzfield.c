@@ -185,16 +185,14 @@ rabin_err_t field_mul(rz_t* r, const rz_t* a, const rz_t* b, field_ctx_t* ctx)
   return err;
 }
 
-/**
- * @brief Modular inverse via the classical extended Euclidean algorithm.
- *
- * Let n = m->size, measured in 64-bit limbs.
+/*
+ * Modular inverse via the classical extended Euclidean algorithm.
  *
  * Computes res = a^(-1) mod m (in [0, m)) using the iterative extended
  * Euclidean algorithm, which is valid for ANY modulus (odd or even) as
- * long as gcd(a, m) == 1. Unlike the binary extended GCD
- * (rz_mod_inverse), it never divides a tracked coefficient by 2, so it
- * is correct for even moduli where 2 is not invertible.
+ * long as gcd(a, m) == 1. This is the path used by field_inv() when the
+ * context is not Montgomery-enabled; the Montgomery path goes through
+ * the faster extended Lehmer GCD (rz_mod_inverse).
  *
  * Complexity:
  *   Time: O(n^3) - O(n) division steps, each an O(n^2) rz_t division
