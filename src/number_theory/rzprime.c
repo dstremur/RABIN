@@ -47,6 +47,7 @@
 #include "../../include/rzrabin.h"
 #include "../../include/rzrand.h"
 #include "../../include/u64.h"
+#include "rzlucas_internal.h"
 
 rabin_err_t rz_gen_prime(rz_t* p, int bits)
 {
@@ -125,63 +126,24 @@ bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q)
   // such candidates; anything else fails closed).
   if (n->is_neg || rz_is_zero(n) || rz_is_one(n) || rz_is_even(n)) return false;
 
-  rz_t d, u, v, qn, tmp, n_plus_1;
-  if (rz_init_multi(&d, &u, &v, &qn, &tmp, &n_plus_1, NULL) != RABIN_SUCCESS)
-    return false;
+  rz_t d;
+  if (rz_init(&d) != RABIN_SUCCESS) return false;
 
   bool prime = false;
+  u64 s = 0;
 
-  int s = 0;
-
-  if (rz_copy(&n_plus_1, n) != RABIN_SUCCESS) goto cleanup;
-  if (rz_add_u64(&n_plus_1, &n_plus_1, 1) != RABIN_SUCCESS) goto cleanup;
-  if (rz_copy(&d, &n_plus_1) != RABIN_SUCCESS) goto cleanup;
-
+  // d = n + 1, then strip powers of two: n + 1 = d * 2^s, d odd >= 1.
+  if (rz_add_u64(&d, n, 1) != RABIN_SUCCESS) goto cleanup;
   while (rz_is_even(&d)) {
     if (rz_rshift1(&d) != RABIN_SUCCESS) goto cleanup;
     s++;
   }
 
-  if (rz_lucas_solve_mod(&u, &v, P, Q, &qn, &d, n) != RABIN_SUCCESS)
+  if (rz_strong_lucas_solve_mod(&prime, n, P, Q, &d, s) != RABIN_SUCCESS)
     goto cleanup;
-  // 1. condition: U_d == 0 mod n
-  if (rz_is_zero(&u)) {
-    prime = true;
-    goto cleanup;
-  }
-  // 2. condition: V_(d*2^r) == 0 mod n, starting with r = 0
-  if (rz_is_zero(&v)) {
-    prime = true;
-    goto cleanup;
-  }
-  // check 2. condition for all d * 2^r, r = 1..s-1 (V doubled each step,
-  // Q^k updated as Q^(2k) = (Q^k)^2 to match V_2k = V_k^2 - 2*Q^k)
-  for (int r = 1; r < s; r++) {
-    if (rz_mul(&tmp, &v, &v) != RABIN_SUCCESS) goto cleanup;
-    if (rz_mod(&tmp, &tmp, n) != RABIN_SUCCESS) goto cleanup;
-
-    if (rz_add(&tmp, &tmp, n) != RABIN_SUCCESS) goto cleanup;
-    if (rz_sub(&tmp, &tmp, &qn) != RABIN_SUCCESS) goto cleanup;
-    if (rz_add(&tmp, &tmp, n) != RABIN_SUCCESS) goto cleanup;
-    if (rz_sub(&tmp, &tmp, &qn) != RABIN_SUCCESS) goto cleanup;
-    if (rz_mod(&v, &tmp, n) != RABIN_SUCCESS) goto cleanup;
-
-    if (rz_mul(&qn, &qn, &qn) != RABIN_SUCCESS) goto cleanup;
-    if (rz_mod(&qn, &qn, n) != RABIN_SUCCESS) goto cleanup;
-
-    if (rz_is_zero(&v)) {
-      prime = true;
-      goto cleanup;
-    }
-  }
 
 cleanup:
   rz_clear(&d);
-  rz_clear(&u);
-  rz_clear(&v);
-  rz_clear(&qn);
-  rz_clear(&tmp);
-  rz_clear(&n_plus_1);
   return prime;
 }
 
@@ -209,20 +171,26 @@ bool rz_bpsw(const rz_t* n)
   }
 
   // 1. run miller rabin base 2
+  rz_mont_ctx ctx = {0};
+  if (rz_mont_ctx_init(&ctx, n) != RABIN_SUCCESS) return false;
+
   rz_t two;
   rz_init(&two);
   if (rz_set_u64(&two, 2) != RABIN_SUCCESS) {
+    rz_mont_ctx_clear(&ctx);
     rz_clear(&two);
     return false;
   }
-  if (!rz_rabin_mont(n, &two)) {
+  if (!rz_rabin_mont_ctx(n, &two, &ctx)) {
+    rz_mont_ctx_clear(&ctx);
     rz_clear(&two);
     return false;
   }
 
-  rz_t D, magnitude;
+  rz_t D, magnitude, d;
   rz_init(&D);
   rz_init(&magnitude);
+  rz_init(&d);
   if (rz_set_i64(&magnitude, 5) != RABIN_SUCCESS) goto reject;
 
   bool negative = false;
@@ -266,13 +234,26 @@ bool rz_bpsw(const rz_t* n)
     if (rz_divmod_u64(&Q, &Q, 4) != 0) goto reject;
   }
 
-  bool res = rz_stronglucas(n, &P, &Q);
+  bool res = false;
+  u64 s = 0;
+
+  // d = n + 1, then strip powers of two: n + 1 = d * 2^s, d odd >= 1.
+  if (rz_add_u64(&d, n, 1) != RABIN_SUCCESS) goto reject;
+  while (rz_is_even(&d)) {
+    if (rz_rshift1(&d) != RABIN_SUCCESS) goto reject;
+    s++;
+  }
+
+  if (rz_strong_lucas_mont_ctx(&res, &ctx, n, &P, &Q, &d, s) != RABIN_SUCCESS)
+    goto reject;
 
   rz_clear(&P);
   rz_clear(&Q);
   rz_clear(&D);
   rz_clear(&magnitude);
   rz_clear(&two);
+  rz_clear(&d);
+  rz_mont_ctx_clear(&ctx);
   return res;
 reject:
   rz_clear(&P);
@@ -280,6 +261,8 @@ reject:
   rz_clear(&D);
   rz_clear(&magnitude);
   rz_clear(&two);
+  rz_clear(&d);
+  rz_mont_ctx_clear(&ctx);
   return false;
 }
 

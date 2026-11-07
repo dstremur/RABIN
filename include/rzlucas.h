@@ -80,6 +80,43 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
                                rz_t* qn, const rz_t* n, const rz_t* m);
 
 /**
+ * @brief Run the strong Lucas test on \f$n\f$ without ever leaving the
+ * Montgomery domain.
+ *
+ * Let \f$n_l\f$ = n->size, measured in 64-bit limbs. Requires \f$n + 1
+ * = d \cdot 2^s\f$ with \f$d \ge 1\f$ odd. One Montgomery context is
+ * initialized for \f$n\f$; the double-and-add pass over the bits of
+ * \f$d\f$ and the subsequent \f$2^s\f$ doubling chain run back to back
+ * in the Montgomery domain, and the zero tests are evaluated directly
+ * on the Montgomery residues (\f$0 \cdot R = 0\f$ and all residues are
+ * canonical in \f$[0, n)\f$), so no rz_mont_out() conversion is needed.
+ * In the doubling chain \f$U\f$ is not tracked, costing two Montgomery
+ * multiplications per step.
+ *
+ * Complexity:
+ *   - Time: \f$O(n_l^3)\f$ for the context initialization, then
+ *           \f$O(\log n \cdot n_l^2)\f$ for both phases
+ *   - Auxiliary memory: \f$O(n_l)\f$ limbs for the context and temporaries
+ *
+ * @param[out] res Set to true if n passes the strong Lucas test for
+ *                 (P, Q), false otherwise; set to false on error.
+ * @param[in]  n   Odd modulus \f$> 1\f$ under test.
+ * @param[in]  P   Lucas parameter P (may be negative).
+ * @param[in]  Q   Lucas parameter Q (may be negative).
+ * @param[in]  d   Odd cofactor of \f$n + 1\f$ (\f$d \ge 1\f$).
+ * @param[in]  s   Exponent with \f$n + 1 = d \cdot 2^s\f$.
+ * @return RABIN_SUCCESS on success, or RABIN_ERR_NULL_PTR /
+ * RABIN_ERR_INVALID_ARG / RABIN_ERR_OUT_OF_MEMORY.
+ *
+ * @pre \f$n\f$ is odd with \f$n > 1\f$ and \f$n + 1 = d \cdot 2^s\f$
+ * with \f$d \ge 1\f$ odd.
+ *
+ * @see rz_lucas_solve_mod(), rz_stronglucas()
+ */
+rabin_err_t rz_strong_lucas_solve_mod(bool* res, const rz_t* n, const rz_t* P,
+                                      const rz_t* Q, const rz_t* d, u64 s);
+
+/**
  * @brief Compute the \f$n\f$-th terms of the Lucas sequences \f$U_n(P, Q)\f$
  * and
  * \f$V_n(P, Q)\f$ exactly.

@@ -40,6 +40,7 @@
 #include <string.h>
 
 #include "alloca.h"
+#include "rzlucas_internal.h"
 
 rabin_err_t rz_lucas_solve(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
                            rz_t* qn, const rz_t* n)
@@ -112,6 +113,82 @@ cleanup:
   rz_clear(&a);
   rz_clear(&b);
   rz_clear(&tmp);
+  return err;
+}
+
+/*
+ * One left-to-right doubling step (U_k, V_k, Q^k) -> (U_2k, V_2k, Q^2k) or
+ * (U_2k+1, V_2k+1, Q^2k+1) in the Montgomery domain. All values are
+ * canonical residues in [0, n); a, b, tmp are scratch registers.
+ */
+static rabin_err_t lucas_step_mont(rz_t* u_bar, rz_t* v_bar, rz_t* qn_bar,
+                                   const rz_t* p_bar, const rz_t* q_bar,
+                                   rz_t* a, rz_t* b, rz_t* tmp, int bit,
+                                   rz_mont_ctx* ctx)
+{
+  rabin_err_t err = RABIN_SUCCESS;
+
+  /* a = U_k * V_k = U_2k,  b = V_k^2 */
+  TRY(rz_mont_mul(a, u_bar, v_bar, ctx));
+  TRY(rz_mont_mul(b, v_bar, v_bar, ctx));
+
+  if (bit == 0) {
+    /* U_2k = a */
+    TRY(rz_copy(u_bar, a));
+
+    /*
+     * V_2k = V_k^2 - 2 * Q^k
+     *
+     * Both operands are canonical residues. After subtraction,
+     * adding m to a negative result gives a canonical residue.
+     */
+    TRY(rz_sub(v_bar, b, qn_bar));
+    if (v_bar->is_neg) TRY(rz_add(v_bar, v_bar, &ctx->n));
+
+    TRY(rz_sub(v_bar, v_bar, qn_bar));
+    if (v_bar->is_neg) TRY(rz_add(v_bar, v_bar, &ctx->n));
+
+    /* Q^2k = (Q^k)^2 */
+    TRY(rz_mont_mul(qn_bar, qn_bar, qn_bar, ctx));
+
+  } else {
+    /*
+     * U_2k+1 = (P * U_2k + V_k^2) / 2 - Q^k
+     *
+     * First reduce the sum to [0, m). Since m is odd, adding
+     * m when the sum is odd makes integer division by two valid
+     * modulo m.
+     */
+    TRY(rz_mont_mul(tmp, p_bar, a, ctx));
+    TRY(rz_add(tmp, tmp, b));
+    TRY(rz_mod(tmp, tmp, &ctx->n));
+
+    if (!rz_is_even(tmp)) TRY(rz_add(tmp, tmp, &ctx->n));
+
+    TRY(rz_rshift1(tmp));
+
+    /* Subtract Q^k to obtain U_2k+1. */
+    TRY(rz_sub(u_bar, tmp, qn_bar));
+    if (u_bar->is_neg) TRY(rz_add(u_bar, u_bar, &ctx->n));
+
+    /*
+     * V_2k+1 = P * U_2k+1 - 2 * Q * U_2k
+     */
+    TRY(rz_mont_mul(v_bar, p_bar, u_bar, ctx));
+    TRY(rz_mont_mul(tmp, q_bar, a, ctx));
+
+    /* Subtract Q * U_2k twice. */
+    for (int j = 0; j < 2; j++) {
+      TRY(rz_sub(v_bar, v_bar, tmp));
+      if (v_bar->is_neg) TRY(rz_add(v_bar, v_bar, &ctx->n));
+    }
+
+    /* Q^2k+1 = (Q^k)^2 * Q */
+    TRY(rz_mont_mul(qn_bar, qn_bar, qn_bar, ctx));
+    TRY(rz_mont_mul(qn_bar, qn_bar, q_bar, ctx));
+  }
+
+cleanup:
   return err;
 }
 
@@ -191,70 +268,8 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
 
 #pragma GCC unroll 8
   for (i64 i = (i64)len - 2; i >= 0; i--) {
-    /*
-     * a = U_k * V_k = U_(2k)
-     * b = V_k^2
-     */
-    TRY(rz_mont_mul(&a, &u_bar, &v_bar, &ctx));
-    TRY(rz_mont_mul(&b, &v_bar, &v_bar, &ctx));
-
-    if (rz_get_bit(n, i) == 0) {
-      /*
-       * U_(2k) = a
-       */
-      TRY(rz_copy(&u_bar, &a));
-
-      /*
-       * V_(2k) = V_k^2 - 2 * Q^k
-       *
-       * Both operands are canonical residues. After subtraction,
-       * adding m to a negative result gives a canonical residue.
-       */
-      TRY(rz_sub(&v_bar, &b, &qn_bar));
-      if (v_bar.is_neg) TRY(rz_add(&v_bar, &v_bar, &ctx.n));
-
-      TRY(rz_sub(&v_bar, &v_bar, &qn_bar));
-      if (v_bar.is_neg) TRY(rz_add(&v_bar, &v_bar, &ctx.n));
-
-      /* Q^(2k) = (Q^k)^2 */
-      TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx));
-
-    } else {
-      /*
-       * U_(2k+1) = (P * U_(2k) + V_k^2) / 2 - Q^k
-       *
-       * First reduce the sum to [0, m). Since m is odd, adding
-       * m when the sum is odd makes integer division by two valid
-       * modulo m.
-       */
-      TRY(rz_mont_mul(&tmp, &p_bar, &a, &ctx));
-      TRY(rz_add(&tmp, &tmp, &b));
-      TRY(rz_mod(&tmp, &tmp, &ctx.n));
-
-      if (!rz_is_even(&tmp)) TRY(rz_add(&tmp, &tmp, &ctx.n));
-
-      TRY(rz_rshift1(&tmp));
-
-      /* Subtract Q^k to obtain U_(2k+1). */
-      TRY(rz_sub(&u_bar, &tmp, &qn_bar));
-      if (u_bar.is_neg) TRY(rz_add(&u_bar, &u_bar, &ctx.n));
-
-      /*
-       * V_(2k+1) = P * U_(2k+1) - 2 * Q * U_(2k)
-       */
-      TRY(rz_mont_mul(&v_bar, &p_bar, &u_bar, &ctx));
-      TRY(rz_mont_mul(&tmp, &q_bar, &a, &ctx));
-
-      /* Subtract Q * U_(2k) twice. */
-      for (int j = 0; j < 2; j++) {
-        TRY(rz_sub(&v_bar, &v_bar, &tmp));
-        if (v_bar.is_neg) TRY(rz_add(&v_bar, &v_bar, &ctx.n));
-      }
-
-      /* Q^(2k+1) = (Q^k)^2 * Q */
-      TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, &ctx));
-      TRY(rz_mont_mul(&qn_bar, &qn_bar, &q_bar, &ctx));
-    }
+    TRY(lucas_step_mont(&u_bar, &v_bar, &qn_bar, &p_bar, &q_bar, &a, &b, &tmp,
+                        rz_get_bit(n, i), &ctx));
   }
 
   /* Convert the results out of Montgomery space. */
@@ -274,6 +289,107 @@ cleanup:
   rz_clear(&p_bar);
   rz_clear(&q_bar);
   rz_clear(&one_bar);
+  rz_mont_ctx_clear(&ctx);
+  return err;
+}
+
+/*
+ * Strong Lucas test on an existing Montgomery context, never leaving the
+ * Montgomery domain. Requires n + 1 = d * 2^s with d >= 1 odd and
+ * ctx->n == n. Zero tests run directly on the Montgomery residues: the
+ * results of rz_mont_mul() are canonical residues in [0, n) and
+ * 0 * R = 0, so U == 0 (mod n) iff u_bar == 0.
+ */
+rabin_err_t rz_strong_lucas_mont_ctx(bool* res, rz_mont_ctx* ctx, const rz_t* n,
+                                     const rz_t* P, const rz_t* Q,
+                                     const rz_t* d, u64 s)
+{
+  if (res == NULL || ctx == NULL || n == NULL || P == NULL || Q == NULL ||
+      d == NULL)
+    return RABIN_ERR_NULL_PTR;
+  // sequence index must be a positive odd integer
+  if (d->is_neg || rz_is_zero(d)) return RABIN_ERR_INVALID_ARG;
+  // the context must match the modulus under test
+  if (ctx->n.size == 0 || rz_cmp(&ctx->n, n) != 0) return RABIN_ERR_INVALID_ARG;
+
+  *res = false;
+
+  rz_t u_bar, v_bar, qn_bar, p_bar, q_bar, one_bar, a, b, tmp;
+  rabin_err_t err = rz_init_multi(&u_bar, &v_bar, &qn_bar, &q_bar, &p_bar,
+                                  &one_bar, &a, &b, &tmp, NULL);
+  if (err != RABIN_SUCCESS) return err;
+
+  /* Map constants into Montgomery space (P and Q may be negative). */
+  TRY(rz_mont_in(&p_bar, P, ctx));
+  TRY(rz_mont_in(&q_bar, Q, ctx));
+  TRY(rz_copy(&one_bar, &ctx->one_mont));
+
+  /* Initialize U_1, V_1 and Q^1 in Montgomery space; d >= 1. */
+  TRY(rz_copy(&u_bar, &one_bar));
+  TRY(rz_copy(&v_bar, &p_bar));
+  TRY(rz_copy(&qn_bar, &q_bar));
+
+  /* Double-and-add up to the odd cofactor d. */
+#pragma GCC unroll 8
+  for (i64 i = (i64)rz_bit_length(d) - 2; i >= 0; i--) {
+    TRY(lucas_step_mont(&u_bar, &v_bar, &qn_bar, &p_bar, &q_bar, &a, &b, &tmp,
+                        rz_get_bit(d, i), ctx));
+  }
+
+  if (rz_is_zero(&u_bar) || rz_is_zero(&v_bar)) {
+    *res = true;
+    goto cleanup;
+  }
+
+  /*
+   * Doubling chain V_(d * 2^r), r = 1..s-1, entered directly from the
+   * d-loop without leaving Montgomery space. U is not needed here, so
+   * each step costs two Montgomery multiplications.
+   */
+  for (u64 r = 1; r < s; r++) {
+    /* b = V_k^2 */
+    TRY(rz_mont_mul(&b, &v_bar, &v_bar, ctx));
+
+    /* V_2k = V_k^2 - 2 * Q^k */
+    TRY(rz_sub(&v_bar, &b, &qn_bar));
+    if (v_bar.is_neg) TRY(rz_add(&v_bar, &v_bar, &ctx->n));
+
+    TRY(rz_sub(&v_bar, &v_bar, &qn_bar));
+    if (v_bar.is_neg) TRY(rz_add(&v_bar, &v_bar, &ctx->n));
+
+    /* Q^2k = (Q^k)^2 */
+    TRY(rz_mont_mul(&qn_bar, &qn_bar, &qn_bar, ctx));
+
+    if (rz_is_zero(&v_bar)) {
+      *res = true;
+      goto cleanup;
+    }
+  }
+
+cleanup:
+  rz_clear(&a);
+  rz_clear(&b);
+  rz_clear(&tmp);
+  rz_clear(&u_bar);
+  rz_clear(&v_bar);
+  rz_clear(&qn_bar);
+  rz_clear(&p_bar);
+  rz_clear(&q_bar);
+  rz_clear(&one_bar);
+  return err;
+}
+
+rabin_err_t rz_strong_lucas_solve_mod(bool* res, const rz_t* n, const rz_t* P,
+                                      const rz_t* Q, const rz_t* d, u64 s)
+{
+  if (res == NULL || n == NULL || P == NULL || Q == NULL || d == NULL)
+    return RABIN_ERR_NULL_PTR;
+
+  rz_mont_ctx ctx = {0};
+  rabin_err_t err = rz_mont_ctx_init(&ctx, n);
+  if (err != RABIN_SUCCESS) return err;
+
+  err = rz_strong_lucas_mont_ctx(res, &ctx, n, P, Q, d, s);
   rz_mont_ctx_clear(&ctx);
   return err;
 }
