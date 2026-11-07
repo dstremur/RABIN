@@ -57,8 +57,7 @@ rabin_err_t rzcert_clear(rzcert_t* cert)
 
   if (cert->data) {
     for (u64 i = 0; i < cert->size; i++) {
-      rz_clear(&cert->data[i].q);
-      rz_clear(&cert->data[i].alpha_q);
+      rz_clear_multi(&cert->data[i].q, &cert->data[i].alpha_q, NULL);
       rzcert_clear(cert->data[i].q_cert);
     }
     free(cert->data);
@@ -91,8 +90,7 @@ bool rzcert_add_elem(rzcert_t* cert, const rz_t* q, const rz_t* alpha_q,
   }
   if (rz_copy(&e->q, q) != RABIN_SUCCESS ||
       rz_copy(&e->alpha_q, alpha_q) != RABIN_SUCCESS) {
-    rz_clear(&e->q);
-    rz_clear(&e->alpha_q);
+    rz_clear_multi(&e->q, &e->alpha_q, NULL);
     return false;
   }
 

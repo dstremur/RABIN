@@ -323,9 +323,7 @@ rabin_err_t rz_gcd(rz_t* d, const rz_t* a, const rz_t* b)
 
   err = RABIN_SUCCESS;
 cleanup:
-  rz_clear(&tmp_a);
-  rz_clear(&tmp_b);
-  rz_clear(&rem);
+  rz_clear_multi(&tmp_a, &tmp_b, &rem, NULL);
   return err;
 }
 

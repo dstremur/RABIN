@@ -601,8 +601,7 @@ rabin_err_t rmat_kernel_image(const rmat_t* A, rmat_t* H, u64* p)
 
 cleanup:
   if (det_live) {
-    rz_clear(&det);
-    rz_clear(&one);
+    rz_clear_multi(&det, &one, NULL);
   }
   rmat_clear(&Htmp);
   rmat_clear(&Tail);

@@ -188,9 +188,7 @@ bool rz_bpsw(const rz_t* n)
   }
 
   rz_t D, magnitude, d;
-  rz_init(&D);
-  rz_init(&magnitude);
-  rz_init(&d);
+  rz_init_multi(&D, &magnitude, &d, NULL);
   if (rz_set_i64(&magnitude, 5) != RABIN_SUCCESS) goto reject;
 
   bool negative = false;
@@ -247,21 +245,11 @@ bool rz_bpsw(const rz_t* n)
   if (rz_strong_lucas_mont_ctx(&res, &ctx, n, &P, &Q, &d, s) != RABIN_SUCCESS)
     goto reject;
 
-  rz_clear(&P);
-  rz_clear(&Q);
-  rz_clear(&D);
-  rz_clear(&magnitude);
-  rz_clear(&two);
-  rz_clear(&d);
+  rz_clear_multi(&P, &Q, &D, &magnitude, &two, &d, NULL);
   rz_mont_ctx_clear(&ctx);
   return res;
 reject:
-  rz_clear(&P);
-  rz_clear(&Q);
-  rz_clear(&D);
-  rz_clear(&magnitude);
-  rz_clear(&two);
-  rz_clear(&d);
+  rz_clear_multi(&P, &Q, &D, &magnitude, &two, &d, NULL);
   rz_mont_ctx_clear(&ctx);
   return false;
 }

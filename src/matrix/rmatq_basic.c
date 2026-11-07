@@ -45,8 +45,7 @@ static bool rmatq_entry_eq(const rmatq_t* A, const rmatq_t* B, u64 r, u64 c)
   }
   eq = (rz_cmp(&lhs, &rhs) == 0);
 done:
-  rz_clear(&lhs);
-  rz_clear(&rhs);
+  rz_clear_multi(&lhs, &rhs, NULL);
   return eq;
 }
 
@@ -214,8 +213,7 @@ rabin_err_t rmatq_scalar(rmatq_t* R, const rmatq_t* A, const rq_t* a)
   rabin_err_t err = RABIN_SUCCESS;
   rq_t v = {0};
   rq_t w = {0};
-  TRY(rq_init(&v));
-  TRY(rq_init(&w));
+  TRY(rq_init_multi(&v, &w, NULL));
   for (u64 i = 0; i < A->M.rows; i++) {
     for (u64 j = 0; j < A->M.cols; j++) {
       TRY(rmatq_get(&v, A, i, j));
@@ -224,8 +222,7 @@ rabin_err_t rmatq_scalar(rmatq_t* R, const rmatq_t* A, const rq_t* a)
     }
   }
 cleanup:
-  rq_clear(&v);
-  rq_clear(&w);
+  rq_clear_multi(&v, &w, NULL);
   return err;
 }
 
@@ -333,8 +330,7 @@ rabin_err_t rmatq_trace(rq_t* t, const rmatq_t* A)
   rabin_err_t err = RABIN_SUCCESS;
   rq_t acc = {0};
   rq_t v = {0};
-  TRY(rq_init(&acc));
-  TRY(rq_init(&v));
+  TRY(rq_init_multi(&acc, &v, NULL));
   TRY(rq_set_u64(&acc, 0));
   for (u64 i = 0; i < A->M.rows; i++) {
     TRY(rmatq_get(&v, A, i, i));
@@ -343,8 +339,7 @@ rabin_err_t rmatq_trace(rq_t* t, const rmatq_t* A)
   TRY(rq_copy(t, &acc));
 
 cleanup:
-  rq_clear(&acc);
-  rq_clear(&v);
+  rq_clear_multi(&acc, &v, NULL);
   return err;
 }
 
@@ -361,11 +356,8 @@ rabin_err_t rmatq_det(rq_t* d, const rmatq_t* A)
   rq_t rn = {0};
   rq_t rd = {0};
 
-  TRY(rz_init(&num));
-  TRY(rz_init(&pown));
-  TRY(rz_init(&e));
-  TRY(rq_init(&rn));
-  TRY(rq_init(&rd));
+  TRY(rz_init_multi(&num, &pown, &e, NULL));
+  TRY(rq_init_multi(&rn, &rd, NULL));
 
   TRY(rmat_det_bareiss(&num, &A->M));
   if (n == 0) {
@@ -379,10 +371,7 @@ rabin_err_t rmatq_det(rq_t* d, const rmatq_t* A)
   TRY(rq_div(d, &rn, &rd));
 
 cleanup:
-  rz_clear(&num);
-  rz_clear(&pown);
-  rz_clear(&e);
-  rq_clear(&rn);
-  rq_clear(&rd);
+  rz_clear_multi(&num, &pown, &e, NULL);
+  rq_clear_multi(&rn, &rd, NULL);
   return err;
 }

@@ -137,8 +137,7 @@ rabin_err_t rmat_mul(rmat_t* R, const rmat_t* A, const rmat_t* B)
       }
     }
 
-    rz_clear(&sum);
-    rz_clear(&tmp);
+    rz_clear_multi(&sum, &tmp, NULL);
   }
 
 cleanup:

@@ -207,7 +207,6 @@ rabin_err_t rz_mod_exp_mont(rz_t* r, const rz_t* a, const rz_t* b,
     err = rz_mont_out(r, &result, ctx);
   }
 
-  rz_clear(&base);
-  rz_clear(&result);
+  rz_clear_multi(&base, &result, NULL);
   return err;
 }

@@ -112,8 +112,7 @@ step3:
     if (RMAT_GET(&A_work, i - 1, j - 1)->is_neg) TRY(rz_set_i64(&v, -1));
   }
 
-  rz_clear(&a_abs);
-  rz_clear(&a_ii_abs);
+  rz_clear_multi(&a_abs, &a_ii_abs, NULL);
 
   // B = uA_i + vA_j
   for (u64 x = 0; x < (u64)n; x++) {
@@ -180,8 +179,7 @@ step6:
     if (RMAT_GET(&A_work, j - 1, i - 1)->is_neg) TRY(rz_set_i64(&v, -1));
   }
 
-  rz_clear(&a_abs_col);
-  rz_clear(&a_ii_abs_col);
+  rz_clear_multi(&a_abs_col, &a_ii_abs_col, NULL);
 
   // B = uA'_i + vA'_j
   for (u64 x = 0; x < (u64)n; x++) {
@@ -274,11 +272,7 @@ cleanup:
     }
     free(B);
   }
-  rz_clear(&a_abs_col);
-  rz_clear(&a_ii_abs_col);
-  rz_clear(&a_abs);
-  rz_clear(&a_ii_abs);
-  rz_clear(&zero);
+  rz_clear_multi(&a_abs_col, &a_ii_abs_col, &a_abs, &a_ii_abs, &zero, NULL);
   rmat_clear(&A_work);
   rz_clear(&R);
   rz_clear_multi(&u, &v, &d, &q_i, &q_j, &t1, &t2, &b, NULL);

@@ -45,12 +45,7 @@ rabin_err_t rmatq_rref(rmatq_t* R, u64* rank)
   rq_t w = {0};
   rq_t z = {0};
 
-  TRY(rq_init(&piv));
-  TRY(rq_init(&f));
-  TRY(rq_init(&u));
-  TRY(rq_init(&t));
-  TRY(rq_init(&w));
-  TRY(rq_init(&z));
+  TRY(rq_init_multi(&piv, &f, &u, &t, &w, &z, NULL));
   TRY(rq_set_u64(&z, 0));
 
   u64 r = 0;
@@ -97,12 +92,7 @@ rabin_err_t rmatq_rref(rmatq_t* R, u64* rank)
   if (rank != NULL) *rank = r;
 
 cleanup:
-  rq_clear(&piv);
-  rq_clear(&f);
-  rq_clear(&u);
-  rq_clear(&t);
-  rq_clear(&w);
-  rq_clear(&z);
+  rq_clear_multi(&piv, &f, &u, &t, &w, &z, NULL);
   return err;
 }
 
@@ -138,13 +128,7 @@ rabin_err_t rmatq_lu(rmatq_t* L, rmatq_t* U, u64* P, const rmatq_t* A)
   TRY(rmatq_init(&W, n, n));
   TRY(rmatq_copy(&W, A));
   TRY(rmatq_id(L, n));
-  TRY(rq_init(&piv));
-  TRY(rq_init(&f));
-  TRY(rq_init(&m_ik));
-  TRY(rq_init(&u));
-  TRY(rq_init(&t));
-  TRY(rq_init(&w));
-  TRY(rq_init(&z));
+  TRY(rq_init_multi(&piv, &f, &m_ik, &u, &t, &w, &z, NULL));
   TRY(rq_set_u64(&z, 0));
 
   for (u64 k = 0; k < n; k++) {
@@ -196,13 +180,7 @@ rabin_err_t rmatq_lu(rmatq_t* L, rmatq_t* U, u64* P, const rmatq_t* A)
 cleanup:
   free(perm);
   rmatq_clear(&W);
-  rq_clear(&piv);
-  rq_clear(&f);
-  rq_clear(&m_ik);
-  rq_clear(&u);
-  rq_clear(&t);
-  rq_clear(&w);
-  rq_clear(&z);
+  rq_clear_multi(&piv, &f, &m_ik, &u, &t, &w, &z, NULL);
   return err;
 }
 

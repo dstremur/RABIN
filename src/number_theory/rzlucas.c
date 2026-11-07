@@ -106,13 +106,7 @@ rabin_err_t rz_lucas_solve(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
 
   err = RABIN_SUCCESS;
 cleanup:
-  rz_clear(&n_half);
-  rz_clear(&u_n);
-  rz_clear(&v_n);
-  rz_clear(&q_n);
-  rz_clear(&a);
-  rz_clear(&b);
-  rz_clear(&tmp);
+  rz_clear_multi(&n_half, &u_n, &v_n, &q_n, &a, &b, &tmp, NULL);
   return err;
 }
 
@@ -280,15 +274,8 @@ rabin_err_t rz_lucas_solve_mod(rz_t* u, rz_t* v, const rz_t* p, const rz_t* q,
   err = RABIN_SUCCESS;
 
 cleanup:
-  rz_clear(&a);
-  rz_clear(&b);
-  rz_clear(&tmp);
-  rz_clear(&u_bar);
-  rz_clear(&v_bar);
-  rz_clear(&qn_bar);
-  rz_clear(&p_bar);
-  rz_clear(&q_bar);
-  rz_clear(&one_bar);
+  rz_clear_multi(&a, &b, &tmp, &u_bar, &v_bar, &qn_bar, &p_bar, &q_bar,
+                 &one_bar, NULL);
   rz_mont_ctx_clear(&ctx);
   return err;
 }
@@ -367,15 +354,8 @@ rabin_err_t rz_strong_lucas_mont_ctx(bool* res, rz_mont_ctx* ctx, const rz_t* n,
   }
 
 cleanup:
-  rz_clear(&a);
-  rz_clear(&b);
-  rz_clear(&tmp);
-  rz_clear(&u_bar);
-  rz_clear(&v_bar);
-  rz_clear(&qn_bar);
-  rz_clear(&p_bar);
-  rz_clear(&q_bar);
-  rz_clear(&one_bar);
+  rz_clear_multi(&a, &b, &tmp, &u_bar, &v_bar, &qn_bar, &p_bar, &q_bar,
+                 &one_bar, NULL);
   return err;
 }
 

@@ -345,7 +345,7 @@ rabin_err_t rmat_det_rns(rz_t* det, const rmat_t* A, const rns_ctx_t* ctx)
 
   // if d > M / 2 det is negative
   rz_t M_half;
-  rz_init_multi(&M_half, NULL);
+  rz_init(&M_half);
   if ((err = rz_copy(&M_half, &ctx->prod)) != RABIN_SUCCESS) {
     rz_clear(&M_half);
     goto cleanup;

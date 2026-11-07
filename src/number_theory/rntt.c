@@ -77,7 +77,7 @@ rabin_err_t rz_find_gen_fp(rz_t* g, const rz_t* p)
   if (err != RABIN_SUCCESS) return err;
 
   rz_t n_min_1;
-  rz_init_multi(&n_min_1, NULL);
+  rz_init(&n_min_1);
   TRY(rz_sub(&n_min_1, p, &RZ_ONE));
 
   TRY(rz_factorize(&factors, &n_min_1));
@@ -87,7 +87,7 @@ rabin_err_t rz_find_gen_fp(rz_t* g, const rz_t* p)
   err = RABIN_SUCCESS;
 cleanup:
   rvec_clear(&factors);
-  rz_clear_multi(&n_min_1, NULL);
+  rz_clear(&n_min_1);
   return err;
 }
 
@@ -298,8 +298,7 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   }
 
   for (u64 i = 0; i < n; i++) {
-    rz_init(&ctx->omega_powers[i]);
-    rz_init(&ctx->omega_inv_powers[i]);
+    rz_init_multi(&ctx->omega_powers[i], &ctx->omega_inv_powers[i], NULL);
   }
 
   // precompute w^i mod q
@@ -329,8 +328,7 @@ rabin_err_t rntt_ctx_init(rntt_ctx_t* ctx, const rz_t* p, const rz_t* g,
   }
 
   for (u64 i = 0; i < n; i++) {
-    rz_init(&ctx->psi_powers[i]);
-    rz_init(&ctx->psi_inv_powers[i]);
+    rz_init_multi(&ctx->psi_powers[i], &ctx->psi_inv_powers[i], NULL);
   }
 
   // compute psi^i mod q
@@ -417,8 +415,7 @@ rabin_err_t rntt_ctx_clear(rntt_ctx_t* ctx)
     ctx->bit_rev_indices = NULL;
   }
 
-  rz_clear(&ctx->q);
-  rz_clear(&ctx->n_inv);
+  rz_clear_multi(&ctx->q, &ctx->n_inv, NULL);
   rz_mont_ctx_clear(&ctx->mctx);
   return RABIN_SUCCESS;
 }

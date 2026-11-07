@@ -45,10 +45,7 @@ rabin_err_t rz_mont_ctx_init(rz_mont_ctx* ctx, const rz_t* n)
   if (n->is_neg || rz_is_zero(n) || rz_is_even(n) || rz_is_eq_i64(n, 1))
     return RABIN_ERR_INVALID_ARG;
 
-  rz_init(&ctx->n);
-  rz_init(&ctx->one_mont);
-  rz_init(&ctx->r_square);
-  rz_init(&ctx->tmp);
+  rz_init_multi(&ctx->n, &ctx->one_mont, &ctx->r_square, &ctx->tmp, NULL);
 
   rabin_err_t err = rz_copy(&ctx->n, n);
 
@@ -91,10 +88,7 @@ rabin_err_t rz_mont_ctx_clear(rz_mont_ctx* ctx)
 {
   if (ctx == NULL) return RABIN_ERR_NULL_PTR;
 
-  rz_clear(&ctx->one_mont);
-  rz_clear(&ctx->n);
-  rz_clear(&ctx->r_square);
-  rz_clear(&ctx->tmp);
+  rz_clear_multi(&ctx->one_mont, &ctx->n, &ctx->r_square, &ctx->tmp, NULL);
   return RABIN_SUCCESS;
 }
 

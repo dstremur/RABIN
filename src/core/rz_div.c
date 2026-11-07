@@ -593,9 +593,7 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b)
 
   rz_t zero, one, r;
 
-  rz_init(&zero);
-  rz_init(&one);
-  rz_init(&r);
+  rz_init_multi(&zero, &one, &r, NULL);
 
   rabin_err_t err = rz_set_u64(&zero, 0);
   if (err == RABIN_SUCCESS) err = rz_set_u64(&one, 1);
@@ -633,9 +631,7 @@ rabin_err_t rz_div_euclid(rz_t* q, const rz_t* a, const rz_t* b)
   }
 
 cleanup:
-  rz_clear(&zero);
-  rz_clear(&one);
-  rz_clear(&r);
+  rz_clear_multi(&zero, &one, &r, NULL);
   return err;
 }
 

@@ -202,7 +202,7 @@ int main()
   rz_println(&c);
 
   rz_t x, y, z;
-  rz_init_multi(&x, &y, &z);
+  rz_init_multi(&x, &y, &z, NULL);
 
   rz_gcd_extended(&x, &y, &z, &a, &b);
 
@@ -240,7 +240,7 @@ int main()
   printf("y: ");
   rz_println(&y);
 
-  rz_clear_multi(&x, &y, &z);
+  rz_clear_multi(&x, &y, &z, NULL);
 
   rz_gen_safe_prime(&c, 512);
 

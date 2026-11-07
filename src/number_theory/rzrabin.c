@@ -99,18 +99,14 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a)
 
   // Step 1: Find d and s such that n-1 = d * 2^s
   rz_t d, n_minus_1, one;
-  rz_init(&d);
-  rz_init(&n_minus_1);
-  rz_init(&one);
+  rz_init_multi(&d, &n_minus_1, &one, NULL);
 
   // Step 2: Setup Montgomery context
   rz_mont_ctx ctx = {0};
 
   // Step 3: Precompute Montgomery representations
   rz_t a_bar, x_bar, n_minus_1_mont;
-  rz_init(&a_bar);
-  rz_init(&x_bar);
-  rz_init(&n_minus_1_mont);
+  rz_init_multi(&a_bar, &x_bar, &n_minus_1_mont, NULL);
 
   if (rz_set_u64(&one, 1) != RABIN_SUCCESS) goto cleanup;
 
@@ -164,12 +160,7 @@ bool rz_rabin_mont(const rz_t* n, const rz_t* a)
 
 cleanup:
   // Free all temporaries
-  rz_clear(&d);
-  rz_clear(&n_minus_1);
-  rz_clear(&one);
-  rz_clear(&a_bar);
-  rz_clear(&x_bar);
-  rz_clear(&n_minus_1_mont);
+  rz_clear_multi(&d, &n_minus_1, &one, &a_bar, &x_bar, &n_minus_1_mont, NULL);
   rz_mont_ctx_clear(&ctx);
 
   return !composite;
@@ -190,15 +181,11 @@ bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx)
 
   // Step 1: Find d and s such that n-1 = d * 2^s
   rz_t d, n_minus_1, one;
-  rz_init(&d);
-  rz_init(&n_minus_1);
-  rz_init(&one);
+  rz_init_multi(&d, &n_minus_1, &one, NULL);
 
   // Step 2: Precompute Montgomery representations
   rz_t a_bar, x_bar, n_minus_1_mont;
-  rz_init(&a_bar);
-  rz_init(&x_bar);
-  rz_init(&n_minus_1_mont);
+  rz_init_multi(&a_bar, &x_bar, &n_minus_1_mont, NULL);
 
   if (rz_set_u64(&one, 1) != RABIN_SUCCESS) goto cleanup;
 
@@ -250,12 +237,7 @@ bool rz_rabin_mont_ctx(const rz_t* n, const rz_t* a, rz_mont_ctx* ctx)
 
 cleanup:
   // Free all temporaries
-  rz_clear(&d);
-  rz_clear(&n_minus_1);
-  rz_clear(&one);
-  rz_clear(&a_bar);
-  rz_clear(&x_bar);
-  rz_clear(&n_minus_1_mont);
+  rz_clear_multi(&d, &n_minus_1, &one, &a_bar, &x_bar, &n_minus_1_mont, NULL);
 
   return !composite;
 }

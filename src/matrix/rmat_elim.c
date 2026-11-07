@@ -207,8 +207,7 @@ cleanup:
     free(g);
   }
   rq_clear_multi(&piv, &s, &factor, &t, NULL);
-  rq_clear(&zero);
-  rq_clear(&one);
+  rq_clear_multi(&zero, &one, NULL);
   return err;
 }
 
@@ -275,8 +274,7 @@ rabin_err_t rmat_lu(rmat_t* L, rmat_t* U, u64* P, const rmat_t* A)
         rz_init(&u);
         TRY(rz_mul(&u, &t, RMAT_GET(&Ei, k, j)));
         TRY(rz_sub(&acc, &acc, &u));
-        rz_clear(&t);
-        rz_clear(&u);
+        rz_clear_multi(&t, &u, NULL);
       }
       TRY(rz_copy(RMAT_GET(&Ei, i, j), &acc));
       rz_clear(&acc);
