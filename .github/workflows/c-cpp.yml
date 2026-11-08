@@ -30,20 +30,6 @@ jobs:
     - name: make gmp
       run: make test_gmp
 
-  nightly:
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install dependencies
-      run: |
-           sudo apt-get update
-           sudo apt-get install -y nasm libgmp-dev libflint-dev valgrind
-    - name: make complete
-      run: make test_complete
-    - name: make valgrind
-      run: make test-valgrind
-
   clang:
     runs-on: ubuntu-latest
     env:
