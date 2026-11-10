@@ -19,6 +19,7 @@
           flint
           doxygen
           openssl
+		  cloc
         ];
 
         shellHook = ''

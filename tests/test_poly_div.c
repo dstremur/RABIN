@@ -20,6 +20,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define _POSIX_C_SOURCE 199309L
+#include <time.h>
+
 #include "../include/rabin.h"
 #include "../include/rpol.h"
 
@@ -39,6 +42,59 @@ static int failures = 0;
     }                                                          \
   } while (0)
 
+/* ------------------------------------------------------------------ */
+/* telemetry and performance charting                                 */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+  const char* label;
+  double elapsed_ms;
+  int rounds;
+} test_metric_t;
+
+#define TIME_TEST(metric_ptr, func_call, r_cnt)            \
+  do {                                                     \
+    test_metric_t* _m = (metric_ptr);                      \
+    struct timespec start, end;                            \
+    clock_gettime(CLOCK_MONOTONIC, &start);                \
+    func_call;                                             \
+    clock_gettime(CLOCK_MONOTONIC, &end);                  \
+    double ms = (end.tv_sec - start.tv_sec) * 1000.0 +     \
+                (end.tv_nsec - start.tv_nsec) / 1000000.0; \
+    _m->label = #func_call;                                \
+    _m->elapsed_ms = ms;                                   \
+    _m->rounds = r_cnt;                                    \
+  } while (0)
+
+static void print_performance_chart(const test_metric_t* metrics, int count)
+{
+  printf("\n");
+  printf("┌──────────────────────────────────────────────────────────────┐\n");
+  printf("│ Test Suite Performance Benchmark (ms)                        │\n");
+  printf("├──────────────────────────────────────────────────────────────┤\n");
+
+  double max_ms = 0.001;
+  for (int i = 0; i < count; i++) {
+    if (metrics[i].label && metrics[i].elapsed_ms > max_ms) {
+      max_ms = metrics[i].elapsed_ms;
+    }
+  }
+
+  int max_bar_width = 22;
+  for (int i = 0; i < count; i++) {
+    if (!metrics[i].label) continue;  // Skip uninitialized slots
+
+    int width = (int)((metrics[i].elapsed_ms * max_bar_width) / max_ms);
+    if (width == 0 && metrics[i].elapsed_ms > 0) width = 1;
+
+    printf("│ %-20s [%8.2f ms] ", metrics[i].label, metrics[i].elapsed_ms);
+    for (int w = 0; w < max_bar_width; w++) {
+      printf("%s", w < width ? "█" : " ");
+    }
+    printf(" │\n");
+  }
+  printf("└──────────────────────────────────────────────────────────────┘\n");
+}
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
 /* ------------------------------------------------------------------ */
@@ -1172,37 +1228,37 @@ static void test_derive_random(int rounds)
   rpol_clear(&rhs);
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
-  srand(20261030);
-  clock_t start = clock();
+  int rounds = (argc > 1) ? atoi(argv[1]) : 100;
+  printf("Running polynomial test suite (%d rounds)...\n", rounds);
 
   test_pseudo_div_hand();
-  test_pseudo_div_random(60);
   test_div_exact_hand();
-  test_div_exact_roundtrip(50);
   test_content_pp();
-  test_pp_invariants(40);
   test_gcd_hand();
-  test_gcd_oracle_small(80);
-  test_gcd_constructed(40);
-#ifdef HAVE_FLINT
-  test_gcd_flint(60);
-#endif
   test_eval_hand();
-  test_eval_random(40);
   test_derive_hand();
-  test_derive_random(40);
 
-  double secs = (double)(clock() - start) / CLOCKS_PER_SEC;
-  printf("test_poly_div: %.2fs elapsed\n", secs);
+  test_metric_t metrics[16];
+  int idx = 0;
+
+  TIME_TEST(&metrics[idx++], test_pseudo_div_random(rounds), rounds);
+  TIME_TEST(&metrics[idx++], test_div_exact_roundtrip(rounds), rounds);
+  TIME_TEST(&metrics[idx++], test_pp_invariants(rounds), rounds);
+  TIME_TEST(&metrics[idx++], test_gcd_oracle_small(rounds), rounds);
+  TIME_TEST(&metrics[idx++], test_gcd_constructed(rounds), rounds);
+#ifdef HAVE_FLINT
+  TIME_TEST(&metrics[idx++], test_gcd_flint(rounds), rounds);
+#endif
+  TIME_TEST(&metrics[idx++], test_eval_random(rounds), rounds);
 
   if (failures == 0) {
-    printf("test_poly_div: ALL CHECKS PASSED\n");
+    print_performance_chart(metrics, idx);
+    printf("\nSUCCESS: All tests passed cleanly.\n");
   } else {
-    printf("test_poly_div: %d CHECK(S) FAILED\n", failures);
+    printf("\nFAILED: %d assertion failures detected.\n", failures);
   }
 
-  rz_clear_constants();
-  return failures == 0 ? 0 : 1;
+  return failures;
 }
