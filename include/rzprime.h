@@ -388,4 +388,13 @@ u64 rz_optimal_table_len(u64 n, u64 B);
  */
 rabin_err_t rz_gen_provable_arithmetic(rz_t* p, u64 n, rzcert_t** cert_out);
 
+/**
+ * @brief Check if n is prime using the Quadratic Frobenius pseudoprime test
+ *
+ * @param n [in]
+ * @return true if n is a QFT pseudoprime
+ * @return false if n is composite
+ */
+bool rz_is_prime_qft(rz_t* n);
+
 #endif

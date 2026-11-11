@@ -37,6 +37,7 @@ bool rz_trialdiv(const rz_t* n, u64 g)
   u64 i = 0;
 
   while (i < 50000 && SMALL_PRIMES[i] <= g) {
+    if (rz_is_eq_i64(n, SMALL_PRIMES[i])) return true;
     if (rz_mod_u64(n, SMALL_PRIMES[i]) == 0) {
       return false;
     }

@@ -19,7 +19,8 @@ typedef enum {
   RABIN_ERR_MATRIX_DIM = -6,     ///< Matrix dimensions do not match.
   RABIN_ERR_SINGULAR = -7,       ///< Matrix is singular / no unique solution.
   RABIN_ERR_INCONSISTENT = -8,   ///< Linear system has no solution.
-  RABIN_ERR_COMPOSITE = -9
+  RABIN_ERR_COMPOSITE = -9,
+  RABIN_ERR_PRIME = -10
 } rabin_err_t;
 
 /**

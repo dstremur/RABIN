@@ -71,12 +71,12 @@ bool qft_select_parameters(const rz_t* n, rz_t* out_b, rz_t* out_c,
         rz_copy(out_c, &c);
         rz_copy(out_delta, &delta);
         found = true;
-        goto cleanup;
+        goto cleanup1;
       }
     }
   }
 
-cleanup:
+cleanup1:
   rz_clear_multi(&b, &c, &delta, &neg_c, &temp, NULL);
   return found;
 }
@@ -84,9 +84,153 @@ cleanup:
 /*
 We use
 x^k = U_k x + (V_k - bU_k) / 2 mod n
+Prove later
 */
 
-rabin_err_t rz_qft(rz_t* n)
+rabin_err_t rz_qft_core(rz_t* n, rz_t* b, rz_t* c, rz_t* delta)
+{
+  // 1) Trial division by primes <= min{B, sqrt(n)}
+  if (!rz_trialdiv(n, 50000)) {
+    return RABIN_ERR_COMPOSITE;
+  }
+
+  // 2) Check for perfect square
+  if (rz_is_square(NULL, n)) {
+    return RABIN_ERR_COMPOSITE;
+  }
+
+  rabin_err_t result = RABIN_SUCCESS;
+
+  // Compute q_param = -c mod n
+  rz_t q_param, two_c, two, minus_two;
+  rz_init_multi(&q_param, &two_c, &two, &minus_two, NULL);
+
+  rz_neg(&q_param, c);
+  rz_mod(&q_param, &q_param, n);
+
+  if (q_param.is_neg) {
+    rz_add(&q_param, &q_param, n);
+  }
+
+  // Prepare 2 mod n and -2 mod n
+  rz_set_i64(&two, 2);
+  rz_mod(&two, &two, n);
+
+  rz_set_i64(&minus_two, -2);
+  rz_mod(&minus_two, &minus_two, n);
+
+  if (minus_two.is_neg) {
+    rz_add(&minus_two, &minus_two, n);
+  }
+
+  // 3) x^{(n+1)/2} mod (n, x^2 - bx - c)
+  rz_t idx, u, v, q;
+  rz_init_multi(&idx, &u, &v, &q, NULL);
+
+  // idx = (n + 1) / 2
+  rz_add_u64(&idx, n, 1);
+  rz_rshift1(&idx);
+
+  // Solve Lucas sequence
+  if (rz_lucas_solve_mod(&u, &v, b, &q_param, &q, &idx, n) != RABIN_SUCCESS) {
+    result = RABIN_ERR_COMPOSITE;
+    goto cleanup2;
+  }
+
+  // Check whether x^{(n+1)/2} is in Z/nZ
+  // This is equivalent to U_{(n+1)/2} = 0 mod n
+  if (!rz_is_zero(&u)) {
+    result = RABIN_ERR_COMPOSITE;
+    goto cleanup2;
+  }
+
+  // 4) x^{n+1} mod (n, x^2 - bx - c) = -c
+
+  // idx = n + 1
+  rz_add_u64(&idx, n, 1);
+
+  // compute Lucas sequence
+  if (rz_lucas_solve_mod(&u, &v, b, &q_param, &q, &idx, n) != RABIN_SUCCESS) {
+    result = RABIN_ERR_COMPOSITE;
+    goto cleanup2;
+  }
+
+  // Check U_{n+1} = 0 and V_{n+1} = -2c mod n
+  rz_mul_i64(&two_c, c, -2);
+  rz_mod(&two_c, &two_c, n);
+
+  if (two_c.is_neg) {
+    rz_add(&two_c, &two_c, n);
+  }
+
+  if (!rz_is_zero(&u) || rz_cmp(&v, &two_c) != 0) {
+    result = RABIN_ERR_COMPOSITE;
+    goto cleanup2;
+  }
+
+  // 5)
+  rz_t n_sq, s, exp, pow_2;
+  rz_init_multi(&n_sq, &s, &exp, &pow_2, NULL);
+
+  rz_set_i64(&s, 1);
+
+  rz_sqr(&n_sq, n);
+  rz_sub(&n_sq, &n_sq, &s);
+
+  // n^2 - 1 = 2^r * s, where s is odd
+  u64 r = rz_cnt_trailing_zeros(&n_sq);
+  rz_rshift(&s, &n_sq, r);
+
+  bool pass = false;
+
+  // First check whether x^s = 1
+  // x^s = U_s x + (V_s - bU_s) / 2 => U_s = 0 and V_s = 2
+  if (rz_lucas_solve_mod(&u, &v, b, &q_param, &q, &s, n) != RABIN_SUCCESS) {
+    result = RABIN_ERR_COMPOSITE;
+    goto cleanup3;
+  }
+
+  // x^s = 1 iff U_s = 0 and V_s = 2 mod n
+  if (rz_is_zero(&u) && rz_cmp(&v, &two) == 0) {
+    pass = true;
+  }
+
+  // Otherwise check whether x^(2^j * s) = -1
+  // for some 0 <= j <= r - 2
+  for (u64 j = 0; !pass && j <= r - 2; j++) {
+    rz_set_u64(&pow_2, 1);
+    rz_lshift(&pow_2, &pow_2, j);
+
+    rz_mul(&exp, &pow_2, &s);
+
+    if (rz_lucas_solve_mod(&u, &v, b, &q_param, &q, &exp, n) != RABIN_SUCCESS) {
+      result = RABIN_ERR_COMPOSITE;
+      goto cleanup3;
+    }
+
+    // x^(2^j * s) = -1 iff
+    // U_(2^j * s) = 0 and V_(2^j * s) = -2 mod n
+    if (rz_is_zero(&u) && rz_cmp(&v, &minus_two) == 0) {
+      pass = true;
+    }
+  }
+
+  if (!pass) {
+    result = RABIN_ERR_COMPOSITE;
+  } else {
+    result = RABIN_SUCCESS;
+  }
+
+cleanup3:
+  rz_clear_multi(&n_sq, &s, &exp, &pow_2, NULL);
+
+cleanup2:
+  rz_clear_multi(&idx, &u, &v, &q, &q_param, &two_c, &two, &minus_two, NULL);
+
+  return result;
+}
+
+rabin_err_t rz_qft_deterministic(rz_t* n)
 {
   rz_t b, c, delta;
   if (rz_init_multi(&b, &c, &delta, NULL) != RABIN_SUCCESS)
@@ -98,57 +242,18 @@ rabin_err_t rz_qft(rz_t* n)
     return RABIN_ERR_INCONSISTENT;
   }
 
-  rabin_err_t result = RABIN_SUCCESS;
+  rabin_err_t result = rz_qft_core(n, &b, &c, &delta);
 
-  // 1) Trial division by primes <= min{B, sqrt(n)}
-
-  if (!rz_trialdiv(n, 50000)) {
-    result = RABIN_ERR_COMPOSITE;
-    goto cleanup;
-  }
-
-  // 2) Check for perfect square
-  if (rz_is_square(NULL, n)) {
-    result = RABIN_ERR_COMPOSITE;
-    goto cleanup;
-  }
-
-  // Pre-calculate Q = -c mod n using rz_neg
-  rz_t neg_c, two_c_neg;
-  rz_init_multi(&neg_c, &two_c_neg, NULL);
-
-  // Set neg_c = -c and normalize modulo n
-  rz_neg(&neg_c, &c);
-  rz_mod(&neg_c, &neg_c, n);
-  if (neg_c.is_neg) {
-    rz_add(&neg_c, &neg_c, n);
-  }
-
-  // 3) x^{n+1} mod (n, x^2 -bx - c)
-  rz_t idx, u, v, q;
-  rz_init_multi(&idx, &u, &v, &q, NULL);
-
-  // idx = (n + 1) / 2
-  rz_add_u64(&idx, n, 1);
-  rz_rshift1(&idx);
-
-  // solve lucas sequence
-  if (rz_lucas_solve_mod(&u, &v, &b, &neg_c, &q, &idx, n) != RABIN_SUCCESS) {
-    result = RABIN_ERR_COMPOSITE;
-    goto cleanstep3;
-  }
-
-  // 4. Check if x^{(n+1)/2} is in Z/nZ -> u_res (U_k) =0 mod n
-  if (!rz_is_eq_i64(&u, 0)) {
-    result = RABIN_ERR_COMPOSITE;  // Failed Step 3!
-    goto cleanstep3;
-  }
-
-cleanstep3:
-  rz_clear_multi(&idx, &u, &v, &q, NULL);
-  if (result == RABIN_ERR_COMPOSITE) goto cleanup;
-
-cleanup:
   rz_clear_multi(&b, &c, &delta, NULL);
+
   return result;
+}
+
+bool rz_is_prime_qft(rz_t* n)
+{
+  if (rz_qft_deterministic(n) == RABIN_SUCCESS) {
+    return true;
+  } else {
+    return false;
+  }
 }

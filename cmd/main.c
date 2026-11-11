@@ -201,6 +201,12 @@ int main()
   printf("3 * a: ");
   rz_println(&c);
 
+  if (rz_is_prime_qft(&a)) {
+    printf("a is prime qft \n");
+  } else {
+    printf("a is not prime qft \n");
+  }
+
   rz_t x, y, z;
   rz_init_multi(&x, &y, &z, NULL);
 
