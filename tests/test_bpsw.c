@@ -329,6 +329,18 @@ int main(void)
         (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("Total Time:  %.4f s\n", total_time);
     printf("Throughput:  %.2f tests/sec\n", iterations / total_time);
+
+    printf("Benchmarking Quadratic Frobenius: %d iterations at %d bits...\n",
+           iterations, bits);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < iterations; i++) rz_is_prime_qft(&n);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    total_time =
+        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    printf("Total Time:  %.4f s\n", total_time);
+    printf("Throughput:  %.2f tests/sec\n", iterations / total_time);
   }
   rz_clear(&n);
 

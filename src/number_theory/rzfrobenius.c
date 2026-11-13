@@ -87,10 +87,10 @@ x^k = U_k x + (V_k - bU_k) / 2 mod n
 Prove later
 */
 
-rabin_err_t rz_qft_core(rz_t* n, rz_t* b, rz_t* c, rz_t* delta)
+rabin_err_t rz_qft_core(rz_t* n, rz_t* b, rz_t* c, rz_t* delta, u64 B)
 {
   // 1) Trial division by primes <= min{B, sqrt(n)}
-  if (!rz_trialdiv(n, 50000)) {
+  if (!rz_trialdiv(n, B)) {
     return RABIN_ERR_COMPOSITE;
   }
 
@@ -242,7 +242,7 @@ rabin_err_t rz_qft_deterministic(rz_t* n)
     return RABIN_ERR_INCONSISTENT;
   }
 
-  rabin_err_t result = rz_qft_core(n, &b, &c, &delta);
+  rabin_err_t result = rz_qft_core(n, &b, &c, &delta, 50000);
 
   rz_clear_multi(&b, &c, &delta, NULL);
 
