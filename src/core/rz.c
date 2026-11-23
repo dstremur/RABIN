@@ -101,6 +101,18 @@ bool rz_is_zero(const rz_t* a)
   return (a->size == 0 || (a->size == 1 && a->limbs[0] == 0));
 }
 
+rabin_err_t rz_min(rz_t* m, const rz_t* a, const rz_t* b)
+{
+  if (!m || !a || !b) {
+    return RABIN_ERR_NULL_PTR;
+  }
+
+  i64 cmp = rz_cmp(a, b);
+  const rz_t* src = (cmp <= 0) ? a : b;
+
+  return rz_copy(m, src);
+}
+
 bool rz_is_eq_i64(const rz_t* n, i64 a)
 {
   if (n == NULL) return false;

@@ -147,6 +147,61 @@ cleanup:
   return prime;
 }
 
+bool rz_is_prime_mr_deterministic(const rz_t* n)
+{
+  if (!n) return false;
+
+  if (n->is_neg) return false;
+  if (rz_is_zero(n) || rz_is_one(n)) return false;
+  if (rz_is_eq_i64(n, 2)) return true;
+  if (rz_is_even(n)) return false;
+
+  rz_t log_n = {0};
+  rz_t bound = {0};
+  rz_t n_min_2 = {0};
+  rz_mont_ctx ctx = {0};
+  bool ctx_initialized = false;
+  bool composite = false;
+
+  rz_init_multi(&log_n, &bound, &n_min_2, NULL);
+
+  rz_set_i64(&bound, 2);
+  rz_sub(&n_min_2, n, &bound);
+
+  rz_ln(&log_n, n);
+  rz_sqr(&bound, &log_n);
+  rz_mul_i64(&log_n, &bound, 2);
+  rz_min(&bound, &n_min_2, &log_n);
+
+  // Initialize Montgomery context once for modulus n
+  if (rz_mont_ctx_init(&ctx, n) != RABIN_SUCCESS) {
+    composite = true;
+    goto cleanup;
+  }
+
+  ctx_initialized = true;
+
+  // Reuse log_n as loop counter
+  rz_set_i64(&log_n, 2);
+
+  while (rz_cmp(&log_n, &bound) < 0) {
+    if (!rz_rabin_mont_ctx(n, &log_n, &ctx)) {
+      composite = true;
+      goto cleanup;
+    }
+
+    rz_add_u64(&log_n, &log_n, 1);
+  }
+
+cleanup:
+  if (ctx_initialized) {
+    rz_mont_ctx_clear(&ctx);
+  }
+  rz_clear_multi(&log_n, &bound, &n_min_2, NULL);
+
+  return !composite;
+}
+
 bool rz_bpsw(const rz_t* n)
 {
   if (n == NULL) return false;

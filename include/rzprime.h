@@ -98,6 +98,8 @@ rabin_err_t rz_gen_safe_prime(rz_t* p, int bits);
  */
 bool rz_stronglucas(const rz_t* n, const rz_t* P, const rz_t* Q);
 
+bool rz_is_prime_mr_deterministic(const rz_t* n);
+
 /**
  * @brief Baillie-PSW primality test.
  *

@@ -177,6 +177,7 @@ int rz_is_even(const rz_t* n);
  */
 bool rz_is_zero(const rz_t* a);
 
+rabin_err_t rz_min(rz_t* m, const rz_t* a, const rz_t* b);
 /**
  * @brief Test whether a rz_t equals a 64-bit signed integer.
  *

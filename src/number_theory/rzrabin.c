@@ -30,7 +30,6 @@
 #include <string.h>
 
 #include "../core/rz_internal.h"
-#include "../include/rabin.h"
 
 bool rz_rabin(const rz_t* n, const rz_t* a)
 {
