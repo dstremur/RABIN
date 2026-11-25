@@ -109,8 +109,12 @@ int main()
   set_int(&A, 2, 1, 2);
   set_int(&A, 2, 2, 5);
 
+  printf("A: \n");
+  rmatq_print(&A);
   CHECK(rmatq_cholesky(&C, &A) == RABIN_SUCCESS);
   CHECK(rz_cmp(&C.den, &A.den) == 0);
+  printf("C: \n");
+  rmatq_print(&C);
   check_eq_entry(&C, 0, 0, 2, 1);
   check_eq_entry(&C, 0, 1, 1, 1);
   check_eq_entry(&C, 1, 1, 2, 1);
@@ -148,7 +152,11 @@ int main()
   rmatq_init(&C, 1, 1);
   rz_set_u64(&A.den, 25);
   set_int(&A, 0, 0, 4);
+  printf("A: \n");
+  rmatq_print(&A);
   CHECK(rmatq_cholesky(&C, &A) == RABIN_SUCCESS);
+  printf("C: \n");
+  rmatq_print(&C);
   check_eq_entry(&C, 0, 0, 2, 5);
   rmatq_clear(&A);
   rmatq_clear(&C);

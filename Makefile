@@ -10,7 +10,7 @@ else
 ARCH_FLAGS ?= -march=native
 endif
 
-CFLAGS = -Iinclude -Wall -Wextra -g $(ARCH_FLAGS) -O3 -fopenmp -flto=auto -funroll-loops
+CFLAGS = -Iinclude -Wall -Wextra -g $(ARCH_FLAGS) -O3 -fopenmp -flto=auto -funroll-loops -ftree-vectorize
 LDFLAGS = -fopenmp -lm -flto
 ASFLAGS = -f elf64
 

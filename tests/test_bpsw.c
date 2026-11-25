@@ -13,12 +13,101 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #include "../include/rabin.h"
 #include "test_util.h"
+
+typedef struct {
+  int bits;
+  double bpsw_time;
+  double qft_time;
+  double bpsw_tps;
+  double qft_tps;
+} bench_row_t;
+
+static double elapsed_sec(struct timespec start, struct timespec end)
+{
+  return (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+}
+
+static void print_bar(double value, double max_val, int max_cols,
+                      const char* color)
+{
+  const char* eighths[9] = {"", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"};
+  if (max_val <= 0.0 || value <= 0.0) {
+    printf("%s▏%s", color, "\x1b[0m");
+    for (int c = 1; c < max_cols; c++) putchar(' ');
+    return;
+  }
+
+  double scaled = (value / max_val) * max_cols;
+  if (scaled > max_cols) scaled = max_cols;
+
+  int full = (int)floor(scaled);
+  int rem = (int)floor((scaled - full) * 8.0);
+  if (full >= max_cols) {
+    full = max_cols;
+    rem = 0;
+  }
+
+  printf("%s", color);
+  for (int c = 0; c < full; c++) printf("█");
+  if (rem > 0) printf("%s", eighths[rem]);
+  printf("\x1b[0m");
+
+  int printed = full + (rem > 0 ? 1 : 0);
+  for (int c = printed; c < max_cols; c++) putchar(' ');
+}
+
+static void plot_benchmarks(const bench_row_t* rows, int count)
+{
+  const int bar_width = 45;
+  const char* cyan = "\x1b[36m";
+  const char* amber = "\x1b[33m";
+  const char* reset = "\x1b[0m";
+
+  double max_time = 0.0, max_tps = 0.0;
+  for (int i = 0; i < count; i++) {
+    if (rows[i].bpsw_time > max_time) max_time = rows[i].bpsw_time;
+    if (rows[i].qft_time > max_time) max_time = rows[i].qft_time;
+    if (rows[i].bpsw_tps > max_tps) max_tps = rows[i].bpsw_tps;
+    if (rows[i].qft_tps > max_tps) max_tps = rows[i].qft_tps;
+  }
+
+  printf("\nTotal Time (s) [lower is better]  %s■ BPSW%s  %s■ Frobenius%s\n",
+         cyan, reset, amber, reset);
+  for (int i = 0; i < count; i++) {
+    printf("%4db  BPSW |", rows[i].bits);
+    print_bar(rows[i].bpsw_time, max_time, bar_width, cyan);
+    printf("| %.4fs\n", rows[i].bpsw_time);
+
+    printf("       QFT  |", rows[i].bits);
+    print_bar(rows[i].qft_time, max_time, bar_width, amber);
+    printf("| %.4fs\n", rows[i].qft_time);
+  }
+  printf("            +%0*d\n            0%*.4fs\n", bar_width, 0,
+         bar_width - 1, max_time);
+
+  printf(
+      "\nThroughput (tests/sec) [higher is better]  %s■ BPSW%s  %s■ "
+      "Frobenius%s\n",
+      cyan, reset, amber, reset);
+  for (int i = 0; i < count; i++) {
+    printf("%4db  BPSW |", rows[i].bits);
+    print_bar(rows[i].bpsw_tps, max_tps, bar_width, cyan);
+    printf("| %.2f\n", rows[i].bpsw_tps);
+
+    printf("       QFT  |", rows[i].bits);
+    print_bar(rows[i].qft_tps, max_tps, bar_width, amber);
+    printf("| %.2f\n", rows[i].qft_tps);
+  }
+  printf("            +%0*d\n            0%*.2f\n", bar_width, 0, bar_width - 1,
+         max_tps);
+}
 
 /* Oracle-verified vectors: n, Selfridge Q = (1 - D)/4 with (D|n) = -1. */
 typedef struct {
@@ -313,36 +402,49 @@ int main(void)
 
   /* benchmark (kept from the original suite) */
   int iterations = 100;
-  int bits = 2048;
-  rz_t n;
-  rz_init(&n);
-  if (rz_gen_prime(&n, bits) == RABIN_SUCCESS) {
-    printf("Benchmarking BPSW: %d iterations at %d bits...\n", iterations,
-           bits);
+  int bits[] = {100, 200, 256, 512, 1000};
+  int num_sizes = (int)(sizeof(bits) / sizeof(int));
+  bench_row_t* results = calloc((size_t)num_sizes, sizeof(bench_row_t));
+  int recorded = 0;
 
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < iterations; i++) rz_bpsw(&n);
-    clock_gettime(CLOCK_MONOTONIC, &end);
+  for (int i = 0; i < num_sizes; i++) {
+    rz_t n;
+    rz_init(&n);
+    if (rz_gen_prime(&n, bits[i]) == RABIN_SUCCESS) {
+      struct timespec start, end;
 
-    double total_time =
-        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("Total Time:  %.4f s\n", total_time);
-    printf("Throughput:  %.2f tests/sec\n", iterations / total_time);
+      printf("Benchmarking BPSW: %d iterations at %d bits...\n", iterations,
+             bits[i]);
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      for (int j = 0; j < iterations; j++) rz_bpsw(&n);
+      clock_gettime(CLOCK_MONOTONIC, &end);
+      double bpsw_time = elapsed_sec(start, end);
+      double bpsw_tps = iterations / bpsw_time;
+      printf("Total Time:  %.4f s\n", bpsw_time);
+      printf("Throughput:  %.2f tests/sec\n", bpsw_tps);
 
-    printf("Benchmarking Quadratic Frobenius: %d iterations at %d bits...\n",
-           iterations, bits);
+      printf("Benchmarking Quadratic Frobenius: %d iterations at %d bits...\n",
+             iterations, bits[i]);
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      for (int j = 0; j < iterations; j++) rz_is_prime_qft(&n);
+      clock_gettime(CLOCK_MONOTONIC, &end);
+      double qft_time = elapsed_sec(start, end);
+      double qft_tps = iterations / qft_time;
+      printf("Total Time:  %.4f s\n", qft_time);
+      printf("Throughput:  %.2f tests/sec\n", qft_tps);
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < iterations; i++) rz_is_prime_qft(&n);
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    total_time =
-        (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("Total Time:  %.4f s\n", total_time);
-    printf("Throughput:  %.2f tests/sec\n", iterations / total_time);
+      results[recorded++] = (bench_row_t){
+          .bits = bits[i],
+          .bpsw_time = bpsw_time,
+          .qft_time = qft_time,
+          .bpsw_tps = bpsw_tps,
+          .qft_tps = qft_tps,
+      };
+    }
+    rz_clear(&n);
   }
-  rz_clear(&n);
 
+  plot_benchmarks(results, recorded);
+  free(results);
   return rc;
 }

@@ -181,9 +181,13 @@ rabin_err_t rmatq_print(const rmatq_t* A)
   for (u64 i = 0; i < A->M.rows; i++) {
     for (u64 j = 0; j < A->M.cols; j++) {
       rmat_get(&temp, &A->M, i, j);
-      rz_print(&temp);
-      printf("/");
-      rz_print(&A->den);
+      if (rz_is_one(&A->den)) {
+        rz_print(&temp);
+      } else {
+        rz_print(&temp);
+        printf("/");
+        rz_print(&A->den);
+      }
       printf(" ");
     }
     printf("\n");
